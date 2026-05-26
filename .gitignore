@@ -1,0 +1,10 @@
+data/
+scripts/data_collection/data/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+SciConBench.egg-info/
+.cache/
+.env

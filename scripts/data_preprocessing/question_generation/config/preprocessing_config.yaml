@@ -1,0 +1,39 @@
+question_generator:
+  # 'azure' for Azure OpenAI  |  'openai' for the standard OpenAI API
+  provider: azure
+  # Azure deployment name or OpenAI model name
+  model: gpt-5-chat
+  # Enable few-shot prompting (includes worked examples in the prompt)
+  include_few_shot: false
+
+  # --- Chat-completions models (gpt-5-chat, gpt-5-chat-latest, non-GPT-5) ---
+  temperature: 0        # 0 = deterministic; increase for more varied output
+  max_tokens: 1024      # upper bound on response length
+
+  # --- Responses-API / reasoning models (gpt-5-mini, gpt-5.1, etc.) ---
+  reasoning_effort: low           # none | minimal | low | medium | high
+  verbosity: medium                  # low | medium | high
+  reasoning_summary: auto         # auto | none | brief | detailed
+
+validation:
+  # Mirrors the defaults in utils/helper_questions.py::validate_question
+  min_question_length: 10
+  question_words:
+    - what
+    - how
+    - why
+    - when
+    - where
+    - which
+    - who
+    - is
+    - are
+    - does
+    - do
+    - can
+    - will
+    - should
+    - would
+    - could
+    - may
+    - might

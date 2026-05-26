@@ -1,0 +1,105 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = [
+    "data_labeling",
+    "data_labeling.model_class",
+    "data_labeling.utils",
+    "data_preprocessing",
+    "data_preprocessing.question_generation",
+    "data_preprocessing.question_generation.utils",
+    "data_preprocessing.atomic_fact_generation",
+    "data_preprocessing.atomic_fact_generation.utils",
+    "sciconharness",
+    "sciconharness.cli_scripts",
+    "sciconharness.mcp_client",
+    "sciconharness.mcp_client.filters",
+    "sciconharness.mcp_client.llm_providers",
+    "sciconharness.mcp_client.prompts",
+    "sciconharness.mcp_client.utils",
+    "sciconharness.mcp_server",
+    "sciconharness.mcp_server.apis",
+    "sciconharness.remote_mcp_servers",
+    "sciconharness.remote_mcp_servers.serper_jina",
+    "sciconharness.remote_mcp_servers.semantic_scholar_jina",
+    "sciconharness.remote_mcp_servers.tests",
+    "sciconharness.utils",
+]
+
+[tool.setuptools.package-dir]
+"data_labeling"                                              = "scripts/data_labeling"
+"data_labeling.model_class"                                  = "scripts/data_labeling/model_class"
+"data_labeling.utils"                                        = "scripts/data_labeling/utils"
+"data_preprocessing"                                         = "scripts/data_preprocessing"
+"data_preprocessing.question_generation"                     = "scripts/data_preprocessing/question_generation"
+"data_preprocessing.question_generation.utils"               = "scripts/data_preprocessing/question_generation/utils"
+"data_preprocessing.atomic_fact_generation"                  = "scripts/data_preprocessing/atomic_fact_generation"
+"data_preprocessing.atomic_fact_generation.utils"            = "scripts/data_preprocessing/atomic_fact_generation/utils"
+"sciconharness"                                              = "sciconharness"
+"sciconharness.cli_scripts"                                  = "sciconharness/cli_scripts"
+"sciconharness.mcp_client"                                   = "sciconharness/mcp_client"
+"sciconharness.mcp_client.filters"                           = "sciconharness/mcp_client/filters"
+"sciconharness.mcp_client.llm_providers"                     = "sciconharness/mcp_client/llm_providers"
+"sciconharness.mcp_client.prompts"                           = "sciconharness/mcp_client/prompts"
+"sciconharness.mcp_client.utils"                             = "sciconharness/mcp_client/utils"
+"sciconharness.mcp_server"                                   = "sciconharness/mcp_server"
+"sciconharness.mcp_server.apis"                              = "sciconharness/mcp_server/apis"
+"sciconharness.remote_mcp_servers"                           = "sciconharness/remote_mcp_servers"
+"sciconharness.remote_mcp_servers.serper_jina"               = "sciconharness/remote_mcp_servers/serper_jina"
+"sciconharness.remote_mcp_servers.semantic_scholar_jina"     = "sciconharness/remote_mcp_servers/semantic_scholar_jina"
+"sciconharness.remote_mcp_servers.tests"                     = "sciconharness/remote_mcp_servers/tests"
+"sciconharness.utils"                                        = "sciconharness/utils"
+
+[project]
+name = "SciConBench"
+version = "0.0.0"
+description = "Benchmark for evaluating AI agents on real-world, scientific conclusion synthesis tasks."
+authors = [{name = "Hayoung Jung", email = "hayoung@cs.princeton.edu"}]
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "adjustText==1.3.0",
+    "anthropic",
+    "azure-ai-agents==1.1.0",
+    "azure-ai-projects==1.0.0",
+    "azure-identity==1.25.1",
+    "beautifulsoup4==4.13.5",
+    "datasets",
+    "diskcache",
+    "fastmcp==2.11.3",
+    "mcp",
+    "google-genai",
+    "gdown",
+    "matplotlib==3.10.7",
+    "nltk==3.9.2",
+    "numpy==2.2.6",
+    "openai==2.6.0",
+    "pandas==2.3.2",
+    "perplexityai",
+    "pydantic>=2.11.7",
+    "PyYAML==6.0.2",
+    "python-dateutil",
+    "python-dotenv>=1.1.0",
+    "requests==2.32.5",
+    "selenium==4.35.0",
+    "seleniumbase==4.41.5",
+    "scipy==1.15.3",
+    "seaborn==0.13.2",
+    "serpapi",
+    "starlette==0.50.0",
+    "spacy==3.8.7",
+    "SQLAlchemy>=2.0",
+    "tenacity",
+    "tiktoken",
+    "tqdm",
+    "typing_extensions==4.14.1",
+    "pytest==8.4.2",
+    "pytest-html==4.0.2",
+    "pytest-metadata==3.1.1",
+    "pytest-ordering==0.6",
+    "pytest-rerunfailures==16.0.1",
+    "pytest-xdist==3.8.0",
+]
