@@ -5,7 +5,7 @@ SciConBench is a large-scale, live benchmark for evaluating AI agents on *scient
 This repository contains the code to reproduce our results and run benchmark evaluations using *SciConHarness*, our **clean-room evaluation protocol** that controls access to web search and browsing tools to prevent agents from retrieving reference ground-truth conclusions from the open web and maintain temporal integrity, ensuring valid capability measurement.
 
 - 📄 **Paper**: [Can AI Agents Synthesize Scientific Conclusions?](https://arxiv.org/abs/XXXX.XXXXX)
-- 🤗 **Dataset**: [hayoungjung/SciConBench on HuggingFace](https://huggingface.co/datasets/hayoungjung/SciConBench) (9.11K questions and expert-written conclusions )
+- 🤗 **Dataset**: [hayoungjung/SciConBench on HuggingFace](https://huggingface.co/datasets/hayoungjung/SciConBench)
 
 ---
 
