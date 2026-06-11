@@ -175,7 +175,15 @@ Our GitHub repository employs the MIT License.
 If you find our work helpful, please use the following citation.
 
 ```bibtex
-Will be released soon
+@misc{jung2026aiagentssynthesizescientific,
+      title={Can AI Agents Synthesize Scientific Conclusions?}, 
+      author={Hayoung Jung and Pedro Viana Diniz and José Reinaldo Corrêa Roveda and Abner Fernandes da Silva and Haeun Jung and Enoch Tsai and Aleksandra Korolova and Manoel Horta Ribeiro},
+      year={2026},
+      eprint={2606.11337},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2606.11337}, 
+}
 ```
 
 ## 🤝 Contact
