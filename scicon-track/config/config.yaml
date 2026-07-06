@@ -1,0 +1,24 @@
+# SciConBench-Track — Main Configuration
+# All relative paths are resolved from REPO_ROOT at import time.
+# Set SCICON_DATA_DIR env var to override the base data directory.
+
+paths:
+  # Base directory for all longitudinal tracking data
+  data_dir: data_track
+  # SQLite database file
+  db_path: data_track/sciconbench_track.db
+  # Downloaded PDF files
+  pdf_dir: data_track/pdfs
+  # Log files
+  logs_dir: data_track/logs
+
+data_collection:
+  # Wiley TDM API token — override via WILEY_TDM_TOKEN env var at runtime
+  wiley_tdm_token: null
+  # Seconds between TDM download requests (Wiley recommended: 10)
+  rate_limit_secs: 10.0
+  max_retries: 3
+  retry_backoff_secs: 30.0
+  # Contact email for Crossref polite pool — override via CROSSREF_MAILTO env var
+  crossref_mailto: null
+

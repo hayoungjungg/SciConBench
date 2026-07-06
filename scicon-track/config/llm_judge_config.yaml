@@ -1,0 +1,20 @@
+# LLM judge configuration for factual precision and recall analysis.
+
+llm_judge:
+  model: "gpt-5.4-mini"
+  api_key_variable: AZURE_OPENAI_KEY        # env var name (not the value itself)
+  base_url_variable: OPENAI_BASE_URL
+  openai_reasoning_effort: "none"
+  default_max_tokens: 1024
+
+factual_precision_analyzer:
+  temperature: 0.2
+  prompt_mode: "few-shot"     # "zero-shot" | "few-shot"
+  max_attempts: 3
+  delay: 10                   # seconds between retries
+
+factual_recall_analyzer:
+  temperature: 1.0
+  prompt_mode: "zero-shot"
+  max_attempts: 3
+  delay: 10

@@ -4,6 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = [
+    # ── Static benchmark (existing) ────────────────────────────────────────────
     "data_labeling",
     "data_labeling.model_class",
     "data_labeling.utils",
@@ -11,6 +12,7 @@ packages = [
     "data_preprocessing.question_generation",
     "data_preprocessing.question_generation.utils",
     "data_preprocessing.atomic_fact_generation",
+    "data_preprocessing.atomic_fact_generation.config",
     "data_preprocessing.atomic_fact_generation.utils",
     "sciconharness",
     "sciconharness.cli_scripts",
@@ -26,9 +28,16 @@ packages = [
     "sciconharness.remote_mcp_servers.semantic_scholar_jina",
     "sciconharness.remote_mcp_servers.tests",
     "sciconharness.utils",
+    # ── Longitudinal track ─────────────────────────────────────────────────────
+    "config",
+    "db",
+    "data_collection",
+    "huggingface",
+    "scicon_track",
 ]
 
 [tool.setuptools.package-dir]
+# Existing mappings
 "data_labeling"                                              = "scripts/data_labeling"
 "data_labeling.model_class"                                  = "scripts/data_labeling/model_class"
 "data_labeling.utils"                                        = "scripts/data_labeling/utils"
@@ -36,6 +45,7 @@ packages = [
 "data_preprocessing.question_generation"                     = "scripts/data_preprocessing/question_generation"
 "data_preprocessing.question_generation.utils"               = "scripts/data_preprocessing/question_generation/utils"
 "data_preprocessing.atomic_fact_generation"                  = "scripts/data_preprocessing/atomic_fact_generation"
+"data_preprocessing.atomic_fact_generation.config"           = "scripts/data_preprocessing/atomic_fact_generation/config"
 "data_preprocessing.atomic_fact_generation.utils"            = "scripts/data_preprocessing/atomic_fact_generation/utils"
 "sciconharness"                                              = "sciconharness"
 "sciconharness.cli_scripts"                                  = "sciconharness/cli_scripts"
@@ -51,6 +61,12 @@ packages = [
 "sciconharness.remote_mcp_servers.semantic_scholar_jina"     = "sciconharness/remote_mcp_servers/semantic_scholar_jina"
 "sciconharness.remote_mcp_servers.tests"                     = "sciconharness/remote_mcp_servers/tests"
 "sciconharness.utils"                                        = "sciconharness/utils"
+# Track packages — all nested inside scicon-track/
+"config"                                                     = "scicon-track/config"
+"db"                                                         = "scicon-track/db"
+"huggingface"                                                = "scicon-track/huggingface"
+"scicon_track"                                               = "scicon-track"
+"data_collection"                                            = "scripts/data_collection"
 
 [project]
 name = "SciConBench"
@@ -102,4 +118,13 @@ dependencies = [
     "pytest-ordering==0.6",
     "pytest-rerunfailures==16.0.1",
     "pytest-xdist==3.8.0",
+    # ── SciConBench-Track (longitudinal pipeline) ──────────────────────────────
+    "click>=8.1",
+    "huggingface_hub>=0.23",
+    "pdfplumber>=0.11",
+    "prefect>=3.0",
+    "pyarrow>=15.0",
 ]
+
+[project.scripts]
+scicon-track = "scicon_track.cli:main"

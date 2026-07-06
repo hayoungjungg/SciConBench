@@ -1,0 +1,15 @@
+# HuggingFace dataset configuration.
+
+source:
+  # Existing static benchmark dataset (provides core set DOIs, questions, atomic facts)
+  repo_id: hayoungjung/SciConBench
+  config: benchmark
+  split: test
+
+upload:
+  # Upload target — same repo as the source so new monthly examples are appended in-place
+  repo_id: hayoungjung/SciConBench
+  # Local Parquet file written before upload
+  output: data_track/sciconbench_track.parquet
+  # Destination path inside the HF repo — matches the benchmark/test parquet shard
+  path_in_repo: data/benchmark/test-00000-of-00001.parquet

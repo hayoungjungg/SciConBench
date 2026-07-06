@@ -1,6 +1,12 @@
 data/
 scripts/data_collection/data/
 
+# SciConBench-Track longitudinal data directory
+data_track/
+
+scicon-track/config/_local.py
+scicon-track/config/local.yaml
+
 # Python cache
 __pycache__/
 *.py[cod]
@@ -8,3 +14,11 @@ __pycache__/
 SciConBench.egg-info/
 .cache/
 .env
+reports/
+
+# Local artifacts produced by the track pipeline
+*.parquet
+*.db
+
+scripts/data_collection/
+downloaded_files/
