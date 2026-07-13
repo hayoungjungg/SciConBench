@@ -92,14 +92,19 @@ class UnifiedLLMClient:
         cfg = self.config
 
         if not cfg.is_responses_api_model():
-            # OpenAI API deprecated max_tokens for newer models; use
-            # max_completion_tokens universally (supported by both providers).
-            return self._client.chat.completions.create(
-                model=cfg.model,
-                messages=messages,
-                temperature=cfg.temperature,
-                max_completion_tokens=cfg.max_tokens,
-            )
+            # Newer Azure/OpenAI models require max_completion_tokens and
+            # reject non-default temperature values.  Build params dynamically.
+            params: dict = {"model": cfg.model, "messages": messages}
+            if cfg.max_tokens:
+                params["max_completion_tokens"] = cfg.max_tokens
+            if cfg.temperature != 1:
+                try:
+                    return self._client.chat.completions.create(**params, temperature=cfg.temperature)
+                except Exception as e:
+                    if "temperature" not in str(e):
+                        raise
+                    # Model only supports default temperature — omit it.
+            return self._client.chat.completions.create(**params)
 
         # Responses API — convert system message to instructions
         system_parts = [m["content"] for m in messages if m.get("role") == "system"]

@@ -116,12 +116,20 @@ class UnifiedLLMClient:
 
     def create_completion(self, messages: list, instructions: str = None) -> Any:
         """Create a completion using the configured provider and model."""
-        if self.provider.lower() == "azure" and not self.config.is_responses_api_model():
-            return self.client.chat.completions.create(
-                messages=messages,
-                temperature=self.config.temperature,
-                model=self.config.model,
-            )
+        if not self.config.is_responses_api_model():
+            # Newer Azure/OpenAI models require max_completion_tokens and
+            # reject non-default temperature values.  Build params dynamically.
+            params: dict = {"model": self.config.model, "messages": messages}
+            max_tok = self.config.max_tokens if hasattr(self.config, "max_tokens") else None
+            if max_tok:
+                params["max_completion_tokens"] = max_tok
+            if self.config.temperature != 1:
+                try:
+                    return self.client.chat.completions.create(**params, temperature=self.config.temperature)
+                except Exception as e:
+                    if "temperature" not in str(e):
+                        raise
+            return self.client.chat.completions.create(**params)
 
         system_messages = [
             msg.get("content", "") for msg in messages if msg.get("role") == "system"
