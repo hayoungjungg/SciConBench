@@ -92,11 +92,13 @@ class UnifiedLLMClient:
         cfg = self.config
 
         if not cfg.is_responses_api_model():
+            # OpenAI API deprecated max_tokens for newer models; use
+            # max_completion_tokens universally (supported by both providers).
             return self._client.chat.completions.create(
                 model=cfg.model,
                 messages=messages,
                 temperature=cfg.temperature,
-                max_tokens=cfg.max_tokens,
+                max_completion_tokens=cfg.max_tokens,
             )
 
         # Responses API — convert system message to instructions

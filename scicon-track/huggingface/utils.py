@@ -8,12 +8,13 @@ from typing import Any
 import pandas as pd
 
 # Canonical column order — must remain stable across monthly releases.
+# Matches exactly the live HuggingFace benchmark parquet schema.
+# Internal-only fields (objectives, authors_conclusions) are intentionally
+# excluded; they live in the DB for preprocessing but are not published.
 DATASET_COLUMN_ORDER = (
     "doi",
     "title",
     "reference_text",
-    "objectives",
-    "authors_conclusions",
     "question",
     "all_facts",
     "atomic_facts_pairs",
@@ -35,12 +36,18 @@ def normalize_atomic_facts_pairs(pairs: Any) -> list[dict[str, Any]]:
     if not pairs:
         return out
     for p in pairs:
-        if not isinstance(p, (list, tuple)) or len(p) < 2:
+        if isinstance(p, dict):
+            # Already normalized (e.g. loaded back from Parquet/JSON)
+            sentence = str(p.get("sentence", ""))
+            atoms    = p.get("atomic_facts") or []
+        elif isinstance(p, (list, tuple)) and len(p) >= 2:
+            sentence, atoms = p[0], p[1]
+        else:
             continue
-        sentence, atoms = p[0], p[1]
         if not isinstance(atoms, list):
             atoms = [atoms]
-        out.append({"sentence": str(sentence), "atomic_facts": [str(x) for x in atoms]})
+        # Key order matches the live HuggingFace dataset: atomic_facts first.
+        out.append({"atomic_facts": [str(x) for x in atoms], "sentence": str(sentence)})
     return out
 
 
@@ -55,20 +62,18 @@ def write_parquet(rows: list[dict[str, Any]], path: Path) -> None:
 
     packed = [
         {
-            "doi": r["doi"],
-            "title": r.get("title") or "",
-            "reference_text": r.get("reference_text") or "",
-            "objectives": r.get("objectives") or "",
-            "authors_conclusions": r.get("authors_conclusions") or "",
-            "question": r.get("question") or "",
-            "all_facts": [str(x) for x in (r.get("all_facts") or [])],
+            "doi":                r["doi"],
+            "title":              r.get("title") or "",
+            "reference_text":     r.get("reference_text") or "",
+            "question":           r.get("question") or "",
+            "all_facts":          [str(x) for x in (r.get("all_facts") or [])],
             "atomic_facts_pairs": normalize_atomic_facts_pairs(r.get("atomic_facts_pairs")),
-            "publication_date": r.get("publication_date") or "",
-            "total_atomic_facts": r.get("total_atomic_facts") or 0,
-            "review_type": r.get("review_type") or "",
-            "new_search": bool(r.get("new_search")),
+            "publication_date":   r.get("publication_date") or "",
+            "total_atomic_facts": int(r.get("total_atomic_facts") or 0),
+            "review_type":        r.get("review_type") or "",
+            "new_search":         bool(r.get("new_search")),
             "conclusion_changed": bool(r.get("conclusion_changed")),
-            "citations": r.get("citations") or "",
+            "citations":          r.get("citations") or "",
         }
         for r in rows
     ]

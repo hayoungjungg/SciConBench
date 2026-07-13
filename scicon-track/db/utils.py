@@ -174,6 +174,7 @@ def populate_review(
     version: int | None = None,
     objectives: str | None = None,
     authors_conclusions: str | None = None,
+    citations: str | None = None,
 ) -> None:
     """Insert or update a ReviewMetaData row for *doi* (idempotent on DOI)."""
     with _session().begin() as session:
@@ -190,6 +191,7 @@ def populate_review(
                 version=version,
                 objectives=objectives,
                 authors_conclusions=authors_conclusions,
+                citations=citations,
             ))
         else:
             if name is not None:
@@ -208,6 +210,8 @@ def populate_review(
                 existing.objectives = objectives
             if authors_conclusions is not None:
                 existing.authors_conclusions = authors_conclusions
+            if citations is not None:
+                existing.citations = citations
 
 
 def get_reviews_from_db() -> dict[str, dict[str, Any]]:
@@ -515,6 +519,14 @@ def get_sciconbench_rows() -> list[dict[str, Any]]:
                 continue
             pairs = fact.atomic_facts_pairs or []
             all_facts = [f for _, decontextualized in pairs for f in decontextualized]
+            # Format publication_date as "D Month YYYY" (no leading zero on day)
+            # to match the canonical HuggingFace dataset format.
+            if review.publication_date:
+                _d = review.publication_date
+                pub_date_str = f"{_d.day} {_d.strftime('%B')} {_d.year}"
+            else:
+                pub_date_str = None
+
             rows.append({
                 "doi": doi,
                 "title": review.name,
@@ -524,14 +536,12 @@ def get_sciconbench_rows() -> list[dict[str, Any]]:
                 "question": question,
                 "all_facts": all_facts,
                 "atomic_facts_pairs": pairs,
-                "publication_date": (
-                    review.publication_date.strftime("%d %B %Y")
-                    if review.publication_date else None
-                ),
+                "publication_date": pub_date_str,
                 "total_atomic_facts": len(all_facts),
                 "review_type": review.review_type or "",
                 "new_search": review.new_search,
                 "conclusion_changed": review.conclusion_changed,
+                "citations": review.citations or "",
                 "panel_type": doi_info.panel_type.value if doi_info else "rolling",
                 "cohort_month": doi_info.cohort_month if doi_info else None,
             })

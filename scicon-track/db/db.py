@@ -96,6 +96,7 @@ class ReviewMetaData(Base):
     conclusion_changed: Mapped[bool] = mapped_column(default=False)
     objectives: Mapped[Optional[str]] = mapped_column(nullable=True)
     authors_conclusions: Mapped[Optional[str]] = mapped_column(nullable=True)
+    citations: Mapped[Optional[str]] = mapped_column(nullable=True)
 
     doi_info: Mapped["DOIInfo"] = relationship(back_populates="review_metadata")
 

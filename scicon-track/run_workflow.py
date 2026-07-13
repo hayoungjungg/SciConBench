@@ -177,6 +177,19 @@ def task_generate_questions(dois: list[str] | None = None) -> None:
         return
 
     generator = QuestionGenerator()
+    import re as _re
+
+    def _parse_background(text: str) -> str:
+        """Extract Background or Rationale section for use as background_context."""
+        for heading in (r"Background", r"Rationale"):
+            m = _re.search(
+                rf"(?m)^{heading}\s*\n(.*?)(?=\n[A-Z][a-zA-Z'\u2019 ]+\n|\n\[PLAIN|\Z)",
+                text, _re.DOTALL,
+            )
+            if m:
+                return m.group(1).strip()
+        return ""
+
     reviews = get_reviews_from_db()
     for doi in target_dois:
         review = reviews.get(doi)
@@ -186,10 +199,12 @@ def task_generate_questions(dois: list[str] | None = None) -> None:
         objective_text = review.get("objectives") or review.get("reference_text") or ""
         if not objective_text:
             continue
+        ref_text = review.get("reference_text") or ""
+        background_ctx = _parse_background(ref_text)
         try:
             result = generator.run(
                 objective=objective_text,
-                background_context=review.get("name") or "",
+                background_context=background_ctx,
             )
             question = result.get("question", "")
             if question:
