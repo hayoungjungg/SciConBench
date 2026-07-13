@@ -34,7 +34,7 @@ def workflow(once, max_dois, batch_size):
     \b
       1.  Initialize DB
       2.  Register core set from HuggingFace
-      3.  Discover rolling reviews via Crossref
+      3.  Discover new rolling reviews (diff against HuggingFace benchmark)
       4.  Download rolling PDFs via Wiley TDM
       5.  Extract reference text from PDFs
       6.  Generate clinical questions
@@ -71,7 +71,7 @@ def init_db(force):
 @click.option("--limit", type=int, default=None, metavar="N",
               help="Maximum number of new reviews to register.")
 def discover(cohort_month, limit):
-    """Discover new Cochrane reviews via Crossref and register them in the DB."""
+    """Discover new Cochrane reviews and register them in the DB."""
     from datetime import date
     from data_collection.collector import DataCollector
 

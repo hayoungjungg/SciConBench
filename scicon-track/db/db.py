@@ -94,6 +94,8 @@ class ReviewMetaData(Base):
     publication_date: Mapped[Optional[date]] = mapped_column(nullable=True)
     new_search: Mapped[bool] = mapped_column(default=False)
     conclusion_changed: Mapped[bool] = mapped_column(default=False)
+    objectives: Mapped[Optional[str]] = mapped_column(nullable=True)
+    authors_conclusions: Mapped[Optional[str]] = mapped_column(nullable=True)
 
     doi_info: Mapped["DOIInfo"] = relationship(back_populates="review_metadata")
 

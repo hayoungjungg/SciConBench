@@ -102,11 +102,46 @@ def task_register_core_set() -> list[str]:
 
 @task(name="Discover new rolling reviews")
 def task_discover_rolling(cohort_month: str, max_dois: int | None = None) -> list[str]:
-    from data_collection.collector import DataCollector
+    """Return DOIs for reviews not yet in the HuggingFace benchmark.
 
-    collector = DataCollector()
-    works = collector.discover_new_dois(cohort_month=cohort_month, limit=max_dois)
-    return [w.doi for w in works]
+    Uses the HF benchmark for what is already known.  
+    New DOIs are registered in the DB as ROLLING for downstream stages.
+    """
+    from config import hf_cfg
+    from datasets import load_dataset
+    from data_collection.collector import DataCollector
+    from db.db import DOIInfo, PanelType, ProcessingStatus
+    from db import Session
+    from datetime import datetime as _dt
+
+    # Load HF benchmark as the authoritative known-DOI set
+    src = hf_cfg.source
+    ds = load_dataset(src.repo_id, src.config, split=src.split)
+    hf_dois = {row["doi"] for row in ds}
+    print(f"  HuggingFace benchmark: {len(hf_dois):,} known DOIs")
+
+    new_dois = DataCollector().discover_rolling_reviews(known_dois=hf_dois)
+    if max_dois is not None:
+        new_dois = new_dois[:max_dois]
+
+    # Register new DOIs in DB
+    if new_dois:
+        with Session() as session:
+            existing = {row.doi for row in session.query(DOIInfo.doi).all()}
+            added = 0
+            for doi in new_dois:
+                if doi not in existing:
+                    session.add(DOIInfo(
+                        doi=doi,
+                        panel_type=PanelType.ROLLING,
+                        processing_status=ProcessingStatus.REGISTERED,
+                        added_at=_dt.utcnow(),
+                    ))
+                    added += 1
+            session.commit()
+        print(f"  Registered {added} new rolling DOIs in DB")
+
+    return new_dois
 
 
 @task(name="Download PDFs via Wiley TDM")
@@ -145,11 +180,15 @@ def task_generate_questions(dois: list[str] | None = None) -> None:
     reviews = get_reviews_from_db()
     for doi in target_dois:
         review = reviews.get(doi)
-        if not review or not review.get("reference_text"):
+        if not review:
+            continue
+        # Use the structured objectives section when available; fall back to full reference text.
+        objective_text = review.get("objectives") or review.get("reference_text") or ""
+        if not objective_text:
             continue
         try:
             result = generator.run(
-                objective=review["reference_text"],
+                objective=objective_text,
                 background_context=review.get("name") or "",
             )
             question = result.get("question", "")
@@ -173,12 +212,13 @@ def task_generate_cochrane_facts_batch(batch: dict, questions: dict) -> None:
     generator = AtomicFactGenerator()
     for doi, review in batch.items():
         question = questions.get(doi, "")
-        reference_text = review.get("reference_text", "")
-        if not reference_text or not question:
+        # Use authors' conclusions section when available; fall back to full reference text.
+        generation_text = review.get("authors_conclusions") or review.get("reference_text", "")
+        if not generation_text or not question:
             continue
         try:
             facts_pairs, _para_breaks, _meta = generator.run(
-                generation=reference_text,
+                generation=generation_text,
                 question=question,
             )
             populate_atomic_facts(doi=doi, source="cochrane", atomic_facts_pairs=facts_pairs)
@@ -464,7 +504,7 @@ def sciconbench_track_pipeline(
     Stages:
       1.  Initialize DB
       2.  Register core set from HuggingFace
-      3.  Discover rolling reviews via Crossref
+      3.  Discover new rolling reviews (diff against HuggingFace benchmark)
       4.  Download rolling PDFs via Wiley TDM
       5.  Extract reference text from PDFs
       6.  Generate clinical questions for rolling reviews

@@ -160,17 +160,6 @@ def get_dois_needing_question() -> list[str]:
         ]
 
 
-def get_dois_needing_cochrane_facts() -> list[str]:
-    """Return DOIs with a question but no Cochrane atomic facts."""
-    with _session()() as session:
-        return [
-            row.doi
-            for row in session.query(DOIInfo.doi)
-            .filter(DOIInfo.processing_status == ProcessingStatus.QUESTION_GENERATED)
-            .all()
-        ]
-
-
 # ── Review metadata ────────────────────────────────────────────────────────────
 
 
@@ -183,6 +172,8 @@ def populate_review(
     new_search: bool = False,
     conclusion_changed: bool = False,
     version: int | None = None,
+    objectives: str | None = None,
+    authors_conclusions: str | None = None,
 ) -> None:
     """Insert or update a ReviewMetaData row for *doi* (idempotent on DOI)."""
     with _session().begin() as session:
@@ -197,6 +188,8 @@ def populate_review(
                 new_search=new_search,
                 conclusion_changed=conclusion_changed,
                 version=version,
+                objectives=objectives,
+                authors_conclusions=authors_conclusions,
             ))
         else:
             if name is not None:
@@ -211,6 +204,10 @@ def populate_review(
             existing.conclusion_changed = conclusion_changed
             if version is not None:
                 existing.version = version
+            if objectives is not None:
+                existing.objectives = objectives
+            if authors_conclusions is not None:
+                existing.authors_conclusions = authors_conclusions
 
 
 def get_reviews_from_db() -> dict[str, dict[str, Any]]:
@@ -522,6 +519,8 @@ def get_sciconbench_rows() -> list[dict[str, Any]]:
                 "doi": doi,
                 "title": review.name,
                 "reference_text": review.reference_text or "",
+                "objectives": review.objectives or "",
+                "authors_conclusions": review.authors_conclusions or "",
                 "question": question,
                 "all_facts": all_facts,
                 "atomic_facts_pairs": pairs,
