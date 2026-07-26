@@ -196,34 +196,60 @@ def load_cochrane_titles(titles_file: Path) -> list:
 
 def load_doi_to_title_mapping(review_articles_file: Optional[Path] = None) -> Dict[str, str]:
     """
-    Load DOI-to-title mapping from scraped review articles data.
-    
+    Load DOI-to-title mapping.
+
     Args:
-        review_articles_file: Path to review articles data.json file.
-                            If None, uses default path: data/review_articles/data.json
-    
+        review_articles_file: Optional explicit path to a legacy scraped
+            ``review_articles/data.json`` file (list of ``{"doi", "name"}``
+            objects). If None (the common case), falls back to the
+            HuggingFace-backed cache built from the live SciConBench dataset
+            — see ``sciconharness.utils.hf_benchmark_cache``.
+
     Returns:
         Dictionary mapping DOI to title
     """
-    if review_articles_file is None:
-        # Use default path relative to project root
-        # From sciconharness/utils/query_utils.py, go up 3 levels to project root
-        project_root = Path(__file__).resolve().parent.parent.parent
-        review_articles_file = project_root / "data" / "review_articles" / "data.json"
-    
-    doi_to_title = {}
+    if review_articles_file is not None:
+        doi_to_title = {}
+        try:
+            with open(review_articles_file, 'r', encoding='utf-8') as f:
+                articles = json.load(f)
+                for article in articles:
+                    doi = article.get("doi")
+                    title = article.get("name")
+                    if doi and title:
+                        doi_to_title[doi] = title
+            logger.debug("Loaded %d DOI-to-title mappings from %s", len(doi_to_title), review_articles_file)
+            return doi_to_title
+        except Exception as e:
+            logger.debug("DOI-to-title mapping not found at %s (optional, skipping): %s", review_articles_file, e)
+            return {}
+
     try:
-        with open(review_articles_file, 'r', encoding='utf-8') as f:
-            articles = json.load(f)
-            for article in articles:
-                doi = article.get("doi")
-                title = article.get("name")
-                if doi and title:
-                    doi_to_title[doi] = title
-        logger.debug("Loaded %d DOI-to-title mappings", len(doi_to_title))
+        from sciconharness.utils.hf_benchmark_cache import load_doi_to_title_cached
+        doi_to_title = load_doi_to_title_cached()
+        logger.debug("Loaded %d DOI-to-title mappings from HF benchmark cache", len(doi_to_title))
         return doi_to_title
     except Exception as e:
-        logger.debug("DOI-to-title mapping not found at %s (optional, skipping): %s", review_articles_file, e)
+        logger.debug("HF benchmark DOI-to-title cache unavailable (optional, skipping): %s", e)
+        return {}
+
+
+def load_doi_to_publication_date_mapping() -> Dict[str, str]:
+    """
+    Load DOI-to-publication-date mapping from the HuggingFace-backed cache
+    built from the live SciConBench dataset — see
+    ``sciconharness.utils.hf_benchmark_cache``.
+
+    Returns:
+        Dictionary mapping DOI to publication date string (e.g. ``"13 June 2012"``)
+    """
+    try:
+        from sciconharness.utils.hf_benchmark_cache import load_doi_to_publication_date_cached
+        doi_to_pubdate = load_doi_to_publication_date_cached()
+        logger.debug("Loaded %d DOI-to-publication-date mappings from HF benchmark cache", len(doi_to_pubdate))
+        return doi_to_pubdate
+    except Exception as e:
+        logger.debug("HF benchmark DOI-to-publication-date cache unavailable (optional, skipping): %s", e)
         return {}
 
 

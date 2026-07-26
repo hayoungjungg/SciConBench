@@ -13,13 +13,13 @@ Two CLI scripts are provided for running SciConHarness evaluations at scale acro
 # Interactive mode
 python -m sciconharness.cli_scripts.query_single openai --interactive
 
-# Non-interactive
+# Non-interactive — publication date and title-based filtering auto-resolve
+# from --doi via the local HF benchmark cache (see "Filter data" below), so
+# --publication-date / --cochrane-titles are optional overrides, not required.
 python -m sciconharness.cli_scripts.query_single claude \
     --query "What are the benefits and harms of oral antibiotics for otitis media?" \
     --model claude-sonnet-4-5 \
     --doi 10.1002/14651858.CD015254.pub2 \
-    --publication-date "23 October 2023" \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 ```
 
@@ -31,8 +31,6 @@ python -m sciconharness.cli_scripts.query_single claude \
 python -m sciconharness.cli_scripts.query_batch openai \
     --model gpt-5.1 \
     --doi-questions data/doi_questions.json \
-    --doi-dates data/filter_data/doi_dates.json \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 ```
 
@@ -44,8 +42,6 @@ Same procedure as above with `provider=azure`. Uses `COCHRANE_DASHBOARD_OPENAI_K
 python -m sciconharness.cli_scripts.query_batch azure \
     --model DeepSeek-V4-Pro \
     --doi-questions data/doi_questions.json \
-    --doi-dates data/filter_data/doi_dates.json \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 ```
 
@@ -57,68 +53,51 @@ Same procedure as above with `provider=openrouter`. Uses `OPENROUTER_API_KEY` in
 python -m sciconharness.cli_scripts.query_batch openrouter \
     --model moonshotai/kimi-k3 \
     --doi-questions data/doi_questions.json \
-    --doi-dates data/filter_data/doi_dates.json \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 
 python -m sciconharness.cli_scripts.query_batch openrouter \
     --model z-ai/glm-5.2 \
     --doi-questions data/doi_questions.json \
-    --doi-dates data/filter_data/doi_dates.json \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 
 python -m sciconharness.cli_scripts.query_batch openrouter \
     --model qwen/qwen3.5-9b \
     --doi-questions data/doi_questions.json \
-    --doi-dates data/filter_data/doi_dates.json \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 
 python -m sciconharness.cli_scripts.query_batch openrouter \
     --model qwen/qwen3.7-max \
     --doi-questions data/doi_questions.json \
-    --doi-dates data/filter_data/doi_dates.json \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 ```
 
-## Setup
+## Filter data (`--cochrane-titles` / `--doi-dates` / `--publication-date`)
 
-To use these CLIs with the clean-room evaluation filtering enabled, they accept JSON files derived from the HuggingFace dataset. Run this once to generate them all:
+**These flags are optional overrides, not requirements.** When `--enable-filtering` is set (the default) and you don't pass them, `SciConHarness` auto-resolves title-list filtering, source-title matching, and the publication-date cutoff straight from `--doi`, using a local JSON cache built once from the live `hayoungjung/SciConBench` HuggingFace dataset — see `sciconharness/utils/hf_benchmark_cache.py` and the "Clean Room Evaluation Protocol" section in `sciconharness/README.md`.
+
+The only file you still need for a batch run is `--doi-questions` (there's no benchmark-wide default for the *questions* themselves):
 
 ```python
 from datasets import load_dataset
 import json, pathlib
 
 ds = load_dataset("hayoungjung/SciConBench", "benchmark", split="test")
-
 pathlib.Path("data").mkdir(exist_ok=True)
-pathlib.Path("data/filter_data").mkdir(exist_ok=True)
-
-# --doi-questions  (query_batch)
-# dict[doi → question] — the primary input for batch runs
 pathlib.Path("data/doi_questions.json").write_text(
     json.dumps({row["doi"]: row["question"] for row in ds}, indent=2)
 )
-
-# --cochrane-titles  (query_single + query_batch)
-# All review titles — used to block search results that match any benchmark review
-pathlib.Path("data/filter_data/cochrane_titles.json").write_text(
-    json.dumps(list(ds["title"]), indent=2)
-)
-
-# --doi-dates  (query_batch)
-# dict[doi → publication_date] — suppresses results published after the review date
-pathlib.Path("data/filter_data/doi_dates.json").write_text(
-    json.dumps({row["doi"]: row["publication_date"] for row in ds}, indent=2)
-)
 ```
 
-These files map to CLI flags as follows:
+Pass `--cochrane-titles <path/to/titles.json>` / `--doi-dates <path/to/doi_dates.json>` (or `--publication-date` to `query_single`) only when you need to **override** the auto-loaded cache — e.g. a custom filtering scope, or a DOI that isn't (yet) part of the tracked benchmark:
 
 | File | query_single | query_batch |
 |------|-------------|-------------|
-| `data/doi_questions.json` | — | `--doi-questions` |
-| `data/filter_data/cochrane_titles.json` | `--cochrane-titles` | `--cochrane-titles` |
-| `data/filter_data/doi_dates.json` | — | `--doi-dates` |
+| `data/doi_questions.json` | — | `--doi-questions` (required) |
+| titles JSON (list of strings) | `--cochrane-titles` (optional) | `--cochrane-titles` (optional) |
+| doi→publication_date JSON | `--publication-date` (single date, optional) | `--doi-dates` (optional) |
+
+To force-refresh the auto-loaded cache itself (e.g. after the dashboard publishes new reviews and you want them locally without waiting for the next process to lazily rebuild it):
+
+```bash
+python -m sciconharness.utils.hf_benchmark_cache --force
+```

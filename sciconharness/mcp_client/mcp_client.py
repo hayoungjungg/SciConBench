@@ -550,7 +550,7 @@ class MCPClient:
         total_reasoning_tokens = 0
         total_tool_call_tokens = 0
         tool_usage_list = []  # List to track which tools were called
-        total_cached_content_tokens = 0  # Track cached content tokens for Gemini
+        total_cached_content_tokens = 0  # Track cached tokens (Gemini cached_content_token_count / OpenRouter usage.prompt_tokens_details.cached_tokens)
         # Track final iteration's Gemini-specific token counts for result.json
         final_gemini_prompt_tokens = 0
         final_gemini_candidates_tokens = 0
@@ -634,6 +634,14 @@ class MCPClient:
                 # Check if done
                 if text_content and not tool_calls:
                     output_tokens += count_tokens(text_content)
+                # OpenRouterProvider reports actual per-call cache hits via
+                # response.cached_tokens (usage.prompt_tokens_details.cached_tokens).
+                # This is real API data (unlike the manual token estimate above),
+                # so accumulate it into the same field Gemini uses for its
+                # cached_content_token_count.
+                iteration_cached_tokens = getattr(response, "cached_tokens", 0) or 0
+                if iteration_cached_tokens:
+                    total_cached_content_tokens += iteration_cached_tokens
                         
             if text_content and not tool_calls:
                 final_text.append(text_content)
@@ -865,7 +873,9 @@ class MCPClient:
                 # Add Gemini-specific token counts
                 if is_gemini:
                     token_usage["thoughts_tokens"] = total_reasoning_tokens
-                # Add cached content tokens for Gemini if available
+                # Add cached tokens if the provider reported any (Gemini
+                # cached_content_token_count or OpenRouter's
+                # usage.prompt_tokens_details.cached_tokens)
                 if total_cached_content_tokens > 0:
                     token_usage["cached_content_tokens"] = total_cached_content_tokens
             # Extract search_results from last response if available (for Perplexity)

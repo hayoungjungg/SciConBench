@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -116,12 +117,22 @@ class SciConHarness:
     cochrane_titles : list[str] or Path, optional
         Cochrane review titles used for title-based source filtering.
         Pass either a Python list of title strings or a ``Path`` to a JSON
-        file that contains a list of strings.
+        file that contains a list of strings. If omitted (the common case)
+        and ``enable_filtering`` is True, falls back to a local cache of
+        every title in the live ``hayoungjung/SciConBench`` HuggingFace
+        dataset — built once via ``datasets.load_dataset`` and then read
+        straight off disk on every later call. See
+        ``sciconharness.utils.hf_benchmark_cache``.
     doi_to_title : dict[str, str], optional
         Mapping of DOI → source title.  Used to automatically derive the
         ``source_title`` filter for each DOI without you having to pass it
-        explicitly on every call.  Falls back to the bundled
-        ``data/review_articles/data.json`` if not provided.
+        explicitly on every call.  Falls back to the same HF benchmark cache
+        as ``cochrane_titles`` if not provided.
+    doi_to_publication_date : dict[str, str], optional
+        Mapping of DOI → publication date string (e.g. ``"13 June 2012"``).
+        Used to automatically resolve ``publication_date`` for ``query()`` /
+        ``query_batch()`` calls that don't pass it explicitly. Falls back to
+        the same HF benchmark cache if not provided.
 
     temperature : float, optional
         Sampling temperature.  ``None`` uses the model's default.
@@ -158,6 +169,7 @@ class SciConHarness:
         # Filter data — accept list directly or a path to a JSON file
         cochrane_titles: Optional[Union[List[str], Path]] = None,
         doi_to_title: Optional[Dict[str, str]] = None,
+        doi_to_publication_date: Optional[Dict[str, str]] = None,
         # LLM hyperparameters
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
@@ -173,6 +185,7 @@ class SciConHarness:
             create_provider,
             load_cochrane_titles,
             load_doi_to_title_mapping,
+            load_doi_to_publication_date_mapping,
         )
         from sciconharness.mcp_client import MCPClient
 
@@ -239,17 +252,42 @@ class SciConHarness:
         elif isinstance(cochrane_titles, list):
             self.cochrane_titles = cochrane_titles
             self._cochrane_titles_file = None
+        elif enable_filtering:
+            # No explicit titles given — fall back to the local cache of every
+            # title in the live SciConBench HuggingFace dataset (built once,
+            # then read straight off disk on every later call/process).
+            # Without this, title-based filtering silently degrades to just
+            # URL/keyword heuristics (see sciconharness/utils/hf_benchmark_cache.py).
+            from sciconharness.utils.hf_benchmark_cache import load_cochrane_titles_cached
+            try:
+                self.cochrane_titles = load_cochrane_titles_cached()
+            except Exception:
+                logger.warning(
+                    "Could not load the Cochrane titles cache from HuggingFace "
+                    "(offline / missing HF_TOKEN / first-run network issue?). "
+                    "Title-based result filtering will be limited to URL/keyword "
+                    "heuristics for this run. Pass cochrane_titles= explicitly to "
+                    "avoid depending on the cache.",
+                    exc_info=True,
+                )
+                self.cochrane_titles = []
+            self._cochrane_titles_file = None
         else:
             self.cochrane_titles = []
             self._cochrane_titles_file = None
 
-        # ── DOI → title mapping (only needed when filtering is enabled) ─────────
+        # ── DOI → title / publication-date mappings (only needed when filtering is enabled) ─
         if enable_filtering:
             self._doi_to_title: Dict[str, str] = (
                 doi_to_title if doi_to_title is not None else load_doi_to_title_mapping()
             )
+            self._doi_to_publication_date: Dict[str, str] = (
+                doi_to_publication_date if doi_to_publication_date is not None
+                else load_doi_to_publication_date_mapping()
+            )
         else:
             self._doi_to_title = doi_to_title or {}
+            self._doi_to_publication_date = doi_to_publication_date or {}
 
     # ── async context manager ────────────────────────────────────────────────
 
@@ -285,6 +323,11 @@ class SciConHarness:
         from sciconharness.utils.query_utils import get_title_for_doi
         return get_title_for_doi(doi, self._doi_to_title)
 
+    def _publication_date_for(self, doi: Optional[str]) -> Optional[str]:
+        if not doi:
+            return None
+        return self._doi_to_publication_date.get(doi)
+
     def _make_filter(
         self,
         doi: Optional[str],
@@ -318,6 +361,21 @@ class SciConHarness:
             enable_filtering=self.enable_filtering,
         )
         return log_dir, data_dir
+
+    def _build_session_id(self, doi: Optional[str], attempt: int) -> str:
+        """Build a unique OpenRouter sticky-routing ``session_id`` for one
+        query attempt: ``{provider}:{model}:{doi}:{attempt}:{random}``.
+
+        Including provider/model/doi keeps ids human-readable in OpenRouter's
+        Activity page; the trailing random suffix guarantees uniqueness even
+        when the *same* DOI is queried against multiple models/configs, or the
+        same (doi, model) pair is rerun later — each logical conversation gets
+        its own session so caching/routing never leaks across runs.
+        """
+        from sciconharness.utils.query_utils import sanitize_doi_for_path
+
+        doi_safe = sanitize_doi_for_path(doi) if doi else "no_doi"
+        return f"{self.provider_name}:{self.model}:{doi_safe}:{attempt}:{uuid.uuid4().hex[:8]}"
 
     def _save(
         self,
@@ -486,7 +544,9 @@ class SciConHarness:
             derive the source title for filtering.
         publication_date : str, optional
             Publication date of the review (e.g. ``"23 October 2023"``).
-            Results published after this date are filtered out.
+            Results published after this date are filtered out. When omitted
+            (and ``doi`` is set), auto-resolved from ``doi_to_publication_date``
+            (defaults to the HF benchmark cache — see ``__init__``).
         source_title : str, optional
             Explicit source title override. When omitted the title is looked
             up from ``doi_to_title``.
@@ -497,6 +557,8 @@ class SciConHarness:
         """
         if not self._connected:
             await self.connect()
+
+        publication_date = publication_date or self._publication_date_for(doi)
 
         log_dir, data_dir = self._setup_dirs(doi)
         logger.info("Log directory: %s", log_dir)
@@ -551,6 +613,19 @@ class SciConHarness:
                         data_dir=None,
                     )
                 else:
+                    # OpenRouter-only: pin this query's whole tool-calling loop
+                    # (all iterations) to one sticky-routing session, so prompt
+                    # caching actually has a stable prefix to hit against. Scoped
+                    # to (provider, model, doi, attempt, random) so distinct
+                    # models/configs/reruns sharing the same DOI never collide —
+                    # session_id only affects *routing*, not cache correctness,
+                    # but a fresh id per logical conversation keeps runs cleanly
+                    # separated for cost attribution (OpenRouter's Activity page
+                    # also groups by session_id).
+                    if hasattr(self._llm_provider, "set_session_id"):
+                        self._llm_provider.set_session_id(
+                            self._build_session_id(doi, attempt)
+                        )
                     response, token_usage = await self._mcp_client.process_query(
                         question,
                         conversation_history=None,
@@ -675,7 +750,9 @@ class SciConHarness:
         doi_to_question : dict[str, str]
             Mapping ``doi → question``.
         doi_to_date : dict[str, str], optional
-            Mapping ``doi → publication_date``.
+            Mapping ``doi → publication_date``. Missing/omitted entries fall
+            back to ``doi_to_publication_date`` (defaults to the HF benchmark
+            cache — see ``__init__``).
         max_samples : int, optional
             Cap on the number of *remaining* (not already processed) DOIs to
             run.  Useful for smoke tests.
@@ -739,7 +816,7 @@ class SciConHarness:
                 results[doi] = {"response": None, "token_usage": None, "error": "Empty question"}
                 continue
 
-            publication_date = (doi_to_date or {}).get(doi)
+            publication_date = (doi_to_date or {}).get(doi) or self._publication_date_for(doi)
 
             logger.info("=" * 60)
             logger.info("Processing: %s", doi)

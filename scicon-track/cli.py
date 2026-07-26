@@ -102,5 +102,9 @@ def upload():
     from huggingface.uploader import SciConBenchUploader
     uploader = SciConBenchUploader()
     uploader.save_to_parquet()
+    # Regenerate sciconharness's local title/DOI-mapping filter caches from
+    # the same merged rows before publishing (see
+    # sciconharness/utils/hf_benchmark_cache.py).
+    uploader.refresh_filter_caches()
     url = uploader.upload()
     click.echo(f"Uploaded: {url}")

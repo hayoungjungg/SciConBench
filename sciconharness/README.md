@@ -66,15 +66,12 @@ JINA_API_KEY=...
 ```python
 import asyncio
 import os
-from datasets import load_dataset
 from sciconharness import SciConHarness
 
-# Load the SciConBench dataset from HuggingFace to build clean room filtering variables
-# e.g., list of titles, doi-to-title mapping, publication date
-ds = load_dataset("hayoungjung/SciConBench", "benchmark", split="test")
-all_titles   = list(ds["title"])
-doi_to_title = {row["doi"]: row["title"] for row in ds}
-
+# No need to load titles / doi_to_title / doi_to_publication_date yourself —
+# when enable_filtering=True and you don't pass them explicitly, the harness
+# auto-loads all three from a local cache built from the live SciConBench
+# HuggingFace dataset (see "Clean Room Evaluation Protocol" below).
 harness = SciConHarness(
     provider="openai",
     model="gpt-5.1",
@@ -83,8 +80,6 @@ harness = SciConHarness(
     api_version=os.environ.get("OPENAI_API_VERSION"),
     enable_tools=True,
     enable_filtering=True,
-    cochrane_titles=all_titles,
-    doi_to_title=doi_to_title,
     save_result=True,
 )
 
@@ -93,19 +88,18 @@ async def main():
         for row in questions:
             doi   = row["doi"]
             question = row["question"]
-            pub_date = row["publication_date"]
             title    = row["title"]
 
             print(f"\n  DOI            : {doi}")
             print(f"  Title          : {title}")
-            print(f"  Publication date: {pub_date}")
             print(f"  Question       : {textwrap.shorten(question, width=120)}")
             print("  Running…")
 
+            # publication_date is optional here too — auto-resolved from the
+            # same cache via doi= if omitted.
             response, usage = await harness.query(
                 question,
                 doi=doi,
-                publication_date=pub_date,
             )
 
             print_result(label, doi, response, usage)
@@ -118,21 +112,19 @@ asyncio.run(main())
 ### CLI
 
 ```bash
-# Single query
+# Single query — --doi is enough; source title, title-list filtering, and
+# publication date all auto-resolve from the local HF benchmark cache.
 python -m sciconharness.cli_scripts.query_single claude \
     --model claude-sonnet-4-5 \
     --query "What are the benefits and harms of oral antibiotics for otitis media?" \
     --doi "10.1002/14651858.CD015254.pub2" \
-    --publication-date "23 October 2023" \
-    --cochrane-titles *PATH to JSON file containing the list of titles* \
     --enable-tool-calling --enable-filtering
 
-# Batch over all DOIs
+# Batch over all DOIs (doi-dates.json / --cochrane-titles are optional
+# overrides now — omit them to use the auto-loaded cache)
 python -m sciconharness.cli_scripts.query_batch openai \
     --model gpt-5.1 \
     --doi-questions data/doi_questions.json \
-    --doi-dates data/doi_dates.json \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 ```
 
@@ -147,9 +139,10 @@ python -m sciconharness.cli_scripts.query_batch openai \
 | `provider` | str | `"openai"` | `"openai"` \| `"claude"` \| `"gemini"` \| `"perplexity"` \| `"azure"` \| `"openrouter"` |
 | `model` | str | provider default | Model name. Defaults: openai→`gpt-5.1`, claude→`claude-sonnet-4-5`, gemini→`gemini-3-pro-preview`, perplexity→`sonar-reasoning-pro`, azure→`DeepSeek-V4-Pro`, openrouter→`moonshotai/kimi-k3` |
 | `enable_tools` | bool | `True` | Enable MCP tool calling (web search + browse). Ignored for models that always use built-in search (see below). |
-| `enable_filtering` | bool | `True` | Apply `CochraneResultFilter` to suppress contaminated results. **Requires `cochrane_titles`, `publication_date`, and `doi_to_title` to function correctly.** |
-| `cochrane_titles` | `list[str]` or `Path` | `None` | Cochrane review titles for title-based source filtering. Pass a list or a path to a JSON file of title strings. |
-| `doi_to_title` | `dict[str, str]` | auto-loaded | DOI → source title mapping. Falls back to the bundled `data/review_articles/data.json`. |
+| `enable_filtering` | bool | `True` | Apply `CochraneResultFilter` to suppress contaminated results. Fully automatic — `cochrane_titles`, `doi_to_title`, and `doi_to_publication_date` all auto-load from a local HF benchmark cache if not passed explicitly (see below). |
+| `cochrane_titles` | `list[str]` or `Path` | auto-loaded | Cochrane review titles for title-based source filtering. Pass a list or a path to a JSON file of title strings to override the auto-loaded cache. |
+| `doi_to_title` | `dict[str, str]` | auto-loaded | DOI → source title mapping. Falls back to the local HF benchmark cache (`sciconharness.utils.hf_benchmark_cache`). |
+| `doi_to_publication_date` | `dict[str, str]` | auto-loaded | DOI → publication date mapping, used to auto-resolve `query()`'s `publication_date` when omitted. Falls back to the same HF benchmark cache. |
 | `temperature` | float | model default | Sampling temperature. `None` = model default. |
 | `max_tokens` | int | provider default | Max output tokens. |
 | `max_tool_calls` | int | `30` | Hard cap on tool calls per query for OpenAI's deep-research agents. Does not apply for frontier models. |
@@ -168,32 +161,35 @@ python -m sciconharness.cli_scripts.query_batch openai \
 
 The benchmark uses a **clean room protocol** to prevent data leakage: the agent must not see the Cochrane review article itself, results published after its cut-off date, or any derivative content (news coverage, press releases, etc.).
 
-When `enable_filtering=True`, every tool result is passed through `CochraneResultFilter` before being returned to the LLM. To enable it fully, you must provide:
+When `enable_filtering=True`, every tool result is passed through `CochraneResultFilter` before being returned to the LLM. It needs three pieces of Cochrane-benchmark metadata to work fully:
 
-**1.** `cochrane_titles` — all Cochrane review titles in the benchmark, used for title-based blocking. Generate once from the SciConBench dataset from HuggingFace:
+1. **`cochrane_titles`** — every review title in the benchmark, used for title-based blocking (catches mirrors/reprints of *any* known review, not just the one being queried).
+2. **`doi_to_title`** — DOI → review title, used to identify which review is being queried so the filter can also block its own source by exact content match.
+3. **`doi_to_publication_date`** — DOI → publication date, used as the results cutoff (anything published after this date is filtered out).
 
-```python
-from datasets import load_dataset
-import json, pathlib
-
-ds = load_dataset("hayoungjung/SciConBench", "benchmark", split="test")
-titles = list(ds["title"])
-pathlib.Path("data/filter_data/cochrane_titles.json").write_text(json.dumps(titles, indent=2))
-```
-
-**2. `doi_to_title`** — a DOI → review title mapping, used to identify which review is being queried so the filter can block its own source. Build from the same SciConBench dataset:
+**You don't need to load or pass any of these yourself.** If you don't supply them explicitly, `SciConHarness` auto-loads all three from a local JSON cache built once from the live `hayoungjung/SciConBench` HuggingFace dataset — see `sciconharness/utils/hf_benchmark_cache.py`:
 
 ```python
-doi_to_title = {row["doi"]: row["title"] for row in ds}
+from sciconharness.utils.hf_benchmark_cache import (
+    load_cochrane_titles_cached,          # list[str]
+    load_doi_to_title_cached,             # {doi: title}
+    load_doi_to_publication_date_cached,  # {doi: publication_date}
+)
 ```
 
-**3. `publication_date`** (per query) — the review's publication date, passed to `harness.query()` or provided as a `--doi-dates` JSON file to the batch CLI. Available from the same SciConBench dataset:
+The first call that finds no cache on disk (`data_track/hf_benchmark_cache/*.json`, override with `SCICONBENCH_CACHE_DIR`) pulls the full dataset via `datasets.load_dataset(...)` once and writes all three files; every later call — same process or a new one — just reads JSON off disk, no network call needed. This is why `harness.query(question, doi=doi)` alone is now enough to get full clean-room filtering for any DOI in the benchmark: title-list filtering, source-title content matching, *and* the publication-date cutoff all resolve automatically from `doi=`.
 
-```python
-doi_dates = {row["doi"]: row["date"] for row in ds}
+To force a fresh pull instead of using whatever cache already exists:
+
+```bash
+python -m sciconharness.utils.hf_benchmark_cache --force
 ```
 
-> **Note for OpenAI's deep research agents:** The remote MCP servers load `cochrane_titles.json` at startup and apply filtering server-side. The `--cochrane-titles` CLI flag is only needed for standard (non-deep-research) models.
+**Keeping the cache in sync with the dashboard.** `scicon-track`'s monthly HuggingFace uploader (`scicon-track/huggingface/uploader.py`) calls `uploader.refresh_filter_caches()` right after merging new reviews and before pushing to HuggingFace, rebuilding this cache directly from the rows about to be published (no extra network pull — it reuses the already-merged in-memory rows). So the cache is refreshed on every `scicon-track upload` / monthly pipeline run and never drifts more than one dashboard cycle behind the live dataset.
+
+**Overriding the cache.** Pass `cochrane_titles=`, `doi_to_title=`, and/or `doi_to_publication_date=` explicitly to `SciConHarness(...)` (or `--cochrane-titles` / `--doi-dates` to the CLIs) to bypass the cache entirely — useful for ad-hoc DOIs that aren't (yet) part of the tracked benchmark, or for a custom filtering scope.
+
+> **Note for OpenAI's deep research agents:** The remote MCP servers load `cochrane_titles.json` at startup and apply filtering server-side. Pass `--cochrane-titles` explicitly there if you need a scope different from the auto-loaded cache.
 
 ---
 
@@ -235,21 +231,18 @@ OPENAI_API_VERSION=2025-04-01-preview
 ```
 
 ```bash
-# Smoke test one DOI
+# Smoke test one DOI — publication date / title filtering auto-resolve from
+# --doi via the HF benchmark cache (see "Clean Room Evaluation Protocol").
 python -m sciconharness.cli_scripts.query_single azure \
     --model DeepSeek-V4-Pro \
     --query "What are the benefits and harms of oral antibiotics for otitis media?" \
     --doi "10.1002/14651858.CD015254.pub2" \
-    --publication-date "23 October 2023" \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 
 # Batch — same flags as other providers
 python -m sciconharness.cli_scripts.query_batch azure \
     --model DeepSeek-V4-Pro \
     --doi-questions data/doi_questions.json \
-    --doi-dates data/filter_data/doi_dates.json \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 ```
 
@@ -283,26 +276,31 @@ Qwen is a special case: OpenRouter confirms (rather than just failing to report)
 
 Reasoning is also **preserved** across tool-calling turns per [OpenRouter's best practices](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#preserving-reasoning-blocks): the provider reads back both `message.reasoning_details` (the full structured block) and the plaintext `message.reasoning`/`reasoning_content` alias, and echoes `reasoning_details` verbatim on the next turn's assistant message whenever a model returns it (falling back to the plaintext alias otherwise), so tool-call round trips resume the model's reasoning state exactly rather than dropping it.
 
+#### Prompt caching / sticky routing (`session_id`)
+
+Each tool-calling turn resends the full (growing) message history, so cost grows roughly with the *square* of the conversation length unless the shared prefix (system prompt, tool definitions, earlier turns) hits a prompt cache. OpenRouter routes every request independently by default, so turn *N* of a conversation can land on a different upstream provider than turn *N-1*, defeating that provider's cache. Passing a stable `session_id` opts a conversation into [sticky routing](https://openrouter.ai/docs/features/prompt-caching), so OpenRouter prefers the same upstream provider for every request sharing that id.
+
+`SciConHarness.query()` handles this automatically for `OpenRouterProvider`: it calls `set_session_id()` once per query attempt, *before* that attempt's tool-calling loop starts, with an id of the form `{provider}:{model}:{doi}:{attempt}:{random}` (see `harness.py::_build_session_id`). Every `call_llm()` call inside that one attempt's loop reuses the same id, so its turns route together — while a different query, even the exact same DOI run against a different model/config or rerun later, gets its own fresh id and never shares routing/cache state with an unrelated conversation. Direct `OpenRouterProvider` users (bypassing `SciConHarness`) can call `provider.set_session_id(...)` themselves, or leave it unset to fall back to OpenRouter's default per-request routing.
+
+Actual cache hits are visible per-call in `mcp_client.log` (`OpenRouter usage: ... cached_tokens=...`, from `response.usage.prompt_tokens_details.cached_tokens`) and rolled up into `result.json`'s `token_usage.cached_content_tokens` for the whole query — the same field Gemini populates from its own native cached-token count.
+
 ```
 OPENROUTER_API_KEY=...
 ```
 
 ```bash
-# Smoke test one DOI
+# Smoke test one DOI — publication date / title filtering auto-resolve from
+# --doi via the HF benchmark cache (see "Clean Room Evaluation Protocol").
 python -m sciconharness.cli_scripts.query_single openrouter \
     --model moonshotai/kimi-k3 \
     --query "What are the benefits and harms of oral antibiotics for otitis media?" \
     --doi "10.1002/14651858.CD015254.pub2" \
-    --publication-date "23 October 2023" \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 
 # Batch — same flags as other providers; swap --model per model
 python -m sciconharness.cli_scripts.query_batch openrouter \
     --model z-ai/glm-5.2 \
     --doi-questions data/doi_questions.json \
-    --doi-dates data/filter_data/doi_dates.json \
-    --cochrane-titles data/filter_data/cochrane_titles.json \
     --enable-tool-calling --enable-filtering
 ```
 

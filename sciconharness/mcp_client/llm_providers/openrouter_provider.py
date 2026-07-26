@@ -87,6 +87,29 @@ Credentials::
     OPENROUTER_BASE_URL=https://openrouter.ai/api/v1   # optional override
     OPENROUTER_SITE_URL=...   # optional, for openrouter.ai leaderboard attribution
     OPENROUTER_SITE_NAME=...  # optional, ditto
+
+Prompt caching / sticky routing (``session_id``)
+-------------------------------------------------
+OpenRouter routes each request independently by default, which means the
+provider serving turn N of a tool-calling conversation may differ from the
+one that served turn N-1, defeating that provider's own prompt cache even
+though every turn resends the (growing) full message history. Passing a
+stable ``session_id`` opts a conversation into *sticky routing*: OpenRouter
+prefers the same upstream provider for every request sharing that id, which
+is what actually gives the growing shared prefix (system prompt + tool defs
++ earlier turns) a chance to hit cache.
+
+``SciConHarness.query()`` calls ``set_session_id()`` once per query attempt
+(before the tool-calling loop starts) with an id scoped to
+``{provider}:{model}:{doi}:{attempt}:{random}`` — see
+``harness.py::_build_session_id``. Every ``call_llm()`` invocation within
+that one query's loop reuses the same id (sent via ``extra_body["session_id"]``),
+so all its turns route together, while a different query — even the exact
+same DOI against a different model/config, or a rerun of the same
+(doi, model) pair — gets a fresh, unrelated id. Callers that don't use
+``SciConHarness`` (e.g. direct ``OpenRouterProvider`` use) can call
+``set_session_id()`` themselves, or leave it unset to fall back to
+OpenRouter's default per-request routing.
 """
 
 from __future__ import annotations
@@ -153,6 +176,7 @@ class OpenRouterProvider(LLMProvider):
         max_tokens: Optional[int] = None,
         reasoning_effort: Optional[str] = None,
         reasoning_max_tokens: Optional[int] = None,
+        session_id: Optional[str] = None,
     ):
         # Pass the OpenRouter model slug through unchanged (e.g. "moonshotai/kimi-k3").
         super().__init__(model, api_key)
@@ -168,6 +192,11 @@ class OpenRouterProvider(LLMProvider):
         # Leave sampling at API defaults unless the caller overrides.
         self.temperature = temperature
         self.max_tokens = max_tokens
+
+        # Sticky-routing key for prompt-cache affinity across a single
+        # conversation's tool-calling loop (see module docstring). Usually
+        # set per-query via set_session_id() rather than at construction time.
+        self.session_id = session_id
 
         model_lower = model.lower()
         self._is_reasoning_model = any(hint in model_lower for hint in _REASONING_MODEL_HINTS)
@@ -254,6 +283,16 @@ class OpenRouterProvider(LLMProvider):
             self.reasoning_max_tokens,
             self.temperature,
         )
+
+    def set_session_id(self, session_id: Optional[str]) -> None:
+        """Set the sticky-routing ``session_id`` used by subsequent ``call_llm()``
+        calls (see module docstring). Call this once per logical conversation
+        — e.g. once per ``SciConHarness.query()`` attempt — *before* its
+        tool-calling loop starts, so every turn in that loop routes to the
+        same upstream provider and can actually hit that provider's prompt
+        cache. Pass ``None`` to disable sticky routing again.
+        """
+        self.session_id = session_id
 
     def format_tools(self, tools: List[Any]) -> List[Dict[str, Any]]:
         """Format MCP tools for Chat Completions function calling.
@@ -622,23 +661,32 @@ class OpenRouterProvider(LLMProvider):
         # __init__) — "enabled": True alone still turns reasoning on at
         # whatever the model's default effort is. Qwen models instead get an
         # explicit "max_tokens" budget (see _QWEN_DEFAULT_REASONING_MAX_TOKENS).
+        extra_body: Dict[str, Any] = {}
         if self._reasoning_enabled:
             reasoning_obj: Dict[str, Any] = {"enabled": True}
             if self.reasoning_effort:
                 reasoning_obj["effort"] = self.reasoning_effort
             if self.reasoning_max_tokens:
                 reasoning_obj["max_tokens"] = self.reasoning_max_tokens
-            api_params["extra_body"] = {"reasoning": reasoning_obj}
+            extra_body["reasoning"] = reasoning_obj
+        # Sticky routing so a multi-turn tool-calling conversation keeps
+        # landing on the same upstream provider — see module docstring and
+        # https://openrouter.ai/docs/features/prompt-caching
+        if self.session_id:
+            extra_body["session_id"] = self.session_id
+        if extra_body:
+            api_params["extra_body"] = extra_body
 
         logger.debug(
             "OpenRouter API call: model=%s, messages=%d, tools=%d, system_prompt_length=%d, "
-            "reasoning_effort=%s, reasoning_max_tokens=%s",
+            "reasoning_effort=%s, reasoning_max_tokens=%s, session_id=%s",
             self.model,
             len(api_messages),
             len(tools_to_use) if tools_to_use else 0,
             len(system_message),
             self.reasoning_effort,
             self.reasoning_max_tokens,
+            self.session_id,
         )
 
         # Max reasoning / long tool loops can exceed 5 minutes.
@@ -667,6 +715,35 @@ class OpenRouterProvider(LLMProvider):
                     self._parse_response(response)
                 )
 
+                # Prompt-caching visibility: OpenRouter mirrors OpenAI's
+                # usage.prompt_tokens_details.cached_tokens shape (tokens of
+                # *this* call's prompt that were served from cache — cheaper,
+                # per https://openrouter.ai/docs/features/prompt-caching).
+                # Surface it on `wrapped` so MCPClient can roll it into
+                # result.json the same way it already does for Gemini's
+                # cached_content_token_count.
+                usage = getattr(response, "usage", None)
+                cached_tokens = 0
+                reasoning_tokens_used = 0
+                if usage is not None:
+                    prompt_details = getattr(usage, "prompt_tokens_details", None)
+                    if prompt_details is not None:
+                        cached_tokens = getattr(prompt_details, "cached_tokens", 0) or 0
+                    completion_details = getattr(usage, "completion_tokens_details", None)
+                    if completion_details is not None:
+                        reasoning_tokens_used = (
+                            getattr(completion_details, "reasoning_tokens", 0) or 0
+                        )
+                    logger.info(
+                        "OpenRouter usage: prompt_tokens=%s completion_tokens=%s "
+                        "cached_tokens=%s reasoning_tokens=%s cost=%s",
+                        getattr(usage, "prompt_tokens", None),
+                        getattr(usage, "completion_tokens", None),
+                        cached_tokens,
+                        reasoning_tokens_used,
+                        getattr(usage, "cost", None),
+                    )
+
                 # Attach reasoning_content/reasoning_details so MCPClient can preserve
                 # them on the assistant message (mirrors Claude thinking_blocks / Azure
                 # reasoning_content). reasoning_details is the full structured block
@@ -675,7 +752,8 @@ class OpenRouterProvider(LLMProvider):
                 # _prepare_messages, falling back to the plaintext reasoning_content
                 # alias when a model only returns that.
                 wrapped = SimpleNamespace(
-                    usage=getattr(response, "usage", None),
+                    usage=usage,
+                    cached_tokens=cached_tokens,
                     reasoning_content=reasoning_content,
                     reasoning_details=reasoning_details,
                     raw=response,
@@ -857,6 +935,7 @@ class OpenRouterProvider(LLMProvider):
             f"  Tools: {len(tools_to_use) if tools_to_use else 0}",
             f"  Reasoning Effort: {self.reasoning_effort}",
             f"  Reasoning Max Tokens: {self.reasoning_max_tokens}",
+            f"  Session ID: {self.session_id}",
             f"  Temperature: {self.temperature}",
             "",
             "Full Stack Trace:",

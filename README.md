@@ -108,10 +108,12 @@ import asyncio, os
 from datasets import load_dataset
 from sciconharness import SciConHarness
 
-ds           = load_dataset("hayoungjung/SciConBench", "benchmark", split="test")
-all_titles   = list(ds["title"])
-doi_to_title = {row["doi"]: row["title"] for row in ds}
+ds = load_dataset("hayoungjung/SciConBench", "benchmark", split="test")
 
+# No need to load titles / doi_to_title / doi_to_publication_date yourself —
+# SciConHarness auto-loads all three from a local cache built from this same
+# HuggingFace dataset when enable_filtering=True (see sciconharness/README.md
+# "Clean Room Evaluation Protocol").
 harness = SciConHarness(
     provider         = "openai",
     model            = "gpt-5.1",
@@ -120,19 +122,14 @@ harness = SciConHarness(
     api_version      = os.environ.get("OPENAI_API_VERSION", "2025-04-01-preview"),
     enable_tools     = True,
     enable_filtering = True,
-    cochrane_titles  = all_titles,
-    doi_to_title     = doi_to_title,
     save_results     = True,
 )
 
 async def main():
     async with harness:
         row = ds[0]
-        response, usage = await harness.query(
-            row["question"],
-            doi              = row["doi"],
-            publication_date = row["publication_date"],
-        )
+        # publication_date is optional too — auto-resolved from doi=.
+        response, usage = await harness.query(row["question"], doi=row["doi"])
         print(response)
 
 asyncio.run(main())

@@ -172,8 +172,8 @@ The `workflow` command executes these Prefect tasks in order:
 | 5 | `task_extract_text` | Extract reference text with pdfplumber |
 | 6 | `task_generate_questions` | Generate clinical questions for rolling reviews |
 | 7 | `task_generate_cochrane_facts_batch` | Atomic-fact decomposition of Cochrane conclusions |
-| 8 | `task_upload_to_hf` | Publish updated dataset to HuggingFace |
-| 9 | `task_run_queries` | Query all model configs with SciConHarness |
+| 8 | `task_upload_to_hf` | Merge + publish updated dataset to HuggingFace; also refreshes `sciconharness`'s local Cochrane-filter caches (titles / doi→title / doi→publication_date) from the same merged rows — see `huggingface/uploader.py::refresh_filter_caches()` |
+| 9 | `task_run_queries` | Query all model configs with SciConHarness (picks up the just-refreshed filter caches from stage 8) |
 | 10 | `task_generate_response_facts_batch` | Atomic-fact decomposition of model responses |
 | 11 | `task_run_precision` | LLM-judge precision analysis |
 | 12 | `task_run_recall` | LLM-judge recall analysis |

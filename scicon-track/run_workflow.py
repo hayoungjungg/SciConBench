@@ -253,26 +253,34 @@ async def task_run_queries(dois: list[str], run_month: str) -> None:
     from config import query_cfg
     from db.utils import get_questions, get_reviews_from_db, populate_model_response
     from sciconharness import SciConHarness
-    from datasets import load_dataset
-    from config import hf_cfg
+    from sciconharness.utils.hf_benchmark_cache import (
+        load_cochrane_titles_cached,
+        load_doi_to_title_cached,
+        standardize_title,
+    )
 
-    # Load clean-room filtering variables from the full dataset
-    src = hf_cfg.source
-    ds = load_dataset(src.repo_id, src.config, split=src.split)
-    all_titles = list(ds["title"])
-    doi_to_title = {row["doi"]: row["title"] for row in ds}
+    # Load clean-room filtering variables from the local HF benchmark cache
+    # (see sciconharness/utils/hf_benchmark_cache.py) instead of pulling the
+    # full dataset again here — task_upload_to_hf (the previous pipeline
+    # stage) already refreshed this cache from the exact rows it just
+    # merged/published, so this is just a disk read, no second HF pull.
+    all_titles = load_cochrane_titles_cached()
+    doi_to_title = load_doi_to_title_cached()
 
     reviews = get_reviews_from_db()
     questions_map = get_questions()
 
-    # Also include rolling DOIs not yet in the HF dataset
+    # Also include rolling DOIs not yet in the HF dataset (i.e. not yet
+    # covered by task_upload_to_hf's just-refreshed cache — e.g. brand new
+    # this month and still missing a question/atomic-facts, which
+    # get_sciconbench_rows() requires before a DOI is eligible for upload).
     from db.utils import get_all_dois
     for doi in dois:
         if doi not in doi_to_title:
             review = reviews.get(doi, {})
             if review.get("name"):
                 doi_to_title[doi] = review["name"]
-                all_titles.append(review["name"])
+                all_titles.append(standardize_title(review["name"]))
 
     HARNESS_CONFIGS = [
         ("no_tools",     False, False),
@@ -494,6 +502,10 @@ def task_upload_to_hf() -> None:
     from huggingface.uploader import SciConBenchUploader
     uploader = SciConBenchUploader()
     uploader.save_to_parquet()
+    # Regenerate sciconharness's local title/DOI-mapping filter caches from
+    # the same merged rows before publishing, so they never lag the dataset
+    # we're about to push (see sciconharness/utils/hf_benchmark_cache.py).
+    uploader.refresh_filter_caches()
     uploader.upload()
 
 

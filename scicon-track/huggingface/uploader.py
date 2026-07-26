@@ -9,15 +9,21 @@ Each monthly run:
          Removed DOIs are logged to data_track/stale_dois.json.
        - New DOIs absent from HF are appended.
        - Existing DOIs with no superseding update are kept unchanged.
-  4. Writes the merged Parquet locally and pushes it back to the same repo.
+  4. Writes the merged Parquet locally.
+  5. Refreshes sciconharness's local title/DOI-mapping filter caches from
+     those same merged rows (see ``refresh_filter_caches()``), so the caches
+     ``CochraneResultFilter`` reads from never lag behind what's about to be
+     published.
+  6. Pushes the merged Parquet back to the same repo.
 
 Usage
 -----
     from huggingface.uploader import SciConBenchUploader
 
     uploader = SciConBenchUploader()
-    uploader.save_to_parquet()   # merge + write local Parquet
-    uploader.upload()            # push to HuggingFace Hub
+    uploader.save_to_parquet()       # merge + write local Parquet
+    uploader.refresh_filter_caches() # regenerate sciconharness's filter caches
+    uploader.upload()                # push to HuggingFace Hub
 
 Requires:
     pip install huggingface_hub pyarrow pandas datasets
@@ -80,6 +86,10 @@ class SciConBenchUploader:
         self._src_config = src.config
         self._src_split = src.split
 
+        # Populated by save_to_parquet(); reused by refresh_filter_caches()
+        # so it doesn't need a second HF pull.
+        self._merged_rows: list[dict] | None = None
+
     # ── Internal helpers ───────────────────────────────────────────────────────
 
     def _load_existing_hf_rows(self) -> list[dict]:
@@ -90,6 +100,12 @@ class SciConBenchUploader:
             self._src_config,
             split=self._src_split,
             token=self.token,
+            # Appended rows change the Parquet shard's actual size without
+            # updating the dataset card's recorded split sizes (by design —
+            # we intentionally leave the README untouched), so HF's cached
+            # metadata is stale immediately after every monthly push. Skip
+            # that check rather than failing to load valid data.
+            verification_mode="no_checks",
         )
         return [dict(row) for row in ds]
 
@@ -196,12 +212,38 @@ class SciConBenchUploader:
         ]
 
         merged = self._merge_rows(existing_rows, packed_db)
+        self._merged_rows = merged
 
         self.output.parent.mkdir(parents=True, exist_ok=True)
         pd.DataFrame(merged, columns=list(DATASET_COLUMN_ORDER)).to_parquet(
             self.output, index=False, compression="snappy", engine="pyarrow"
         )
         logger.info("Merged Parquet written: %s  (%d rows)", self.output, len(merged))
+
+    def refresh_filter_caches(self) -> dict:
+        """Regenerate sciconharness's local Cochrane-filter caches.
+
+        ``sciconharness.mcp_client.filters.CochraneResultFilter`` relies on a
+        local JSON cache of every review title plus DOI→title / DOI→
+        publication_date mappings (see
+        ``sciconharness.utils.hf_benchmark_cache``) so it doesn't need a
+        HuggingFace pull on every harness run. Call this right after
+        ``save_to_parquet()`` (and before ``upload()``) so those caches are
+        rebuilt from the *exact* rows about to be published — no extra
+        network pull needed, since we already have them in memory.
+
+        Returns the dict of cache-file paths from ``build_hf_benchmark_cache``.
+        """
+        if self._merged_rows is None:
+            raise RuntimeError(
+                "refresh_filter_caches() requires save_to_parquet() to have "
+                "been called first (no merged rows to build the cache from)."
+            )
+        from sciconharness.utils.hf_benchmark_cache import build_hf_benchmark_cache
+
+        paths = build_hf_benchmark_cache(force=True, rows=self._merged_rows)
+        logger.info("Refreshed sciconharness filter caches: %s", paths)
+        return paths
 
     def upload(self) -> str:
         """Push the merged local Parquet back to HuggingFace.
