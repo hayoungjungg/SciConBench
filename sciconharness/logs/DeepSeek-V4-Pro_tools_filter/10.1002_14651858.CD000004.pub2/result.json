@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-07-26T12:06:27.153027",
+  "provider": "azure",
+  "model": "DeepSeek-V4-Pro",
+  "run_id": "10.1002/14651858.CD000004.pub2",
+  "query": "For pregnant women with hypertension or impaired fetal growth, what are the effects of antenatal abdominal decompression on perinatal outcomes?",
+  "response": "[[[Evidence from three small randomized controlled trials conducted between 1967 and 1973, synthesized in a 2012 Cochrane review, suggests that antenatal abdominal decompression may improve several perinatal outcomes in women with hypertension or impaired fetal growth, including reductions in persistent pre-eclampsia (RR 0.36; 95% CI 0.18–0.72), fetal distress in labour (RR 0.37; 95% CI 0.19–0.71), low birthweight (RR 0.50; 95% CI 0.40–0.63), low one-minute Apgar scores (RR 0.26; 95% CI 0.12–0.56), and perinatal mortality (RR 0.39; 95% CI 0.22–0.71). However, the strength of this evidence is severely limited by the small number of participants (total ~356–367 women), the age of the trials, and high risks of bias from quasi-random allocation, lack of blinding, and selective reallocation of non-compliant participants. While the direction and magnitude of the observed effects are consistent and potentially clinically meaningful, the Cochrane reviewers concluded that these methodological shortcomings preclude recommending abdominal decompression for routine clinical use at this time. No subsequent randomized trials have been published, and the procedure is now largely obsolete in practice. Well-designed, adequately powered contemporary trials would be needed to confirm or refute these findings and to establish whether abdominal decompression has any role in modern obstetric care.]]]\n\nReferences:\n- Hofmeyr GJ. Abdominal decompression for suspected fetal compromise/pre-eclampsia. Cochrane Database of Systematic Reviews 2012, Issue 6. Art. No.: CD000004. DOI: 10.1002/14651858.CD000004.pub2. PMID: 22696313.",
+  "token_usage": {
+    "input_tokens": 66992,
+    "output_tokens": 404,
+    "total_tokens": 67396,
+    "iterations": 10,
+    "tool_call_count": 17,
+    "tool_usage": {
+      "semantic_scholar_snippet_search": 6,
+      "serper_google_webpage_search": 6,
+      "jina_fetch_webpage_content": 5
+    },
+    "initial_message_tokens": 27,
+    "tool_def_tokens": 10250,
+    "tool_result_tokens": 54669,
+    "tool_call_tokens": 1212
+  },
+  "model_parameters": {
+    "temperature": null,
+    "max_tokens": null,
+    "reasoning_effort": "max",
+    "base_url": "https://cochrane-dashboard.cognitiveservices.azure.com"
+  },
+  "doi": "10.1002/14651858.CD000004.pub2",
+  "publication_date": "13 June 2012",
+  "enable_tool_calling": true,
+  "enable_filtering": true
+}

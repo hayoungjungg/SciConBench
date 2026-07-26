@@ -17,8 +17,9 @@ mcp_client/
 │   ├── gemini_provider.py # Google Gemini implementation
 │   ├── openai_provider.py # OpenAI Responses API implementation
 │   ├── azure_chat_provider.py # Azure Foundry Chat Completions (DeepSeek)
-│   ├── openrouter_provider.py # OpenRouter Chat Completions (Kimi K3, GLM-5.2, Qwen3.5-9B)
+│   ├── openrouter_provider.py # OpenRouter Chat Completions (Kimi K3, GLM-5.2, Qwen3.5-9B, Qwen3.7-max)
 │   ├── perplexity_provider.py # Perplexity implementation
+│   ├── reasoning_discovery.py # Shared: discover a model's highest reasoning effort via OpenRouter's GET /models catalog (used by every provider above, even ones that never call OpenRouter for inference)
 │   └── __init__.py
 ├── utils/
 │   ├── tool_execution.py  # ToolExecutor – executes tool calls and applies filters

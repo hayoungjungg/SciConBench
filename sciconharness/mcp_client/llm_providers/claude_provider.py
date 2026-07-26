@@ -24,6 +24,12 @@ except ImportError:
     AZURE_IDENTITY_AVAILABLE = False
 
 from .base import LLMProvider, ContextLengthExceededError
+from .reasoning_discovery import (
+    anthropic_effort_ratio,
+    candidate_openrouter_slugs,
+    discover_reasoning_config,
+    highest_supported_effort,
+)
 from ..prompts import RESEARCH_ASSISTANT_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -52,7 +58,7 @@ class ClaudeProvider(LLMProvider):
         azure_ad_token_provider: Optional[Any] = None,
         temperature: Optional[float] = None,
         max_tokens: int = 8192,    # maximum *output* token per turn
-        thinking_budget_tokens: int = 4096,  # budget for extended thinking (doubled from 2048)
+        thinking_budget_tokens: Optional[int] = None,  # budget for extended thinking; None -> auto-discover (see below)
         # Extended thinking configuration.
         # - "enabled": fixed budget (budget_tokens)
         # - "adaptive": dynamic budget/usage (effort)
@@ -72,8 +78,12 @@ class ClaudeProvider(LLMProvider):
             azure_ad_token_provider: Azure AD token provider for Foundry authentication
             temperature: Sampling temperature (0.0 to 1.0). Default: None (disabled when thinking is enabled).
             max_tokens: Maximum number of tokens to generate. Default: 8192.
-            thinking_budget_tokens: Budget for extended thinking. Default: 4096 (4x minimum). Must be less than max_tokens.
-                Set to 4x the minimum (1024) to provide ample tokens for reasoning and tool calling.
+            thinking_budget_tokens: Budget for extended thinking. Must be less than max_tokens.
+                Default: None, which auto-discovers this model's highest reasoning effort via
+                OpenRouter's GET /models catalog (same mechanism OpenRouterProvider uses) and
+                scales the budget accordingly (capped at 80% of max_tokens to leave headroom for
+                the final answer + tool calls); falls back to a flat 4096 if no data is found for
+                the model (this is the case for claude-sonnet-4-5 today).
             thinking_mode: Extended thinking mode: "enabled" (fixed budget), "adaptive" (dynamic), or "disabled".
             adaptive_effort: Adaptive thinking effort: "low", "medium", or "high".
         """
@@ -99,6 +109,41 @@ class ClaudeProvider(LLMProvider):
         self.adaptive_effort = str(self.adaptive_effort or "high").lower()
         if self.adaptive_effort not in {"low", "medium", "high"}:
             raise ValueError('adaptive_effort must be one of {"low","medium","high"}')
+
+        if thinking_budget_tokens is None:
+            # Max out reasoning: discover this model's highest supported effort
+            # via OpenRouter's GET /models catalog (same mechanism
+            # OpenRouterProvider uses) and translate it into a thinking budget
+            # using OpenRouter's own documented Anthropic conversion formula
+            # (budget_tokens = max_tokens * effort_ratio) — no inference
+            # traffic goes through OpenRouter, we only use its catalog as a
+            # reference. Anthropic's native Messages API has no "effort"
+            # parameter at all (only fixed budget_tokens, or a model-driven
+            # "adaptive" mode with no effort knob), so this is the closest
+            # native equivalent to "maxing effort" for Claude. Capped at 80%
+            # of max_tokens (rather than the full ~95% "max"/"xhigh" ratio) to
+            # leave headroom for the final answer + tool calls.
+            slugs = candidate_openrouter_slugs(["anthropic"], model)
+            reasoning_cfg = discover_reasoning_config(slugs)
+            discovered_effort, supports_effort = highest_supported_effort(reasoning_cfg)
+            if supports_effort:
+                ratio = min(anthropic_effort_ratio(discovered_effort), 0.8)
+                thinking_budget_tokens = max(1024, int(max_tokens * ratio))
+                logger.info(
+                    "ClaudeProvider thinking_budget_tokens auto-discovered for %s: "
+                    "effort=%s ratio=%.2f -> budget=%d tokens of max_tokens=%d "
+                    "(reasoning_cfg=%s)",
+                    model, discovered_effort, ratio, thinking_budget_tokens, max_tokens, reasoning_cfg,
+                )
+            else:
+                # No OpenRouter effort data for this model (true today for
+                # claude-sonnet-4-5) — keep the previous hardcoded default.
+                thinking_budget_tokens = 4096
+                logger.debug(
+                    "No OpenRouter reasoning config found for %s; using default "
+                    "thinking_budget_tokens=4096.",
+                    model,
+                )
 
         # Store requested thinking budget. Do not cap by constructor max_tokens here:
         # per-call max_tokens (e.g. from the judge runner --max-tokens) can be larger and is applied in call_llm().

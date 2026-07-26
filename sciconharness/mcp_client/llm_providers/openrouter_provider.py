@@ -2,9 +2,10 @@
 
 Supports models hosted on OpenRouter, including:
 
-- Kimi K3      (``moonshotai/kimi-k3``)
-- GLM-5.2      (``z-ai/glm-5.2``)
-- Qwen3.5-9B   (``qwen/qwen3.5-9b``)
+- Kimi K3       (``moonshotai/kimi-k3``)
+- GLM-5.2       (``z-ai/glm-5.2``)
+- Qwen3.5-9B    (``qwen/qwen3.5-9b``)
+- Qwen3.7-max   (``qwen/qwen3.7-max``)
 
 OpenRouter exposes an OpenAI-compatible ``client.chat.completions.create``
 endpoint at ``https://openrouter.ai/api/v1`` (same SDK call shape as
@@ -44,15 +45,23 @@ process lifetime::
 
     moonshotai/kimi-k3  -> supported_efforts=["max", "high", "low"]   -> sends effort="max"
     z-ai/glm-5.2        -> supported_efforts=["xhigh", "high"]        -> sends effort="xhigh" (not "max" — GLM-5.2 doesn't list it)
-    qwen/qwen3.5-9b     -> no `supported_efforts` key at all          -> sends {"enabled": True} only, no `effort` key
+    qwen/qwen3.5-9b     -> no `supported_efforts` key at all          -> sends max_tokens=4096, no `effort` key
+    qwen/qwen3.7-max    -> no `supported_efforts` key at all          -> sends max_tokens=4096, no `effort` key
 
 If discovery fails (network error, model not listed, etc.) we fall back to
 ``effort="max"``, which OpenRouter clamps down to whatever the model
 actually supports.
 
-We only enable reasoning at all for the three reasoning-capable models this
+Qwen models are a special case: OpenRouter's discovery confirms they don't
+expose ``reasoning.effort`` selection at all (no ``supported_efforts`` key),
+so instead of leaving reasoning depth entirely up to the API's own unstated
+default, we send an explicit ``reasoning.max_tokens=4096`` token budget for
+them (``_QWEN_DEFAULT_REASONING_MAX_TOKENS``). Pass ``reasoning_max_tokens``
+explicitly to override this for any model.
+
+We only enable reasoning at all for the reasoning-capable models this
 provider was built for (matched by a case-insensitive substring on the model
-slug: ``kimi``, ``glm``, ``qwen3.5``) so that passing some other,
+slug: ``kimi``, ``glm``, ``qwen3.5``, ``qwen3.7``) so that passing some other,
 non-reasoning OpenRouter model through this same class doesn't send a
 ``reasoning`` payload it doesn't understand. Pass ``reasoning_effort``
 explicitly to override discovery for any model.
@@ -95,6 +104,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from openai import BadRequestError, OpenAI
 
 from .base import ContextLengthExceededError, LLMProvider
+from .reasoning_discovery import discover_reasoning_config, highest_supported_effort
 from ..prompts import RESEARCH_ASSISTANT_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -103,7 +113,14 @@ DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Reasoning-capable models this provider was built for. Substring match
 # (case-insensitive) against the OpenRouter model slug.
-_REASONING_MODEL_HINTS = ("kimi", "glm", "qwen3.5")
+_REASONING_MODEL_HINTS = ("kimi", "glm", "qwen3.5", "qwen3.7")
+
+# Qwen models don't expose `reasoning.effort` selection on OpenRouter at all
+# (no `supported_efforts` key in their discovered config) — send this
+# explicit token budget via `reasoning.max_tokens` instead, so "maxed out"
+# reasoning has a concrete, generous ceiling rather than silently deferring
+# to the API's own unstated default reasoning depth.
+_QWEN_DEFAULT_REASONING_MAX_TOKENS = 4096
 
 
 def parse_rate_limit_wait_time(error_message: str) -> Optional[float]:
@@ -124,73 +141,6 @@ def _get_tool_attr(tool: Any, attr: str, default: Any = None) -> Any:
     return getattr(tool, attr, None) or (tool.get(attr, default) if isinstance(tool, dict) else default)
 
 
-# Cache of OpenRouter's per-model `reasoning` capability object (from GET
-# /models), keyed by model slug, so we hit the discovery endpoint at most
-# once per model for the lifetime of the process rather than once per
-# provider instantiation / per query in a batch run.
-_REASONING_CONFIG_CACHE: Dict[str, Optional[Dict[str, Any]]] = {}
-
-
-def _discover_reasoning_config(client: OpenAI, model: str) -> Optional[Dict[str, Any]]:
-    """Look up a model's ``reasoning`` capability object via OpenRouter's
-    ``GET /models`` listing, cached per model for the process lifetime.
-
-    Per https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#discovering-per-model-reasoning-options
-    each model may include e.g.::
-
-        {"supported_efforts": ["xhigh", "high"], "default_effort": "high",
-         "default_enabled": True, "mandatory": False}
-
-    Returns that raw dict, or ``None`` if the model isn't listed, doesn't
-    expose a ``reasoning`` object, or the lookup failed (network error, etc.)
-    — callers should fall back to a conservative default in that case.
-    """
-    if model in _REASONING_CONFIG_CACHE:
-        return _REASONING_CONFIG_CACHE[model]
-
-    reasoning_cfg: Optional[Dict[str, Any]] = None
-    try:
-        models = client.models.list()
-        for m in models.data:
-            if getattr(m, "id", None) == model:
-                cfg = getattr(m, "reasoning", None)
-                if isinstance(cfg, dict):
-                    reasoning_cfg = cfg
-                break
-    except Exception as e:
-        logger.warning(
-            "Could not discover reasoning config for %s via GET /models "
-            "(falling back to a conservative default): %s",
-            model,
-            e,
-        )
-
-    _REASONING_CONFIG_CACHE[model] = reasoning_cfg
-    return reasoning_cfg
-
-
-def _highest_supported_effort(
-    reasoning_cfg: Optional[Dict[str, Any]]
-) -> Tuple[Optional[str], bool]:
-    """Pick the highest reasoning effort a model supports from its discovered config.
-
-    Returns ``(effort_or_None, supports_effort_selection)``.
-
-    Per OpenRouter's docs, ``supported_efforts`` is returned in descending
-    effort order (highest first). If the key is *omitted* entirely, "the
-    model does not expose effort selection" — we return ``(None, False)`` so
-    callers send ``reasoning: {"enabled": True}`` with no ``effort`` key. If
-    the key is present but ``null``/empty, "all gateway effort values are
-    accepted", so the ceiling ``"max"`` applies.
-    """
-    if not reasoning_cfg or "supported_efforts" not in reasoning_cfg:
-        return None, False
-    supported = reasoning_cfg["supported_efforts"]
-    if not supported:
-        return "max", True
-    return supported[0], True
-
-
 class OpenRouterProvider(LLMProvider):
     """OpenRouter provider using the OpenAI-compatible Chat Completions API."""
 
@@ -202,6 +152,7 @@ class OpenRouterProvider(LLMProvider):
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         reasoning_effort: Optional[str] = None,
+        reasoning_max_tokens: Optional[int] = None,
     ):
         # Pass the OpenRouter model slug through unchanged (e.g. "moonshotai/kimi-k3").
         super().__init__(model, api_key)
@@ -239,24 +190,24 @@ class OpenRouterProvider(LLMProvider):
         # Max out reasoning for the models this provider targets. Rather than
         # hardcoding "max" and hoping OpenRouter clamps it to something
         # sensible, systematically discover the actual ceiling each model
-        # supports via GET /models (see _discover_reasoning_config /
-        # _highest_supported_effort above) and send that explicitly — e.g.
-        # GLM-5.2 only advertises ["xhigh", "high"] (no "max" in the list),
-        # so we send "xhigh" directly; Qwen3.5-9B omits `supported_efforts`
-        # entirely (no effort selection exposed), so we only send
-        # `"enabled": True` with no `effort` key for it. Azure rejects a
-        # "thinking"/"reasoning" payload for models that don't support it,
-        # and OpenRouter is not guaranteed to ignore an unsupported one
-        # gracefully either, so we still gate all of this on known
-        # reasoning-capable slugs unless explicitly overridden.
+        # supports via GET /models (see reasoning_discovery.py) and send that
+        # explicitly — e.g. GLM-5.2 only advertises ["xhigh", "high"] (no
+        # "max" in the list), so we send "xhigh" directly; Qwen3.5-9B omits
+        # `supported_efforts` entirely (no effort selection exposed), so we
+        # only send `"enabled": True` with no `effort` key for it. Azure
+        # rejects a "thinking"/"reasoning" payload for models that don't
+        # support it, and OpenRouter is not guaranteed to ignore an
+        # unsupported one gracefully either, so we still gate all of this on
+        # known reasoning-capable slugs unless explicitly overridden.
         self._reasoning_enabled = False
+        self.reasoning_max_tokens = reasoning_max_tokens
         if reasoning_effort is not None:
             self.reasoning_effort = reasoning_effort
             self._reasoning_enabled = True
         elif self._is_reasoning_model:
             self._reasoning_enabled = True
-            reasoning_cfg = _discover_reasoning_config(self.client, self.model)
-            discovered_effort, supports_effort = _highest_supported_effort(reasoning_cfg)
+            reasoning_cfg = discover_reasoning_config([self.model], client=self.client)
+            discovered_effort, supports_effort = highest_supported_effort(reasoning_cfg)
             self.reasoning_effort = discovered_effort if supports_effort else None
             if reasoning_cfg:
                 logger.info(
@@ -265,6 +216,21 @@ class OpenRouterProvider(LLMProvider):
                     reasoning_cfg,
                     self.reasoning_effort or "(none — enabling at default effort)",
                 )
+                # Qwen doesn't expose effort selection at all (confirmed via
+                # discovery, not just a failed lookup) — fall back to an
+                # explicit reasoning.max_tokens budget instead.
+                if (
+                    not supports_effort
+                    and self.reasoning_max_tokens is None
+                    and "qwen" in model_lower
+                ):
+                    self.reasoning_max_tokens = _QWEN_DEFAULT_REASONING_MAX_TOKENS
+                    logger.info(
+                        "%s doesn't expose reasoning effort selection; using "
+                        "explicit reasoning.max_tokens=%d instead.",
+                        self.model,
+                        self.reasoning_max_tokens,
+                    )
             else:
                 # Discovery failed or model isn't listed — "max" is a safe
                 # default since OpenRouter clamps unsupported effort values
@@ -280,11 +246,12 @@ class OpenRouterProvider(LLMProvider):
 
         logger.info(
             "OpenRouterProvider ready: model=%s endpoint=%s reasoning_enabled=%s "
-            "reasoning_effort=%s temperature=%s",
+            "reasoning_effort=%s reasoning_max_tokens=%s temperature=%s",
             self.model,
             self.base_url,
             self._reasoning_enabled,
             self.reasoning_effort,
+            self.reasoning_max_tokens,
             self.temperature,
         )
 
@@ -651,23 +618,27 @@ class OpenRouterProvider(LLMProvider):
         # Unified OpenRouter reasoning object — OpenAI SDK has no native field for
         # this, so it must go through extra_body. Only send "effort" when the
         # model actually exposes effort selection (self.reasoning_effort is
-        # None for models like Qwen3.5-9B that don't, per the discovery in
+        # None for models like Qwen that don't, per the discovery in
         # __init__) — "enabled": True alone still turns reasoning on at
-        # whatever the model's default effort is.
+        # whatever the model's default effort is. Qwen models instead get an
+        # explicit "max_tokens" budget (see _QWEN_DEFAULT_REASONING_MAX_TOKENS).
         if self._reasoning_enabled:
             reasoning_obj: Dict[str, Any] = {"enabled": True}
             if self.reasoning_effort:
                 reasoning_obj["effort"] = self.reasoning_effort
+            if self.reasoning_max_tokens:
+                reasoning_obj["max_tokens"] = self.reasoning_max_tokens
             api_params["extra_body"] = {"reasoning": reasoning_obj}
 
         logger.debug(
             "OpenRouter API call: model=%s, messages=%d, tools=%d, system_prompt_length=%d, "
-            "reasoning_effort=%s",
+            "reasoning_effort=%s, reasoning_max_tokens=%s",
             self.model,
             len(api_messages),
             len(tools_to_use) if tools_to_use else 0,
             len(system_message),
             self.reasoning_effort,
+            self.reasoning_max_tokens,
         )
 
         # Max reasoning / long tool loops can exceed 5 minutes.
@@ -885,6 +856,7 @@ class OpenRouterProvider(LLMProvider):
             f"  Messages: {len(api_messages)}",
             f"  Tools: {len(tools_to_use) if tools_to_use else 0}",
             f"  Reasoning Effort: {self.reasoning_effort}",
+            f"  Reasoning Max Tokens: {self.reasoning_max_tokens}",
             f"  Temperature: {self.temperature}",
             "",
             "Full Stack Trace:",

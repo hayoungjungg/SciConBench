@@ -1,0 +1,2143 @@
+2026-07-26 12:27:16,467 - mcp_client - INFO - Logging configured for model: qwen_qwen3.7-max_tools_filter, doi: 10.1002_14651858.CD000004.pub2
+2026-07-26 12:27:16,467 - mcp_client - INFO - Log file: /n/fs/hamcore/hayoung/SciConBench/sciconharness/logs/qwen_qwen3.7-max_tools_filter/10.1002_14651858.CD000004.pub2/mcp_client.log
+2026-07-26 12:27:16,468 - sciconharness.mcp_client.utils.utils - INFO - Child logger test - logging configured
+2026-07-26 12:27:16,473 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - Formatting 3 tools for OpenRouter (from mcp_session.list_tools())
+2026-07-26 12:27:16,474 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - Total: 3 tools formatted for OpenRouter API
+2026-07-26 12:27:16,619 - sciconharness.mcp_client.mcp_client - INFO - Starting iteration 1
+2026-07-26 12:27:16,619 - sciconharness.mcp_client.mcp_client - INFO - Calling LLM with 1 messages (approx 1052 input tokens, ~143 chars)
+2026-07-26 12:27:16,619 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:27:16,619 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - USING SYSTEM PROMPT FOR OPENROUTER
+2026-07-26 12:27:16,619 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:27:16,619 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - System prompt length: 2186 characters
+2026-07-26 12:27:16,619 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - System prompt preview: You are a research assistant who answers scientific questions by identifying relevant sources, assessing their evidence quality and certainty, and synthesizing the evidence into evidence-backed conclusions.\n\nTask Requirements:\n- Synthesize a comprehensive, paragraph-long conclusion that directly ans...
+2026-07-26 12:27:16,619 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - Tools passed: 3
+2026-07-26 12:27:16,619 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:27:16,620 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - Passing 3 tools to OpenRouter API: ['semantic_scholar_snippet_search', 'serper_google_webpage_search', 'jina_fetch_webpage_content']
+2026-07-26 12:27:35,322 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter reasoning_content length: 3089 chars
+2026-07-26 12:27:35,322 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter reasoning_details: 1 block(s)
+2026-07-26 12:27:35,322 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter returned 4 tool call(s): ['semantic_scholar_snippet_search', 'serper_google_webpage_search', 'semantic_scholar_snippet_search', 'serper_google_webpage_search']
+2026-07-26 12:27:35,324 - sciconharness.mcp_client.mcp_client - INFO - LLM call completed - text_content: None, tool_calls: 4
+2026-07-26 12:27:35,324 - sciconharness.mcp_client.mcp_client - INFO - Tool Calls: [{'id': 'call_bf52a451c2454b23909ab8a3', 'type': 'function', 'function': {'name': 'semantic_scholar_snippet_search', 'arguments': '{"query": "antenatal abdominal decompression", "limit": 10}'}}, {'id': 'call_b1e7b857bc0c4694be4604de', 'type': 'function', 'function': {'name': 'serper_google_webpage_search', 'arguments': '{"query": "\\"antenatal abdominal decompression\\" pregnancy hypertension \\"fetal growth\\"", "num_results": 10}'}}, {'id': 'call_fb1dc22b5c494e0da94c3c88', 'type': 'function', 'function': {'name': 'semantic_scholar_snippet_search', 'arguments': '{"query": "abdominal decompression pregnancy preeclampsia OR \\"fetal growth restriction\\"", "limit": 10}'}}, {'id': 'call_cebfd9bd3b01489f9bb74fc0', 'type': 'function', 'function': {'name': 'serper_google_webpage_search', 'arguments': '{"query": "\\"abdominal decompression\\" pregnancy \\"perinatal outcome\\" OR \\"birth weight\\" hypertension OR IUGR", "num_results": 10}'}}]
+2026-07-26 12:27:35,325 - sciconharness.mcp_client.mcp_client - INFO - Reasoning Summary: Thinking Process:
+
+1.  **Understand the User's Query:** The user is asking about the effects of "antenatal abdominal decompression" on "perinatal outcomes" in "pregnant women with hypertension or impaired fetal growth".
+2.  **Identify Key Concepts:**
+    *   Target population: Pregnant women with hypertension (e.g., preeclampsia, gestational hypertension) or impaired fetal growth (e.g., fetal growth restriction - FGR, intrauterine growth restriction - IUGR).
+    *   Intervention: Antenatal abdominal decompression.
+    *   Outcomes: Perinatal outcomes (e.g., birth weight, Apgar scores, perinatal mortality, NICU admission).
+3.  **Initial Knowledge Retrieval & Strategy:**
+    *   *Abdominal decompression* in pregnancy (e.g., using a suit or negative pressure device to reduce abdominal pressure, theoretically improving uteroplacental blood flow).
+    *   Is this a well-studied intervention? It sounds like an older or very niche intervention, possibly related to the "Heyns" abdominal decompression suit or similar negative pressure therapies from the mid-to-late 20th century.
+    *   I need to search the literature (Semantic Scholar, Google Scholar/Web) for "antenatal abdominal decompression", "hypertension", "impaired fetal growth", "perinatal outcomes", "intrauterine growth restriction".
+4.  **Execute Searches:**
+    *   *Search 1:* Semantic Scholar snippet search: "antenatal abdominal decompression" "perinatal outcomes"
+    *   *Search 2:* Google Web search: "antenatal abdominal decompression" pregnancy hypertension "fetal growth"
+    *   *Search 3:* Semantic Scholar snippet search: "abdominal decompression" "fetal growth restriction" OR "intrauterine growth restriction" OR "preeclampsia"
+5.  **Evaluate Search Results (Mental Check & Tool Calls):**
+    *   Let's run the searches first.
+
+*Running Tool Calls:*
+- `semantic_scholar_snippet_search` with query="antenatal abdominal decompression perinatal outcomes"
+- `serper_google_webpage_search` with query="antenatal abdominal decompression pregnancy hypertension fetal growth"
+- `semantic_scholar_snippet_search` with query="abdominal decompression intrauterine growth restriction" OR "abdominal decompression preeclampsia" pregnancy
+- `serper_google_webpage_search` with query="abdominal decompression" pregnancy "perinatal outcome" OR "birth weight" hypertension IUGR
+
+Let's do this now.
+*(Self-Correction during tool call formulation)*: Make sure to capture variations like "abdominal decompression suit", "negative pressure", etc. if the exact phrase yields few results. I'll start broad and narrow down.
+
+*Tool Calls:*
+1. `semantic_scholar_snippet_search`: query="antenatal abdominal decompression"
+2. `serper_google_webpage_search`: query="antenatal abdominal decompression" pregnancy hypertension "fetal growth"
+3. `semantic_scholar_snippet_search`: query="abdominal decompression" pregnancy "impaired fetal growth" OR hypertension OR preeclampsia
+4. `serper_google_webpage_search`: query="abdominal decompression" pregnancy "perinatal outcomes" IUGR OR preeclampsia OR hypertension
+
+Let's execute these.
+2026-07-26 12:27:35,953 - sciconharness.mcp_client.utils.tool_execution - INFO - Fetched 10 results from API
+2026-07-26 12:27:35,954 - sciconharness.mcp_client.utils.tool_execution - INFO - After filtering: 10 results remaining (requested: 10, fetched: 10)
+2026-07-26 12:27:35,957 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:35,958 - sciconharness.mcp_client.utils.utils - INFO - SEMANTIC SCHOLAR SNIPPET RESULTS (semantic_scholar_snippet_search)
+2026-07-26 12:27:35,958 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:35,958 - sciconharness.mcp_client.utils.utils - INFO - Query: antenatal abdominal decompression
+2026-07-26 12:27:35,959 - sciconharness.mcp_client.utils.utils - INFO - Full Results:
+{
+  "data": [
+    {
+      "score": 0.37702409206398696,
+      "paper": {
+        "corpusId": "11443775",
+        "title": "Meconium pseudocyst secondary to ileum volvulus perforation without peritoneal calcification: a case report",
+        "authors": [
+          "Esther Valladares",
+          "D. Rodr\u00edguez",
+          "A. Vela",
+          "S. Cabr\u00e9",
+          "J. Lailla"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC2936322, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Meconium peritonitis is an uncommon fetal and neonatal condition and it should be considered in the differential diagnosis when an echogenic intra-abdominal mass is observed. The prenatal appearance can be accompanied by signs of bowel obstruction, such as polyhydramnios and bowel dilatation. Generalized hydrops increases the severity of this disease. \n\nSurgery should be performed as soon as possible after delivery and initial resuscitation although immediate decompression paracentesis may result in a rapid improvement in the overall state of the newborn while preparation for surgery is underway. A two stageapproach with temporary enterostomy and delayed reversal is the best choice. \n\nOur case is unusual in comparison to other sonographically described prenatal cases due to the large size of the pseudocyst, the absence of ascites, bowel dilatation, or polyhydramnios, as well as a lack of abdominal calcifications in a newborn without cystic fibrosis. \n\nThe clinical utility of this case is the recognition that meconium pseudocyst may present without typical ultrasound features, and should be considered in the differential diagnosis of an abdominal mass. This will facilitate delivery of appropriate treatment as soon as possible after birth. \n\nthe patient, made the ultrasound diagnosis, and gave advice on the literature search. SC developed the article concept, provided ultrasound images and contributed to writing the introduction. JML provided general supervision and analyzed and interpreted the patient data. All authors have read and approved the final manuscript",
+        "snippetKind": "body",
+        "section": "Conclusions",
+        "snippetOffset": {
+          "start": 11425,
+          "end": 13012
+        },
+        "annotations": {
+          "refMentions": null,
+          "sentences": [
+            {
+              "start": 0,
+              "end": 174
+            },
+            {
+              "start": 175,
+              "end": 293
+            },
+            {
+              "start": 294,
+              "end": 353
+            },
+            {
+              "start": 356,
+              "end": 603
+            },
+            {
+              "start": 604,
+              "end": 691
+            },
+            {
+              "start": 694,
+              "end": 963
+            },
+            {
+              "start": 966,
+              "end": 1169
+            },
+            {
+              "start": 1170,
+              "end": 1257
+            },
+            {
+              "start": 1260,
+              "end": 1345
+            },
+            {
+              "start": 1346,
+              "end": 1451
+            },
+            {
+              "start": 1452,
+              "end": 1531
+            },
+            {
+              "start": 1532,
+              "end": 1587
+            }
+          ]
+        }
+      }
+    },
+    {
+      "score": 0.37626400148309114,
+      "paper": {
+        "corpusId": "11858797",
+        "title": "Abdominal Compartment Syndrome Caused by Massive Pyonephrosis in an Infant with Primary Obstructive Megaureter",
+        "authors": [
+          "Silvia K. Kavaguti",
+          "Barbara R. Mackevicius",
+          "M. F. de Andrade",
+          "S. Tucci Jr.",
+          "A. Carlotti"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC3147139, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "The authors report a case of abdominal compartment syndrome caused by massive pyonephrosis in an infant with primary obstructive megaureter successfully treated with emergency surgical decompression.",
+        "snippetKind": "abstract",
+        "section": null,
+        "snippetOffset": {
+          "start": 0,
+          "end": 199
+        },
+        "annotations": {
+          "refMentions": null,
+          "sentences": null
+        }
+      }
+    },
+    {
+      "score": 0.3737715534855322,
+      "paper": {
+        "corpusId": "240263047",
+        "title": "Abdominal decompression-It\u2019s development and facilitation of labour",
+        "authors": [
+          "B. Kastell"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "HYBRID",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://api.unpaywall.org/v2/10.4102/sajp.v17i3.1020?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.4102/sajp.v17i3.1020, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Abdominal decompression-It\u2019s development and facilitation of labour",
+        "snippetKind": "title",
+        "section": null,
+        "snippetOffset": {
+          "start": 0,
+          "end": 67
+        },
+        "annotations": {
+          "refMentions": null,
+          "sentences": null
+        }
+      }
+    },
+    {
+      "score": 0.3724916183304556,
+      "paper": {
+        "corpusId": "17617393",
+        "title": "Abdominal Decompression in Children",
+        "authors": [
+          "J. Ejike",
+          "M. Mathur"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC3318199, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Abdominal Decompression in Children",
+        "snippetKind": "title",
+        "section": null,
+        "snippetOffset": {
+          "start": 0,
+          "end": 35
+        },
+        "annotations": {
+          "refMentions": null,
+          "sentences": null
+        }
+      }
+    },
+    {
+      "score": 0.3618492854055764,
+      "paper": {
+        "corpusId": "17617393",
+        "title": "Abdominal Decompression in Children",
+        "authors": [
+          "J. Ejike",
+          "M. Mathur"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC3318199, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "catheter decompression is gaining favor because of its less invasive quality and decreased morbidity associated with its use. Abdominal decompression has been achieved by percutaneous catheter decompression in situations in which intra-abdominal fluid plays a significant role in the underlying diagnosis [14,31,37,49]. Bedsides, sonography can assist in distinguishing patients with progressive IAH predominately related to intraperitoneal fluid, from those with bowel wall edema or a space-occupying lesion, where catheter decompression will not be useful and may lead to unnecessary complications. \n\nPercutaneous drainage (PD) of peritoneal fluid can prevent the progression of IAH to ACS altogether or may allow time to stabilize the patient for DL [14,31,49,50]. Improvement in physiologic criteria has been seen with insertion of PD for IAH and ACS. A retrospective review was performed of 32 neonates who had IAP monitoring. Clinical presentation was divided into I and II grade signs. I grade signs included increased abdominal circumference, reduced abdominal wall compliance, and ultrasound confirmation of fluid in the abdominal cavity. II grade signs included necrotizing enterocolitis, septic shock, renal failure, low cardiac output, increased central venous pressure, delayed capillary refill time, acute respiratory failure, increased PaCO 2 , decreased PaO 2 , oliguria/anuria, and weak or absent femoral artery pulses. Twenty-eight patients met criteria for IAH, defined as IAP > 10 mmHg with each I grade sign and two symptoms from II grade signs while ACS was defined as IAP > 20 mmHg, with each I grade sign plus at least three symptoms of grade II signs. Insertion of a PD was performed in all cases. After insertion, resolution of symptoms was observed in all patients but with varying improvements in clinical parameters and measurements [12]. A study including 10 PICU patients with ACS reported a decrease in IAP and ventilatory parameters and an increase in urine output rapidly after abdominal decompression performed by PD in 5 patients and DL in 2 patients. The two patients with DL subsequently died while only one of the five with PD died.",
+        "snippetKind": "body",
+        "section": "Catheter Decompression. Abdominal decompression by",
+        "snippetOffset": {
+          "start": 13391,
+          "end": 15562
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 305,
+              "end": 309,
+              "matchedPaperCorpusId": "36670094"
+            },
+            {
+              "start": 309,
+              "end": 312,
+              "matchedPaperCorpusId": "37422541"
+            },
+            {
+              "start": 312,
+              "end": 315,
+              "matchedPaperCorpusId": "41907442"
+            },
+            {
+              "start": 315,
+              "end": 318,
+              "matchedPaperCorpusId": "40810071"
+            },
+            {
+              "start": 753,
+              "end": 757,
+              "matchedPaperCorpusId": "36670094"
+            },
+            {
+              "start": 757,
+              "end": 760,
+              "matchedPaperCorpusId": "37422541"
+            },
+            {
+              "start": 760,
+              "end": 763,
+              "matchedPaperCorpusId": "40810071"
+            },
+            {
+              "start": 763,
+              "end": 766,
+              "matchedPaperCorpusId": "3685024"
+            },
+            {
+              "start": 1862,
+              "end": 1866,
+              "matchedPaperCorpusId": "22320579"
+            }
+          ],
+          "sentences": [
+            {
+              "start": 0,
+              "end": 125
+            },
+            {
+              "start": 126,
+              "end": 319
+            },
+            {
+              "start": 320,
+              "end": 600
+            },
+            {
+              "start": 603,
+              "end": 767
+            },
+            {
+              "start": 768,
+              "end": 855
+            },
+            {
+              "start": 856,
+              "end": 931
+            },
+            {
+              "start": 932,
+              "end": 992
+            },
+            {
+              "start": 993,
+              "end": 1147
+            },
+            {
+              "start": 1148,
+              "end": 1436
+            },
+            {
+              "start": 1437,
+              "end": 1676
+            },
+            {
+              "start": 1677,
+              "end": 1722
+            },
+            {
+              "start": 1723,
+              "end": 1867
+            },
+            {
+              "start": 1868,
+              "end": 2087
+            },
+            {
+              "start": 2088,
+              "end": 2171
+            }
+          ]
+        }
+      }
+    },
+    {
+      "score": 0.3596978895362628,
+      "paper": {
+        "corpusId": "15217821",
+        "title": "Decompressive laparotomy for abdominal compartment syndrome \u2013 a critical analysis",
+        "authors": [
+          "J. D. De Waele",
+          "E. Hoste",
+          "M. Malbrain"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC1550894, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Relevant articles were identified through a computerized search of the English literature using Web of Science version 7.2 (ISI Thomson, Philadelphia, USA) for the years 1972 to 2004. Search terms included 'intraabdominal hypertension' OR 'abdominal compartment syndrome' and 'decompressive laparotomy' OR 'decompression'. Review articles, case reports and case series describing fewer than four patients were excluded from the analysis. \n\nArticles describing adult patients with IAH requiring decompression were included in the analysis if: details on IAP -at least before decompression -were available; and the outcome was available for all patients who underwent abdominal decompression. In this setting, DL was defined as a surgical intervention on the abdominal wall aimed at reducing the IAP, after which a temporary abdominal closure device was used; percutaneous drainage of fluid collections or escharotomies were not considered in this review. \n\nThe bibliographies of the articles that were included in the final analysis were reviewed for relevant publications that would have been missed by the computerized search. \n\nFor the articles retrieved, we classified the ACS according to the current guidelines of the World Society of Abdominal Compartment Syndrome [14] (Table 1), and recorded the indication for decompression. The effect of abdominal decompression on organ function was recorded; hemodynamic (blood pressure, heart rate, cardiac output, central venous pressure, pulmonary occlusion pressure, systemic vascular resistance and oxygen delivery indices), ventilatory (PaO 2 / FIO 2 ratio (PaO 2 = partial pressure of oxygen in arterial blood, FiO 2 = fraction of inspired oxygen), peak airway pressure, lung compliance expressed by static or dynamic compliance) and renal function parameters (urinary output) were retrieved. Patient characteristics such as age, disease severity as expressed by the Acute Physiology and Chronic Health Evaluation (APACHE) II score or Injury Severity score (ISS), and the timing of DL after the precipitating event (hospital admission or prior abdominal surgical intervention) were recorded when available. \n\nStatistical analysis was performed using SPSS for Windows 12.0 \u00ae (SPSS, Chicago, IL, USA). IAP and physiological variables before and after DL were compared using paired samples t test.",
+        "snippetKind": "body",
+        "section": "Materials and methods",
+        "snippetOffset": {
+          "start": 2676,
+          "end": 5022
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 1271,
+              "end": 1275,
+              "matchedPaperCorpusId": null
+            }
+          ],
+          "sentences": [
+            {
+              "start": 0,
+              "end": 183
+            },
+            {
+              "start": 184,
+              "end": 322
+            },
+            {
+              "start": 323,
+              "end": 437
+            },
+            {
+              "start": 440,
+              "end": 690
+            },
+            {
+              "start": 691,
+              "end": 953
+            },
+            {
+              "start": 956,
+              "end": 1127
+            },
+            {
+              "start": 1130,
+              "end": 1333
+            },
+            {
+              "start": 1334,
+              "end": 1844
+            },
+            {
+              "start": 1845,
+              "end": 2158
+            },
+            {
+              "start": 2161,
+              "end": 2251
+            },
+            {
+              "start": 2252,
+              "end": 2346
+            }
+          ]
+        }
+      }
+    },
+    {
+      "score": 0.3587082151509262,
+      "paper": {
+        "corpusId": "17617393",
+        "title": "Abdominal Decompression in Children",
+        "authors": [
+          "J. Ejike",
+          "M. Mathur"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC3318199, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Abdominal compartment syndrome (ACS) increases the risk for mortality in critically ill children. It occurs in association with a wide variety of medical and surgical diagnoses. Management of ACS involves recognizing the development of intra-abdominal hypertension (IAH) by intra-abdominal pressure (IAP) monitoring, treating the underlying cause, and preventing progression to ACS by lowering IAP. When ACS is already present, supporting dysfunctional organs and decreasing IAP to prevent new organ involvement become an additional focus of therapy. Medical management strategies to achieve these goals should be employed but when medical management fails, timely abdominal decompression is essential to reduce the risk of mortality. A literature review was performed to understand the role and outcomes of abdominal decompression among children with ACS. Abdominal decompression appears to have a positive effect on patient survival. However, prospective randomized studies are needed to fully understand the indications and impact of these therapies on survival in children.",
+        "snippetKind": "abstract",
+        "section": null,
+        "snippetOffset": {
+          "start": 0,
+          "end": 1077
+        },
+        "annotations": {
+          "refMentions": null,
+          "sentences": null
+        }
+      }
+    },
+    {
+      "score": 0.35858197924251645,
+      "paper": {
+        "corpusId": "3080861",
+        "title": "Abdominal compartment syndrome post-late Bochdalek hernia repair: A case report",
+        "authors": [
+          "Hountis Panagiotis",
+          "Dedeilias Panagiotis",
+          "A. Nikolaos",
+          "Bellenis Ion"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "HYBRID",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC2565670, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Abdominal compartment syndrome (ACS) is an increasingly recognized clinical entity. It was first described more than a century ago and received wider recognition with the increasing repair of gastroschisis and omphalocele. These conditions, such as Bochdalek hernia and longstanding ventral hernia, are associated with insufficient room in the abdominal cavity to accommodate all of the organs without elevation of intraabdominal pressure. The syndrome is defined by an intra-abdominal pressure of greater than 25 mm Hg (or 30 cm H 2 0) with signs of endorgan compromise, confirmed by alleviation of symptoms on abdominal decompression [3]. As pressures exceed 25 mm Hg, with noted organ dysfunction, surgical decompression is indicated urgently. ACS, a late manifestation of uncontrolled IAH, causes pressure-related organ failure. Presenting signs of ACS include a firm tense abdomen, increased peak inspiratory pressures, and oliguria, all of which improve after abdominal decompression. Patients at risk for ACS include any situation with the potential to restrict the size of the abdominal compartment, including, but not limited to trauma (blunt or open); massive fluid resuscitation that results in bowel edema and distension; and the use of intraoperative packing for bleeding control, retroperitoneal hemorrhage, pancreatitis, pneumoperitoneum, and neoplasm. Although the actual incidence and mortality rate of ACS is not widely referenced the overall mortality rate with ACS is greater than 60% [4,5]. \n\nIn our case we believe that pressure probably lead to inferior vena cava compression, which in turn results in decreased cardiac preload and the patient sustained a shock due to this. His course was complicated due to the Chest x-ray showing air bubbles in the left chest intestinal ischemia and his life was in great danger after a seemingly simple repair. This syndrome should be considered in all the cases with reduction of abdominal content back in their normal position as in hernia repairs. When it is suspected intraabdominal pressure should be measured and continuously monitored.",
+        "snippetKind": "body",
+        "section": "Discussion",
+        "snippetOffset": {
+          "start": 2593,
+          "end": 4696
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 636,
+              "end": 639,
+              "matchedPaperCorpusId": null
+            },
+            {
+              "start": 1505,
+              "end": 1508,
+              "matchedPaperCorpusId": "23360276"
+            },
+            {
+              "start": 1508,
+              "end": 1510,
+              "matchedPaperCorpusId": "3073173"
+            }
+          ],
+          "sentences": [
+            {
+              "start": 0,
+              "end": 83
+            },
+            {
+              "start": 84,
+              "end": 222
+            },
+            {
+              "start": 223,
+              "end": 439
+            },
+            {
+              "start": 440,
+              "end": 640
+            },
+            {
+              "start": 641,
+              "end": 746
+            },
+            {
+              "start": 747,
+              "end": 832
+            },
+            {
+              "start": 833,
+              "end": 990
+            },
+            {
+              "start": 991,
+              "end": 1367
+            },
+            {
+              "start": 1368,
+              "end": 1511
+            },
+            {
+              "start": 1514,
+              "end": 1697
+            },
+            {
+              "start": 1698,
+              "end": 1871
+            },
+            {
+              "start": 1872,
+              "end": 2011
+            },
+            {
+              "start": 2012,
+              "end": 2103
+            }
+          ]
+        }
+      }
+    },
+    {
+      "score": 0.3573543612788676,
+      "paper": {
+        "corpusId": "16584526",
+        "title": "Decompressive laparotomy with temporary abdominal closure versus percutaneous puncture with placement of abdominal catheter in patients with abdominal compartment syndrome during acute pancreatitis: background and design of multicenter, randomised, controlled study",
+        "authors": [
+          "D. Radenkovic",
+          "D. Bajec",
+          "N. Ivancevi\u0107",
+          "V. Bumba\u0161irevi\u0107",
+          "N. Milic",
+          "V. Jeremi\u0107",
+          "P. Gregori\u0107",
+          "A. Karamarkovic",
+          "Borivoje A Karadzi\u0107",
+          "D. Mirkovic",
+          "D. Bilanovi\u0107",
+          "R. \u0160\u0107epanovi\u0107",
+          "V. Cijan"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC2913911, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Decompressive laparotomy with temporary abdominal closure versus percutaneous puncture with placement of abdominal catheter in patients with abdominal compartment syndrome during acute pancreatitis: background and design of multicenter, randomised, controlled study",
+        "snippetKind": "title",
+        "section": null,
+        "snippetOffset": {
+          "start": 0,
+          "end": 265
+        },
+        "annotations": {
+          "refMentions": null,
+          "sentences": null
+        }
+      }
+    },
+    {
+      "score": 0.34913735961461834,
+      "paper": {
+        "corpusId": "15217821",
+        "title": "Decompressive laparotomy for abdominal compartment syndrome \u2013 a critical analysis",
+        "authors": [
+          "J. D. De Waele",
+          "E. Hoste",
+          "M. Malbrain"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC1550894, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Decompressive laparotomy for abdominal compartment syndrome \u2013 a critical analysis",
+        "snippetKind": "title",
+        "section": null,
+        "snippetOffset": {
+          "start": 0,
+          "end": 81
+        },
+        "annotations": {
+          "refMentions": null,
+          "sentences": null
+        }
+      }
+    }
+  ],
+  "retrievalVersion": "pa1-v1"
+}
+2026-07-26 12:27:35,960 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:35,970 - sciconharness.mcp_client.utils.tool_execution - INFO - Fetching page 1 to get more filtered results (currently have 0/10)
+2026-07-26 12:27:36,758 - sciconharness.mcp_client.utils.tool_execution - INFO - Page 1 returned 9 results (less than requested 10), stopping pagination (have 0/10 filtered results)
+2026-07-26 12:27:36,758 - sciconharness.mcp_client.filters.cochrane - INFO - FILTERED OUT - Cochrane URL: https://www.cochranelibrary.com/cdsr/doi/10.1002/14651858.CD000004.pub2/abstract/ru
+2026-07-26 12:27:36,759 - sciconharness.mcp_client.filters.cochrane - INFO -   Title: Абдоминальная декомпрессия при подозрении на проблемы ...
+2026-07-26 12:27:36,760 - sciconharness.mcp_client.filters.cochrane - INFO -   Link: https://www.cochranelibrary.com/cdsr/doi/10.1002/14651858.CD000004.pub2/abstract/ru
+2026-07-26 12:27:36,761 - sciconharness.mcp_client.filters.cochrane - INFO - Filtered 1 out of 9 serper_google_webpage_search results
+2026-07-26 12:27:36,761 - sciconharness.mcp_client.utils.tool_execution - INFO - Fetched 9 total results across 0 page(s)
+2026-07-26 12:27:36,762 - sciconharness.mcp_client.utils.tool_execution - INFO - After filtering: 8 results remaining (requested: 10)
+2026-07-26 12:27:36,763 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:36,763 - sciconharness.mcp_client.utils.utils - INFO - SEARCH RESULTS (serper_google_webpage_search)
+2026-07-26 12:27:36,764 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:36,764 - sciconharness.mcp_client.utils.utils - INFO - Query: "antenatal abdominal decompression" pregnancy hypertension "fetal growth"
+2026-07-26 12:27:36,765 - sciconharness.mcp_client.utils.utils - INFO - Full Results:
+{
+  "organic": [
+    {
+      "title": "Abdominal decompression for suspected fetal compromise/ ...",
+      "link": "https://pubmed.ncbi.nlm.nih.gov/10796079/",
+      "snippet": "by GJ Hofmeyr \u00b7 2000 \u00b7 Cited by 26 \u2014 Objectives: The objective of this review was to assess the effects of antenatal abdominal decompression for maternal hypertension or impaired fetal growth, on ...",
+      "position": 1
+    },
+    {
+      "title": "Abdominal decompression in normal pregnancy - PMC - NIH",
+      "link": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/",
+      "snippet": "by GJ Hofmeyr \u00b7 2012 \u00b7 Cited by 12 \u2014 ... fetal growth, perinatal morbidity and mortality and childhood development. ... There is thus no support for the clinical use of antenatal abdominal decompression ...",
+      "position": 2
+    },
+    {
+      "title": "Pre-eclampsia renamed and reframed: Intra-abdominal ...",
+      "link": "https://www.sciencedirect.com/science/article/pii/S0306987714002722",
+      "snippet": "by DJ Sawchuck \u00b7 2014 \u00b7 Cited by 81 \u2014 ... antenatal abdominal decompression ... Inflammation in rat pregnancy inhibits spiral artery remodeling leading to fetal growth restriction and features of ...",
+      "position": 3
+    },
+    {
+      "title": "Abdominal decompression in normal pregnancy | Request PDF",
+      "link": "https://www.researchgate.net/publication/225305204_Abdominal_decompression_in_normal_pregnancy",
+      "snippet": "The objective of this review was to assess the effects of antenatal abdominal decompression for maternal hypertension or impaired fetal growth, on perinatal ...",
+      "position": 4
+    },
+    {
+      "title": "Abdominal decompression for suspected fetal compromise ...",
+      "link": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/",
+      "snippet": "by GJ Hofmeyr \u00b7 2012 \u00b7 Cited by 26 \u2014 The objective of this review was to assess the effects of antenatal abdominal decompression for maternal hypertension or impaired fetal growth, on perinatal ...",
+      "position": 5
+    },
+    {
+      "title": "6-year surveillance (2017)",
+      "link": "https://www.nice.org.uk/guidance/ng133/evidence/appendix-a-summary-of-new-evidence-pdf-13064343518",
+      "snippet": "An updated Cochrane review75 examined the effects of antenatal abdominal decompression ... 1.1 In women with chronic hypertension, carry out ultrasound fetal ...",
+      "position": 6
+    },
+    {
+      "title": "Abdominal decompression",
+      "link": "https://grokipedia.com/page/abdominal_decompression",
+      "snippet": "... hypertension (IAH) and enhancing organ ... antenatal abdominal decompression (typically at ... fetal growth indicated by low birthweight (RR ...",
+      "position": 7
+    },
+    {
+      "title": "anonymous-sciconbench/sciconbench \u00b7 Datasets at ...",
+      "link": "https://huggingface.co/datasets/anonymous-sciconbench/sciconbench/viewer",
+      "snippet": "For pregnant women with hypertension or impaired fetal growth, what are the effects of antenatal abdominal decompression on perinatal outcomes? 3.",
+      "position": 8
+    }
+  ]
+}
+2026-07-26 12:27:36,766 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:37,602 - sciconharness.mcp_client.utils.tool_execution - INFO - Fetched 10 results from API
+2026-07-26 12:27:37,603 - sciconharness.mcp_client.utils.tool_execution - INFO - After filtering: 10 results remaining (requested: 10, fetched: 10)
+2026-07-26 12:27:37,607 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:37,607 - sciconharness.mcp_client.utils.utils - INFO - SEMANTIC SCHOLAR SNIPPET RESULTS (semantic_scholar_snippet_search)
+2026-07-26 12:27:37,607 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:37,608 - sciconharness.mcp_client.utils.utils - INFO - Query: abdominal decompression pregnancy preeclampsia OR "fetal growth restriction"
+2026-07-26 12:27:37,608 - sciconharness.mcp_client.utils.utils - INFO - Full Results:
+{
+  "data": [
+    {
+      "score": 0.43849169188882686,
+      "paper": {
+        "corpusId": "34157536",
+        "title": "Maternal exposure to folic acid antagonists and placenta-mediated adverse pregnancy outcomes",
+        "authors": [
+          "S. Wen",
+          "Jia Zhou",
+          "Qiuying Yang",
+          "W. Fraser",
+          "O. Olatunbosun",
+          "M. Walker"
+        ],
+        "openAccessInfo": {
+          "license": "CCBYNCND",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://api.unpaywall.org/v2/10.1503/cmaj.080859?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.1503/cmaj.080859, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "We examined the following adverse outcomes of pregnancy: preeclampsia, severe preeclampsia, placental abruption, fetal growth restriction and fetal death. We used the International Classification of Diseases, 9th revision, to identify cases of preeclampsia (codes 642.4-642.7), severe preeclampsia (codes 642.5-642.7) and placental abruption (code 641.2). Although fetal growth restriction (also called \"small-forgestational age\") is usually defined as birth weight less than the 10th percentile, relative to the corresponding standard population stratum, 20 we defined 2 levels of fetal growth restriction: birth weight less than the 3rd percentile and birth weight less than the 10th percentile, relative to the corresponding standard population stratum. Using 2 levels of fetal growth restriction allowed us to test the hypothesis that maternal exposure to folic acid antagonists might have a stronger effect on severe fetal growth restriction. We defined fetal death as intrauterine death occurring at gestational age greater than 20 weeks or weight greater than 500 g.",
+        "snippetKind": "body",
+        "section": "Outcomes",
+        "snippetOffset": {
+          "start": 4996,
+          "end": 6069
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 556,
+              "end": 558,
+              "matchedPaperCorpusId": "8325778"
+            }
+          ],
+          "sentences": [
+            {
+              "start": 0,
+              "end": 154
+            },
+            {
+              "start": 155,
+              "end": 277
+            },
+            {
+              "start": 278,
+              "end": 317
+            },
+            {
+              "start": 318,
+              "end": 355
+            },
+            {
+              "start": 356,
+              "end": 756
+            },
+            {
+              "start": 757,
+              "end": 947
+            },
+            {
+              "start": 948,
+              "end": 1073
+            }
+          ]
+        }
+      }
+    },
+    {
+      "score": 0.4037899627493479,
+      "paper": {
+        "corpusId": "27917821",
+        "title": "Placental System A Amino Acid Transport is Reduced in Pregnancies With Small For Gestational Age (SGA) Infants but Not in Preeclampsia with SGA Infants",
+        "authors": [
+          "Eiji Shibata",
+          "Carl A. Hubel",
+          "R. Powers",
+          "F. V. Versen-Hoeynck",
+          "H. Gammill",
+          "A. Rajakumar",
+          "James M. Roberts"
+        ],
+        "openAccessInfo": {
+          "license": null,
+          "status": "GREEN",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC2703008, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "In this study we report that system A amino acid transporter activity is not reduced in placentas of SGA infants from preeclamptic pregnancies. We confirm the reduced system A transporter activity previously reported with IUGR pregnancies without preeclampsia [13,14]. Although most prior studies of IUGR without preeclampsia have been with isolated microvillous membrane vesicles, we confirm the same findings in intact placental fragments. In studies of protein restricted rats treated with a regimen that leads to IUGR, system A-mediated amino acid uptake was similarly reduced and preceded reduction in fetal weight suggesting that the change is causally relevant [17].\n\nThe finding of uptake in preeclampsia with normally grown infants equivalent to uptake in uncomplicated pregnancies with normally grown infants is compatible with the relatively normal morphology and absorptive surfaces in these placentas reported previously [7]. Morphological difference between placentas from uncomplicated pregnancies and preeclamptic pregnancies with normally grown fetuses delivered near term (as was the case with the patients in this study) are at most minor. However, the findings of normal amino acid uptake even in placentas of SGA fetuses of preeclamptic pregnancies would not have been predicted by morphological studies. In these studies, abnormalities in placentas from preeclamptic pregnancies with growth restricted infants closely resemble those of growthrestricted fetuses whose mothers do not have preeclampsia [3][4][5][6][7]. In pregnancies complicated by growth restriction with or without preeclampsia obtained after 34 weeks of gestation, absorptive surface and placental volume are similarly reduced below those of uncomplicated pregnancies. Although not statistically significantly different, the pregnancies with SGA infants and preeclampsia in our study delivered on average two weeks earlier than pregnancies with SGA alone. This is unlikely to explain differences since even with early onset preeclampsia, absorptive surfaces and placental volumes were similar to those of placentas from pregnancies with growth restriction without preeclampsia and less than",
+        "snippetKind": "body",
+        "section": "Discussion",
+        "snippetOffset": {
+          "start": 7993,
+          "end": 10173
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 260,
+              "end": 264,
+              "matchedPaperCorpusId": "34715732"
+            },
+            {
+              "start": 264,
+              "end": 267,
+              "matchedPaperCorpusId": "38615619"
+            },
+            {
+              "start": 668,
+              "end": 672,
+              "matchedPaperCorpusId": null
+            },
+            {
+              "start": 934,
+              "end": 937,
+              "matchedPaperCorpusId": null
+            },
+            {
+              "start": 1522,
+              "end": 1525,
+              "matchedPaperCorpusId": "36180588"
+            },
+            {
+              "start": 1525,
+              "end": 1528,
+              "matchedPaperCorpusId": "24853144"
+            },
+            {
+              "start": 1528,
+              "end": 1531,
+              "matchedPaperCorpusId": "20935809"
+            },
+            {
+              "start": 1531,
+              "end": 1534,
+              "matchedPaperCorpusId": "22254839"
+            },
+            {
+              "start": 1534,
+              "end": 1537,
+              "matchedPaperCorpusId": null
+            }
+          ],
+          "sentences": null
+        }
+      }
+    },
+    {
+      "score": 0.39857759446045876,
+      "paper": {
+        "corpusId": "7273092",
+        "title": "HOW TO MANAGE INTRAUTERINE GROWTH RESTRICTION ASSOCIATED WITH SEVERE PREECLAMPSIA AT 28-34 WEEKS OF GESTATION?",
+        "authors": [
+          "K. Gezginc",
+          "A. Acar",
+          "H. Peru",
+          "R. Karatayl\u0131",
+          "\u00c7. \u00c7elik",
+          "M. \u00c7apar"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "HYBRID",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://api.unpaywall.org/v2/10.29333/EJGM/82609?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.29333/EJGM/82609, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "HOW TO MANAGE INTRAUTERINE GROWTH RESTRICTION ASSOCIATED WITH SEVERE PREECLAMPSIA AT 28-34 WEEKS OF GESTATION?",
+        "snippetKind": "title",
+        "section": null,
+        "snippetOffset": {
+          "start": 0,
+          "end": 110
+        },
+        "annotations": {
+          "refMentions": null,
+          "sentences": null
+        }
+      }
+    },
+    {
+      "score": 0.39468487347296366,
+      "paper": {
+        "corpusId": "41885653",
+        "title": "First-Trimester Adiponectin and Subsequent Development of Preeclampsia or Fetal Growth Restriction",
+        "authors": [
+          "E. Vald\u00e9s",
+          "K. Lattes",
+          "H. Mu\u00f1oz",
+          "P. Barja",
+          "K. Papapietro"
+        ],
+        "openAccessInfo": {
+          "license": "CCBYNCND",
+          "status": "GREEN",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://api.unpaywall.org/v2/10.1159/000328418?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.1159/000328418, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Preeclampsia (PE) and fetal growth restriction (FGR) are considered among perinatal high-risk conditions that despite having a multifactorial and only partially understood origin, share an anatomical feature -an abnormal placentation [1][2][3] . PE is part of the hypertensive disorders of pregnancy and is characterized by new-onset hypertension and proteinuria, occurring usually after 20 weeks' gestation. It affects 4-7% of the pregnant population. FGR, on the other hand, refers to a condition in which a fetus is unable to achieve its genetically determined potential size. This is defined as growth below the 10th percentile for weight of all fetuses at that gestational age. There are predictive models for these conditions but their predictive values are discrete, implementing them is expensive and currently there is no successful therapeutical intervention for preventing or delaying their onset or their poor outcome [3][4][5][6][7][8][9] .",
+        "snippetKind": "body",
+        "section": "Introduction",
+        "snippetOffset": {
+          "start": 15,
+          "end": 968
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 234,
+              "end": 237,
+              "matchedPaperCorpusId": null
+            },
+            {
+              "start": 237,
+              "end": 240,
+              "matchedPaperCorpusId": "28830236"
+            },
+            {
+              "start": 240,
+              "end": 243,
+              "matchedPaperCorpusId": "32900724"
+            },
+            {
+              "start": 930,
+              "end": 933,
+              "matchedPaperCorpusId": "32900724"
+            },
+            {
+              "start": 933,
+              "end": 936,
+              "matchedPaperCorpusId": "27074690"
+            },
+            {
+              "start": 936,
+              "end": 939,
+              "matchedPaperCorpusId": "2224349"
+            },
+            {
+              "start": 939,
+              "end": 942,
+              "matchedPaperCorpusId": "32653768"
+            },
+            {
+              "start": 942,
+              "end": 945,
+              "matchedPaperCorpusId": null
+            },
+            {
+              "start": 945,
+              "end": 948,
+              "matchedPaperCorpusId": "76477571"
+            },
+            {
+              "start": 948,
+              "end": 951,
+              "matchedPaperCorpusId": null
+            }
+          ],
+          "sentences": null
+        }
+      }
+    },
+    {
+      "score": 0.3904871542191948,
+      "paper": {
+        "corpusId": "19306329",
+        "title": "Homocysteine in pregnancies complicated by preeclampsia with and without IUGR: a comparison with normotensive pregnant women with isolated IUGR and healthy pregnant women",
+        "authors": [
+          "M. Laskowska",
+          "J. Oleszczuk"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://api.unpaywall.org/v2/10.4236/OJOG.2011.14037?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.4236/OJOG.2011.14037, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "The study was carried out on 49 pregnant women with normotensive pregnancies complicated by intrauterine growth restricted fetuses (IUGR group), and 66 patients with pregnancy complicated by severe preeclampsia. In the group of preeclamptic women were 31 patients with preeclampsia complicated by intrauterine fetal growth restriction (PRE-IUGR group) and 35 preeclamptic patients with appropriate-for-gestational-age fetuses (PRE group). Among preeclamptic women there were 6 patients with HELLP syndrome (all in the PRE-IUGR group) and 4 patients with eclampsia (3 in the PRE-IUGR group and 1 in the PRE group). One patient from the IUGR group had fetal intrauterine death in the week 38 th of gestation. The weight of her stillborn infant was 2060 g. \n\nThe control group consisted of 47 healthy normotensive pregnant patients with singleton uncomplicated pregnancies without any renal, cardiac and vascular diseases and with normal laboratory tests and with appropriate-for-gestational-age weight infants (CON group). \n\nFetal biometry was based on non-invasive ultrasound method and comprised the estimation of gestational age in early gestation and diagnosis of fetal intrauterine growth restriction by monitoring fetal growth later in the second or third trimester of pregnancy. \n\nIntrauterine growth restricted fetuses (IUGR) were classified as such according to ultrasonographic measurement when the weight of the fetus was lower than expected in relation to the gestational age, as determined by the standard curves characteristic of the Polish population, when the fetus was below the 5 th centile for gestational age and diagnosis was confirmed by the infant's weight at birth according to the Bretelle et al. [5]. \n\nThe exclusion criteria for women whose pregnancies were complicated by IUGR fetuses were the presence of a congenital malformation or chromosomal abnormality in the fetus, recent cytomegalovirus infection or drug or alcohol abuse during pregnancy. Pregnant women with multiple pregnancies were also excluded from this study.",
+        "snippetKind": "body",
+        "section": "PATIENTS AND METHODS",
+        "snippetOffset": {
+          "start": 2162,
+          "end": 4213
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 1720,
+              "end": 1723,
+              "matchedPaperCorpusId": "37326901"
+            }
+          ],
+          "sentences": [
+            {
+              "start": 0,
+              "end": 211
+            },
+            {
+              "start": 212,
+              "end": 438
+            },
+            {
+              "start": 439,
+              "end": 613
+            },
+            {
+              "start": 614,
+              "end": 706
+            },
+            {
+              "start": 707,
+              "end": 753
+            },
+            {
+              "start": 756,
+              "end": 1020
+            },
+            {
+              "start": 1023,
+              "end": 1283
+            },
+            {
+              "start": 1286,
+              "end": 1724
+            },
+            {
+              "start": 1727,
+              "end": 1974
+            },
+            {
+              "start": 1975,
+              "end": 2051
+            }
+          ]
+        }
+      }
+    },
+    {
+      "score": 0.39015636350132443,
+      "paper": {
+        "corpusId": "27917821",
+        "title": "Placental System A Amino Acid Transport is Reduced in Pregnancies With Small For Gestational Age (SGA) Infants but Not in Preeclampsia with SGA Infants",
+        "authors": [
+          "Eiji Shibata",
+          "Carl A. Hubel",
+          "R. Powers",
+          "F. V. Versen-Hoeynck",
+          "H. Gammill",
+          "A. Rajakumar",
+          "James M. Roberts"
+        ],
+        "openAccessInfo": {
+          "license": null,
+          "status": "GREEN",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC2703008, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "delivered on average two weeks earlier than pregnancies with SGA alone. This is unlikely to explain differences since even with early onset preeclampsia, absorptive surfaces and placental volumes were similar to those of placentas from pregnancies with growth restriction without preeclampsia and less than in normal pregnancy [7]. Thus, the striking differences in system A amino acid transporter activity, normal in preeclamptic pregnancies even when associated with SGA, does not appear to be explained by currently available placental morphological studies including quantitative morpholometric studies. The reduced system A amino acid uptake in placentas from growthrestricted fetuses (without preeclampsia) is also not secondary to reduced viability as LDH release was similar in all diagnostic groups.\n\nThe birth weight centile for SGA infants with and without preeclampsia were nearly identical (5.7 \u00b1 0.7 vs. 5.9 \u00b1 0.8) as were placental weight and infant/placental weight ratios ( Table 1). Given that the placentas of SGA infants without preeclampsia had significantly reduced system A amino acid uptake, as has been previously reported [13,14], it is likely that most of these infants were pathologically, not constitutionally, small. Interestingly, in reviewing clinical criteria, we found that objective evidence of IUGR, abnormal Doppler velocimeitry or asymmetric growth profile, was present in 3 of 5 of the SGA infants of preeclamptic mothers and only 1 of 5 of the SGA infants whose mothers did not have preeclampsia. Thus, the normal amino acid uptake by the placentas of SGA infants of preeclamptic mothers was probably not due to less severe growth restriction in these infants.\n\nThis observation that growth restriction with preeclampsia is associated with normal system A amino acid transporter activity while uptake is reduced with SGA alone suggests that growth restriction in the two settings may be substantially different. Several of the metabolic changes of preeclampsia, including increased lipids [18] and insulin resistance [19,20] and increased amino acid concentration in infants of preeclamptic mothers [11] are consistent with an",
+        "snippetKind": "body",
+        "section": "Discussion",
+        "snippetOffset": {
+          "start": 9867,
+          "end": 12033
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 327,
+              "end": 330,
+              "matchedPaperCorpusId": null
+            },
+            {
+              "start": 1148,
+              "end": 1152,
+              "matchedPaperCorpusId": "34715732"
+            },
+            {
+              "start": 1152,
+              "end": 1155,
+              "matchedPaperCorpusId": "38615619"
+            }
+          ],
+          "sentences": null
+        }
+      }
+    },
+    {
+      "score": 0.3895954338538796,
+      "paper": {
+        "corpusId": "73587",
+        "title": "Preeclampsia and Stroke: Risks during and after Pregnancy",
+        "authors": [
+          "C. Bushnell",
+          "M. Chireau"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC3034989, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Preeclampsia is classified as one of the hypertensive disorders of pregnancy. It is generally defined as new onset hypertension with proteinuria during pregnancy, although the term is also used to describe worsening blood pressure and proteinuria in women with a history of chronic prepregnancy Stroke Research and Treatment hypertension [5]. The maternal syndrome consists of hypertension and proteinuria, which may also include multisystem abnormalities such as hemolysis, elevated liver enzymes, or low platelets (HELLP) syndrome; disseminated intravascular coagulation (DIC); acute renal failure; seizures; pulmonary edema [6]. The fetal syndrome includes fetal growth restriction, small-size-for-gestational-age (SGA), reduced amniotic fluid, and placental insufficiency leading to fetal hypoxia and hypoperfusion. Preeclampsia can occur near or before term, with or without fetal complications [6]. \n\nPreeclampsia is categorized as mild or severe. Mild preeclampsia is defined as blood pressure of at least 140 mm Hg systolic or at least 90 mm Hg diastolic on at least two occasions and at least 4 to 6 hours apart after the 20th week of gestation in women without prepregnancy hypertension, with proteinuria (defined as \u2265300 mg protein in a 24 hour urine specimen) [6]. Severe preeclampsia is defined as blood pressure at least 160 or 170 mm Hg systolic, 110 mm Hg diastolic, or both, accompanied by \u22655 g of proteinuria per day. When symptoms such as severe headache, visual disturbance, epigastric pain, vomiting, multiorgan system involvement, fetal morbidity or mortality, onset before 34 or 35 weeks or eclampsia (seizures) are present, preeclampsia is also classified as severe (see Table 1). Eclampsia, defined as tonicclonic seizures in a pregnant or recently delivered woman not attributable to other causes than preeclampsia or gestational hypertension, complicates about 1 to 2% of all cases of severe preeclampsia [7].",
+        "snippetKind": "body",
+        "section": "The Spectrum of Preeclampsia/Eclampsia",
+        "snippetOffset": {
+          "start": 1369,
+          "end": 3305
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 338,
+              "end": 341,
+              "matchedPaperCorpusId": "2024542"
+            },
+            {
+              "start": 627,
+              "end": 630,
+              "matchedPaperCorpusId": "208790298"
+            },
+            {
+              "start": 900,
+              "end": 903,
+              "matchedPaperCorpusId": "208790298"
+            },
+            {
+              "start": 1272,
+              "end": 1275,
+              "matchedPaperCorpusId": "208790298"
+            }
+          ],
+          "sentences": [
+            {
+              "start": 0,
+              "end": 77
+            },
+            {
+              "start": 78,
+              "end": 342
+            },
+            {
+              "start": 343,
+              "end": 631
+            },
+            {
+              "start": 632,
+              "end": 819
+            },
+            {
+              "start": 820,
+              "end": 904
+            },
+            {
+              "start": 907,
+              "end": 953
+            },
+            {
+              "start": 954,
+              "end": 1276
+            },
+            {
+              "start": 1277,
+              "end": 1435
+            },
+            {
+              "start": 1436,
+              "end": 1704
+            },
+            {
+              "start": 1705,
+              "end": 1936
+            }
+          ]
+        }
+      }
+    },
+    {
+      "score": 0.38459755306180987,
+      "paper": {
+        "corpusId": "27164579",
+        "title": "Abruptio placentae - relationship with other placental dysfunction related conditions",
+        "authors": [
+          "S. Rasmussen"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://api.unpaywall.org/v2/10.5324/NJE.V17I2.162?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.5324/NJE.V17I2.162, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "They also agree with a study reporting that preterm preeclampsia was associated with lighter, shorter, and leaner newborns, whereas late preeclampsia had increased rates of both smaller and larger newborns (20). Additionally, morphological studies on preeclampsia (21,22) and fetal growth restriction (21,23) have reported placental dysfunction-related occlusive lesions in the spiral arteries such as fibrinoid necrosis or acute atherosis. Thus, the lesions are unlikely to be specific, and the conditions mentioned (AP, fetal growth restriction, and PIH) may share pathophysiological factors. The results of the present study thus support the hypothesis that the conditions may represent different clinical expressions of a recurring placental dysfunction. The earlier reported association between SGA in the first birth and subsequent preeclampsia (2) also supports this hypothesis. \n\nIn conclusion, a pregnancy subsequent to AP must be considered a risk pregnancy in terms of recurrent AP and excess risk of fetal growth restriction and PIH. In sibships with PIH, fetal growth restriction, or AP among siblings, the risk of AP is increased. This suggests a shared recurrent etiologic factor involving an abnormal feto-maternal relationship in AP, PIH, and fetal growth restriction.",
+        "snippetKind": "body",
+        "section": "DISCUSSION",
+        "snippetOffset": {
+          "start": 9152,
+          "end": 10437
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 206,
+              "end": 210,
+              "matchedPaperCorpusId": "23931149"
+            },
+            {
+              "start": 264,
+              "end": 268,
+              "matchedPaperCorpusId": "31400025"
+            },
+            {
+              "start": 268,
+              "end": 271,
+              "matchedPaperCorpusId": "24296603"
+            },
+            {
+              "start": 301,
+              "end": 305,
+              "matchedPaperCorpusId": "31400025"
+            },
+            {
+              "start": 305,
+              "end": 308,
+              "matchedPaperCorpusId": "46727867"
+            }
+          ],
+          "sentences": [
+            {
+              "start": 0,
+              "end": 211
+            },
+            {
+              "start": 212,
+              "end": 440
+            },
+            {
+              "start": 441,
+              "end": 594
+            },
+            {
+              "start": 595,
+              "end": 758
+            },
+            {
+              "start": 759,
+              "end": 885
+            },
+            {
+              "start": 888,
+              "end": 1045
+            },
+            {
+              "start": 1046,
+              "end": 1144
+            },
+            {
+              "start": 1145,
+              "end": 1285
+            }
+          ]
+        }
+      }
+    },
+    {
+      "score": 0.3837671141630975,
+      "paper": {
+        "corpusId": "71191097",
+        "title": "Term alive intra abdominal ectopic pregnancy",
+        "authors": [
+          "A. Abeda",
+          "K. Laila"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "HYBRID",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://api.unpaywall.org/v2/10.3329/BJMS.V11I1.9828?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.3329/BJMS.V11I1.9828, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Optimal management requires careful evaluation and planning. Generally speaking for previable abdominal pregnancies with prior to 28 weeks of gestation, immediate operative intervention is indicated but for viable pregnancies presenting after 28 weeks of gestation a more conservative approach is advocated provided the patient can be under strict observation preferably in a hospital. Abdominal pregnancies potentially life threaten with maternal mortality 7.7 times higher than that associated with intrauterine pregnancy. The perinatal mortality rate is also very high due to premature fetal growth retardation and haemorrhage.",
+        "snippetKind": "body",
+        "section": "Fetal abdomen-surrounded by bowel loops",
+        "snippetOffset": {
+          "start": 4459,
+          "end": 5089
+        },
+        "annotations": {
+          "refMentions": null,
+          "sentences": [
+            {
+              "start": 0,
+              "end": 60
+            },
+            {
+              "start": 61,
+              "end": 385
+            },
+            {
+              "start": 386,
+              "end": 524
+            },
+            {
+              "start": 525,
+              "end": 630
+            }
+          ]
+        }
+      }
+    },
+    {
+      "score": 0.38052601971961886,
+      "paper": {
+        "corpusId": "37580388",
+        "title": "[An assessment of the severity, proportionality and risk of mortality of very low birth weight infants with fetal growth restriction. A multicenter South American analysis].",
+        "authors": [
+          "C. Grandi",
+          "J. Tapia",
+          "G. Marshall"
+        ],
+        "openAccessInfo": {
+          "license": "CCBYNCND",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://api.unpaywall.org/v2/10.1590/S0021-75572005000400005?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.1590/S0021-75572005000400005, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "[14][15] Neonatal mortality up to discharge: adjusted for gestational age. Potential confounding variables: gestational age, adolescence (mother younger than 18), control of pregnancy, multiple birth, hypertension induced by pregnancy (gestational hypertension and preeclampsia), diabetes and prenatal diagnosis of restricted growth (by two ultrasound fetal anthropometric indicators: rate of fetal abdominal circumference growth and ratio abdominal circumference/length of femur below the 10th percentile). \n\nAny significant interaction between pregnancy-induced hypertension and intrauterine growth restriction would suggest that the effect of restriction on the results is modified by maternal hypertension.",
+        "snippetKind": "body",
+        "section": "Pre-established outcome measurements",
+        "snippetOffset": {
+          "start": 5347,
+          "end": 6057
+        },
+        "annotations": {
+          "refMentions": [
+            {
+              "start": 0,
+              "end": 4,
+              "matchedPaperCorpusId": null
+            },
+            {
+              "start": 4,
+              "end": 8,
+              "matchedPaperCorpusId": null
+            }
+          ],
+          "sentences": [
+            {
+              "start": 0,
+              "end": 74
+            },
+            {
+              "start": 75,
+              "end": 507
+            },
+            {
+              "start": 510,
+              "end": 710
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "retrievalVersion": "pa1-v1"
+}
+2026-07-26 12:27:37,609 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:37,620 - sciconharness.mcp_client.utils.tool_execution - INFO - Fetching page 1 to get more filtered results (currently have 0/10)
+2026-07-26 12:27:38,694 - sciconharness.mcp_client.utils.tool_execution - INFO - Page 1 returned 9 results (less than requested 10), stopping pagination (have 0/10 filtered results)
+2026-07-26 12:27:38,695 - sciconharness.mcp_client.filters.cochrane - INFO - FILTERED OUT - Cochrane URL: https://www.cochrane.org/th/evidence/CD000004_antenatal-abdominal-decompression-maternal-hypertension-or-impaired-fetal-growth
+2026-07-26 12:27:38,696 - sciconharness.mcp_client.filters.cochrane - INFO -   Title: Antenatal abdominal decompression for maternal ...
+2026-07-26 12:27:38,696 - sciconharness.mcp_client.filters.cochrane - INFO -   Date: Jul 1, 2021
+2026-07-26 12:27:38,697 - sciconharness.mcp_client.filters.cochrane - INFO -   Link: https://www.cochrane.org/th/evidence/CD000004_antenatal-abdominal-decompression-maternal-hypertension-or-impaired-fetal-growth
+2026-07-26 12:27:38,698 - sciconharness.mcp_client.filters.cochrane - INFO - Filtered 1 out of 9 serper_google_webpage_search results
+2026-07-26 12:27:38,699 - sciconharness.mcp_client.utils.tool_execution - INFO - Fetched 9 total results across 0 page(s)
+2026-07-26 12:27:38,700 - sciconharness.mcp_client.utils.tool_execution - INFO - After filtering: 8 results remaining (requested: 10)
+2026-07-26 12:27:38,701 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:38,701 - sciconharness.mcp_client.utils.utils - INFO - SEARCH RESULTS (serper_google_webpage_search)
+2026-07-26 12:27:38,702 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:38,702 - sciconharness.mcp_client.utils.utils - INFO - Query: "abdominal decompression" pregnancy "perinatal outcome" OR "birth weight" hypertension OR IUGR
+2026-07-26 12:27:38,703 - sciconharness.mcp_client.utils.utils - INFO - Full Results:
+{
+  "organic": [
+    {
+      "title": "Abdominal decompression for suspected fetal compromise/ ...",
+      "link": "https://pubmed.ncbi.nlm.nih.gov/10796079/",
+      "snippet": "by GJ Hofmeyr \u00b7 2000 \u00b7 Cited by 26 \u2014 ... abdominal decompression for maternal hypertension or impaired fetal growth, on perinatal outcome. Search strategy: The Cochrane Pregnancy and Childbirth ...",
+      "position": 1
+    },
+    {
+      "title": "Pre-eclampsia renamed and reframed: Intra-abdominal ...",
+      "link": "https://www.sciencedirect.com/science/article/pii/S0306987714002722",
+      "snippet": "by DJ Sawchuck \u00b7 2014 \u00b7 Cited by 81 \u2014 ... perinatal outcome [140], [141]. Commensurate with the theory that PE is ... Abdominal decompression in normal pregnancy. Cochrane Database Syst Rev (6) ...",
+      "position": 2
+    },
+    {
+      "title": "Abdominal decompression in normal pregnancy | Request PDF",
+      "link": "https://www.researchgate.net/publication/225305204_Abdominal_decompression_in_normal_pregnancy",
+      "snippet": "... pregnancy | Abdominal decompression ... abdominal decompression for maternal hypertension or impaired fetal growth, on perinatal outcome. ... birth weight (relative ...",
+      "position": 3
+    },
+    {
+      "title": "Abdominal decompression for suspected fetal compromise ...",
+      "link": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/",
+      "snippet": "by GJ Hofmeyr \u00b7 2012 \u00b7 Cited by 26 \u2014 Antenatal abdominal decompression. Types of outcome measures. Maternal blood pressure and proteinuria, morbidity and perinatal outcome. Outcomes ...",
+      "position": 4
+    },
+    {
+      "title": "Prevention and Treatment of IUGR | Springer Nature Link",
+      "link": "https://link.springer.com/chapter/10.1007/978-1-4471-0735-4_16",
+      "snippet": "by JJ Walker \u00b7 Cited by 1 \u2014 Birthweight is the most important determinant of perinatal outcome and as such IUGR remains a major cause of perinatal morbidity and mortality.",
+      "position": 5
+    },
+    {
+      "title": "The association between maternal intra-abdominal pressure ...",
+      "link": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0284230",
+      "snippet": "by S Jayasundara \u00b7 2023 \u00b7 Cited by 6 \u2014 IAP difference and the birth weight in normotensive and hypertension in pregnancy. ... Abdominal decompression in the treatment of the ...",
+      "position": 6
+    },
+    {
+      "title": "Role of dydrogesterone in the treatment of idiopathic IUGR",
+      "link": "https://www.ijrcog.org/index.php/ijrcog/article/download/201/198/248",
+      "snippet": "Conclusion: Dydrogesterone for the treatment of IUGR looks promising as it favourably affects the fetal birth weight ... which includes abdominal decompression, ...",
+      "position": 7
+    },
+    {
+      "title": "Apparatus for lowering intra-abdominal pressure",
+      "link": "https://patents.google.com/patent/US5938626A/en",
+      "snippet": "... birth weight babies and perinatal mortality. Hofmeyr ... Hofmeyr, Abdominal Decompression During Pregnancy; Effective Care in Pregnancy and Childbirth, pp.",
+      "position": 8
+    }
+  ]
+}
+2026-07-26 12:27:38,704 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:27:38,707 - sciconharness.mcp_client.mcp_client - INFO - Starting iteration 2
+2026-07-26 12:27:38,707 - sciconharness.mcp_client.mcp_client - INFO - Calling LLM with 6 messages (approx 18643 input tokens, ~66241 chars)
+2026-07-26 12:27:38,707 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:27:38,708 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - USING SYSTEM PROMPT FOR OPENROUTER
+2026-07-26 12:27:38,708 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:27:38,709 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - System prompt length: 2186 characters
+2026-07-26 12:27:38,710 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - System prompt preview: You are a research assistant who answers scientific questions by identifying relevant sources, assessing their evidence quality and certainty, and synthesizing the evidence into evidence-backed conclusions.\n\nTask Requirements:\n- Synthesize a comprehensive, paragraph-long conclusion that directly ans...
+2026-07-26 12:27:38,710 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - Tools passed: 3
+2026-07-26 12:27:38,711 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:27:38,712 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - Passing 3 tools to OpenRouter API: ['semantic_scholar_snippet_search', 'serper_google_webpage_search', 'jina_fetch_webpage_content']
+2026-07-26 12:27:51,778 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter reasoning_content length: 1644 chars
+2026-07-26 12:27:51,779 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter reasoning_details: 1 block(s)
+2026-07-26 12:27:51,779 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter returned 3 tool call(s): ['jina_fetch_webpage_content', 'jina_fetch_webpage_content', 'jina_fetch_webpage_content']
+2026-07-26 12:27:51,780 - sciconharness.mcp_client.mcp_client - INFO - LLM call completed - text_content: None, tool_calls: 3
+2026-07-26 12:27:51,781 - sciconharness.mcp_client.mcp_client - INFO - Tool Calls: [{'id': 'call_0204905674604f9da61cdb9f', 'type': 'function', 'function': {'name': 'jina_fetch_webpage_content', 'arguments': '{"webpage_url": "https://pubmed.ncbi.nlm.nih.gov/10796079/"}'}}, {'id': 'call_e2c0c014ec4d47239b327344', 'type': 'function', 'function': {'name': 'jina_fetch_webpage_content', 'arguments': '{"webpage_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/"}'}}, {'id': 'call_91750f3f227e4e5c983b5629', 'type': 'function', 'function': {'name': 'jina_fetch_webpage_content', 'arguments': '{"webpage_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/"}'}}]
+2026-07-26 12:27:51,781 - sciconharness.mcp_client.mcp_client - INFO - Reasoning Summary: The search results clearly point to a specific Cochrane review on this exact topic: "Abdominal decompression for suspected fetal compromise/..." by GJ Hofmeyr (2000, updated later, possibly 2012).
+Let's look closely at the snippets and search results:
+1. "Abdominal decompression for suspected fetal compromise..." (PubMed 10796079, Hofmeyr 2000).
+2. "Abdominal decompression in normal pregnancy" (PMC7050618, Hofmeyr 2012). Snippet: "There is thus no support for the clinical use of antenatal abdominal decompression..."
+3. "Abdominal decompression for suspected fetal compromise..." (PMC7061357, Hofmeyr 2012). Snippet: "The objective of this review was to assess the effects of antenatal abdominal decompression for maternal hypertension or impaired fetal growth, on perinatal..."
+4. Sawchuck 2014 (Pre-eclampsia renamed and reframed: Intra-abdominal...) mentions intra-abdominal pressure and preeclampsia, citing Hofmeyr's Cochrane review on abdominal decompression.
+5. A PLOS ONE 2023 article: "The association between maternal intra-abdominal pressure..." by Jayasundara.
+
+I need to fetch the content of these specific Cochrane reviews to understand the exact findings regarding perinatal outcomes for pregnant women with hypertension or impaired fetal growth.
+URLs to fetch:
+- https://pubmed.ncbi.nlm.nih.gov/10796079/ (Cochrane review on suspected fetal compromise / hypertension)
+- https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/ (Cochrane review full text or similar on suspected fetal compromise)
+- https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/ (Cochrane review on normal pregnancy)
+Let's fetch the PubMed one and the PMC ones.
+2026-07-26 12:28:02,245 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:02,245 - sciconharness.mcp_client.utils.utils - INFO - JINA API RESULTS (jina_fetch_webpage_content)
+2026-07-26 12:28:02,245 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:02,245 - sciconharness.mcp_client.utils.utils - INFO - URL: https://pubmed.ncbi.nlm.nih.gov/10796079/
+2026-07-26 12:28:02,246 - sciconharness.mcp_client.utils.utils - INFO - Content length: 1,731 characters
+2026-07-26 12:28:02,247 - sciconharness.mcp_client.utils.utils - INFO - Content preview (first 500 chars): Title/Citation
+- Abdominal decompression for suspected fetal compromise/pre-eclampsia. GJ Hofmeyr. Cochrane Database Syst Rev. 2000. Updated: Hofmeyr GJ. Cochrane Database Syst Rev. 2012 Jun 13;2012(6):CD000004. doi: 10.1002/14651858.CD000004.pub2. PMID: 22696313. Full text: https://doi.org/10.1002/14651858.CD000004
+
+Objective
+- Assess effects of antenatal abdominal decompression for maternal hypertension and/or impaired fetal growth on perinatal outcome.
+
+Methods
+- Searches: Cochrane Pregnancy 
+2026-07-26 12:28:02,248 - sciconharness.mcp_client.utils.utils - INFO - Full Results:
+{
+  "url": "https://pubmed.ncbi.nlm.nih.gov/10796079/",
+  "title": "Abdominal decompression for suspected fetal compromise/pre-eclampsia - PubMed",
+  "content": "Title/Citation\n- Abdominal decompression for suspected fetal compromise/pre-eclampsia. GJ Hofmeyr. Cochrane Database Syst Rev. 2000. Updated: Hofmeyr GJ. Cochrane Database Syst Rev. 2012 Jun 13;2012(6):CD000004. doi: 10.1002/14651858.CD000004.pub2. PMID: 22696313. Full text: https://doi.org/10.1002/14651858.CD000004\n\nObjective\n- Assess effects of antenatal abdominal decompression for maternal hypertension and/or impaired fetal growth on perinatal outcome.\n\nMethods\n- Searches: Cochrane Pregnancy and Childbirth Group trials register and Cochrane Controlled Trials Register; last search Feb 1998.\n- Inclusion: randomised or quasi-randomised trials comparing abdominal decompression versus no decompression in women with pre-eclampsia and/or suspected fetal compromise.\n- Eligibility and trial quality assessed by one reviewer.\n\nIncluded studies and quality\n- Three studies included.\n- All studies had the possibility of serious bias (methodological limitations).\n\nMain results (therapeutic abdominal decompression vs no decompression)\n- Persistent pre-eclampsia: relative risk (RR) 0.36; 95% CI 0.18 to 0.72.\n- Fetal distress in labour: RR 0.37; 95% CI 0.19 to 0.71.\n- Low birthweight: RR 0.50; 95% CI 0.40 to 0.63.\n- Apgar <6 at 1 minute: RR 0.26; 95% CI 0.12 to 0.56.\n- Perinatal mortality: RR 0.39; 95% CI 0.22 to 0.71.\n\nReviewer's conclusions\n- Effects are not clear because of methodological limitations and risk of bias in included trials.\n- Apparent improvements in birthweight and perinatal mortality justify further evaluation of abdominal decompression for impaired fetal growth and possibly for women with pre-eclampsia.\n\nOther\n- Original review date: 2000; updated review published 13 June 2012 (see citation above).",
+  "description": "Due to the methodological limitations of the studies, the effects of therapeutic abdominal decompression are not clear. The apparent improvements in birthweight and perinatal mortality warrant further evaluation of abdominal decompression where there is impaired fetal growth and possibly for women w \u2026",
+  "publishedTime": "",
+  "metadata": {
+    "lang": "en",
+    "HandheldFriendly": "True",
+    "MobileOptimized": "320",
+    "viewport": "width=device-width, initial-scale=1.0",
+    "ncbi_sg_optimize_id": "",
+    "theme-color": "#20558a",
+    "referrer": "origin-when-cross-origin",
+    "ncbi_pinger_gtm_track": "true",
+    "ncbi_app": "pubmed",
+    "ncbi_db": "pubmed",
+    "ncbi_phid": "4C010001792A1225000034D538F3E30F.1.m_4",
+    "ncbi_pinger_stat_url": "https://pubmed.ncbi.nlm.nih.gov/stat",
+    "log_category": "literature",
+    "ncbi_cost_center": "pubmed",
+    "ncbi_pdid": "abstract",
+    "log_op": "retrieve",
+    "uid": "10796079",
+    "ncbi_uid": "10796079",
+    "log_displayeduids": "10796079",
+    "log_source_db": "pubmed",
+    "log_icons_present": "true",
+    "description": "Due to the methodological limitations of the studies, the effects of therapeutic abdominal decompression are not clear. The apparent improvements in birthweight and perinatal mortality warrant further evaluation of abdominal decompression where there is impaired fetal growth and possibly for women w \u2026",
+    "keywords": "pmid:10796079, doi:10.1002/14651858.CD000004, Systematic Review, G J Hofmeyr, Female, Fetal Diseases / prevention & control*, Humans, Lower Body Negative Pressure*, Pre-Eclampsia / prevention & control*, Pregnancy, Pregnancy Outcome, PubMed Abstract, NIH, NLM, NCBI, National Institutes of Health, National Center for Biotechnology Information, National Library of Medicine, MEDLINE",
+    "robots": "index,nofollow,noarchive",
+    "og:title": "Abdominal decompression for suspected fetal compromise/pre-eclampsia - PubMed",
+    "og:url": "https://pubmed.ncbi.nlm.nih.gov/10796079/",
+    "og:description": "Due to the methodological limitations of the studies, the effects of therapeutic abdominal decompression are not clear. The apparent improvements in birthweight and perinatal mortality warrant further evaluation of abdominal decompression where there is impaired fetal growth and possibly for women w \u2026",
+    "og:image": "https://cdn.ncbi.nlm.nih.gov/pubmed/persistent/pubmed-meta-image-v2.jpg",
+    "og:image:secure_url": "https://cdn.ncbi.nlm.nih.gov/pubmed/persistent/pubmed-meta-image-v2.jpg",
+    "og:type": "website",
+    "og:site_name": "PubMed",
+    "twitter:domain": "pubmed.ncbi.nlm.nih.gov",
+    "twitter:card": "summary_large_image",
+    "twitter:title": "Abdominal decompression for suspected fetal compromise/pre-eclampsia - PubMed",
+    "twitter:url": "https://pubmed.ncbi.nlm.nih.gov/10796079/",
+    "twitter:description": "Due to the methodological limitations of the studies, the effects of therapeutic abdominal decompression are not clear. The apparent improvements in birthweight and perinatal mortality warrant further evaluation of abdominal decompression where there is impaired fetal growth and possibly for women w \u2026",
+    "twitter:image": "https://cdn.ncbi.nlm.nih.gov/pubmed/persistent/pubmed-meta-image-v2.jpg",
+    "citation_title": "Abdominal decompression for suspected fetal compromise/pre-eclampsia",
+    "citation_authors": "Hofmeyr GJ;",
+    "citation_date": "2000",
+    "citation_publisher": "Cochrane Database Syst Rev",
+    "citation_journal_title": "The Cochrane database of systematic reviews",
+    "citation_pmid": "10796079",
+    "citation_abstract_html_url": "https://pubmed.ncbi.nlm.nih.gov/10796079/",
+    "citation_issue": "2",
+    "citation_doi": "10.1002/14651858.CD000004",
+    "citation_issn": "1469-493X",
+    "ncbi_nwds_ver": "1.2.5",
+    "ncbi_nwds": "yes"
+  },
+  "success": true
+}
+2026-07-26 12:28:02,248 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:02,290 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:02,291 - sciconharness.mcp_client.utils.utils - INFO - JINA API RESULTS (jina_fetch_webpage_content)
+2026-07-26 12:28:02,291 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:02,291 - sciconharness.mcp_client.utils.utils - INFO - URL: https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/
+2026-07-26 12:28:02,292 - sciconharness.mcp_client.utils.utils - INFO - Content length: 3,589 characters
+2026-07-26 12:28:02,292 - sciconharness.mcp_client.utils.utils - INFO - Content preview (first 500 chars): Topic: Antenatal abdominal decompression for maternal hypertension or impaired fetal growth — Cochrane review (updated search 2 Feb 2012)
+
+Intervention
+- Abdominal decompression: rigid dome + airtight suit around the abdomen; negative pressure −50 to −100 mmHg applied for 15–30 seconds each minute for 30 minutes once to thrice daily, or continuously during labour. Proposed mechanism: increased intervillous blood flow.
+
+Scope and trials
+- Objective: assess effects of antenatal abdominal decompres
+2026-07-26 12:28:02,293 - sciconharness.mcp_client.utils.utils - INFO - Full Results:
+{
+  "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/",
+  "title": "Abdominal decompression for suspected fetal compromise/pre\u2010eclampsia",
+  "content": "Topic: Antenatal abdominal decompression for maternal hypertension or impaired fetal growth \u2014 Cochrane review (updated search 2 Feb 2012)\n\nIntervention\n- Abdominal decompression: rigid dome + airtight suit around the abdomen; negative pressure \u221250 to \u2212100 mmHg applied for 15\u201330 seconds each minute for 30 minutes once to thrice daily, or continuously during labour. Proposed mechanism: increased intervillous blood flow.\n\nScope and trials\n- Objective: assess effects of antenatal abdominal decompression for pre\u2011eclampsia and/or suspected fetal compromise on fetal growth and perinatal outcomes.\n- Trials identified: 3 randomized or quasi\u2011randomized trials reported 1967\u20131973:\n  - Blecher 1967 (pre\u2011eclampsia, essential hypertension, chronic nephritis)\n  - MacRae 1971 (small\u2011for\u2011date fetuses, low urinary estriol)\n  - Varma 1973 (clinically small\u2011for\u2011dates, biparietal diameter <10th percentile)\n- Total sample reported in text: 356 pregnant women (review notes some inconsistencies; perinatal mortality analysis cites 367 participants).\n- One excluded non\u2011randomized trial: Coppola 1985.\n\nKey quantitative results (effect sizes reported as Risk Ratio [RR] with 95% CI; number of studies/participants shown in review table)\n- Persistent (unchanged or worsening) pre\u2011eclampsia: 1 study, 80 participants \u2014 RR 0.36 (95% CI 0.18 to 0.72).\n- Fetal distress in labour: 1 study, 140 participants \u2014 RR 0.37 (95% CI 0.19 to 0.71).\n- Low birthweight: 2 studies, 304 participants \u2014 RR 0.50 (95% CI 0.40 to 0.63).\n- Apgar score <6 at 1 minute: 1 study, 140 participants \u2014 RR 0.26 (95% CI 0.12 to 0.56).\n- Perinatal mortality: 3 studies, 367 participants \u2014 RR 0.39 (95% CI 0.22 to 0.71).\n- Induction of labour (all indications): 2 studies, 300 participants \u2014 RR 0.97 (95% CI 0.75 to 1.25).\n- Induction for placental insufficiency: 1 study, 140 participants \u2014 RR 0.74 (95% CI 0.46 to 1.19).\n- Endocrine / growth measures (Varma 1973):\n  - Urinary estriol increase: mean 1.68 (SD 1.21) vs 0.91 (SD 0.74) mg/week (decompression vs control).\n  - Weekly fetal biparietal diameter growth: mean 2.08 (SD 0.36) vs 1.49 (SD 0.71) mm/week.\n- MacRae 1971 reported increased mean birthweight and placental weight (data summarized qualitatively).\n\nQuality and bias\n- All three included studies have substantial methodological limitations:\n  - Allocation by alternation or unspecified \"at random\" (high risk of selection bias).\n  - Lack of observer blinding; some outcome assessments subjective.\n  - In Varma 1973 seven women in each group were reallocated due to non\u2011acceptance of decompression; inability to reanalyse by original allocation.\n  - Potential selection, observer, reporting and analysis biases.\n- Because of these limitations, observed effects may be exaggerated or spurious for subjective outcomes; birthweight is less susceptible to observer bias.\n\nAuthors\u2019 conclusions and implications\n- Clinical use of antenatal abdominal decompression cannot be recommended on the basis of these trials due to methodological shortcomings.\n- The consistent and large apparent improvements in birthweight and reductions in perinatal mortality across trials are striking and justify further evaluation in well\u2011designed randomized controlled trials, particularly for impaired fetal growth and possibly for pre\u2011eclampsia.\n\nOther review details\n- Review searches: Cochrane Pregnancy and Childbirth Group\u2019s Trials Register (search date 2 Feb 2012); no new eligible trials identified in that update.\n- Review history: protocol published 1996; review first published 1996; subsequent updates (notably 2004, 2008, 2012).",
+  "description": "Abdominal decompression was developed as a means of pain relief during labour. It has also been used for complications of pregnancy, and in healthy pregnant women in an attempt to improve fetal wellbeing and intellectual development. The objective ...",
+  "publishedTime": "",
+  "metadata": {
+    "lang": "en",
+    "HandheldFriendly": "True",
+    "MobileOptimized": "320",
+    "viewport": "width=device-width, initial-scale=1.0",
+    "msapplication-config": "https://cdn.ncbi.nlm.nih.gov/pmc/pd-medc-pmc-cloudpmc-viewer/production/bb3d0162/var/data/static/img/favicons/browserconfig.xml",
+    "theme-color": "#ffffff",
+    "ncbi_app": "cloudpmc-viewer",
+    "ncbi_db": "pmc",
+    "ncbi_phid": "9F5A97DBA659EB830197DB00458AC543.m_1",
+    "ncbi_pinger_stat_url": "https://pmc.ncbi.nlm.nih.gov/stat",
+    "ncbi_pdid": "article",
+    "ncbi_domain": "cochrev",
+    "ncbi_type": "fulltext",
+    "ncbi_pcid": "journal",
+    "robots": "INDEX,NOFOLLOW,NOARCHIVE",
+    "citation_journal_title": "The Cochrane Database of Systematic Reviews",
+    "citation_title": "Abdominal decompression for suspected fetal compromise/pre\u2010eclampsia",
+    "citation_author": "G Justus Hofmeyr",
+    "citation_author_institution": "University of the Witwatersrand, University of Fort Hare, Eastern Cape Department of Health, Department of Obstetrics and Gynaecology, East London Hospital Complex, Frere and Cecilia Makiwane Hospitals, Private Bag X 9047, East London, Eastern Cape, South Africa, 5200",
+    "citation_publication_date": "2012 Jun 13",
+    "citation_volume": "2012",
+    "citation_issue": "6",
+    "citation_firstpage": "CD000004",
+    "citation_doi": "10.1002/14651858.CD000004.pub2",
+    "citation_pmid": "22696313",
+    "citation_abstract_html_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/",
+    "citation_fulltext_html_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/",
+    "citation_pdf_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/pdf/CD000004.pdf",
+    "description": "Abdominal decompression was developed as a means of pain relief during labour. It has also been used for complications of pregnancy, and in healthy pregnant women in an attempt to improve fetal wellbeing and intellectual development. The objective ...",
+    "og:title": "Abdominal decompression for suspected fetal compromise/pre\u2010eclampsia",
+    "og:type": "article",
+    "og:site_name": "PubMed Central (PMC)",
+    "og:description": "Abdominal decompression was developed as a means of pain relief during labour. It has also been used for complications of pregnancy, and in healthy pregnant women in an attempt to improve fetal wellbeing and intellectual development. The objective ...",
+    "og:url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/",
+    "og:image": "https://cdn.ncbi.nlm.nih.gov/pmc/cms/images/pmc-card-share.jpg?_=0",
+    "twitter:card": "summary_large_image",
+    "twitter:site": "@ncbi"
+  },
+  "success": true
+}
+2026-07-26 12:28:02,293 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:02,339 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:02,340 - sciconharness.mcp_client.utils.utils - INFO - JINA API RESULTS (jina_fetch_webpage_content)
+2026-07-26 12:28:02,340 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:02,340 - sciconharness.mcp_client.utils.utils - INFO - URL: https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/
+2026-07-26 12:28:02,341 - sciconharness.mcp_client.utils.utils - INFO - Content length: 4,380 characters
+2026-07-26 12:28:02,342 - sciconharness.mcp_client.utils.utils - INFO - Content preview (first 500 chars): Topic: Prophylactic abdominal decompression in normal pregnancy — Cochrane review (search updated 2 Feb 2012)
+
+Scope and objective
+- Assess effects of prophylactic antenatal abdominal decompression on admission for pre‐eclampsia, fetal growth, perinatal morbidity and mortality, and childhood development in healthy pregnant women.
+- Search: Cochrane Pregnancy and Childbirth Group Trials Register (2 Feb 2012). No language restrictions. No new trials identified in the update.
+
+Intervention (definit
+2026-07-26 12:28:02,342 - sciconharness.mcp_client.utils.utils - INFO - Full Results:
+{
+  "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/",
+  "title": "Abdominal decompression in normal pregnancy",
+  "content": "Topic: Prophylactic abdominal decompression in normal pregnancy \u2014 Cochrane review (search updated 2 Feb 2012)\n\nScope and objective\n- Assess effects of prophylactic antenatal abdominal decompression on admission for pre\u2010eclampsia, fetal growth, perinatal morbidity and mortality, and childhood development in healthy pregnant women.\n- Search: Cochrane Pregnancy and Childbirth Group Trials Register (2 Feb 2012). No language restrictions. No new trials identified in the update.\n\nIntervention (definition)\n- Abdominal decompression: rigid dome around the abdomen with airtight suit; intermittent negative pressure (typically \u221250 to \u2212100 mmHg) applied for 15\u201330 seconds each minute for 30 minutes, once to thrice daily, or applied with contractions during labour. Intended to improve uteroplacental blood flow.\n\nIncluded trials (3)\n1. Coxon 1973 (UK) \u2014 randomized allocation; primigravidae single fetus; decompression from ~28 weeks, 15 s/min for 30 min twice weekly. Comparison: \u221270 mmHg (n=200) versus \u221220 mmHg 'control' (n=211). Outcomes: BP, admission for pre\u2010eclampsia, birthweight, placental weight, perinatal mortality. Note: control (\u221220 mmHg) may not be an inert placebo.\n2. Liddicoat 1968 (South Africa) \u2014 randomized allocation; antenatal decompression versus routine antenatal physiotherapy classes. Offspring evaluated blind at 1, 4, 9 months and 3 years (Merrill-Palmer at 3 years). High dropout: 45% at 9 months, 56% by 3 years.\n3. Hofmeyr 1990 \u2014 review of hospital notes from the Liddicoat cohort to report perinatal data (early 1960s cohort). ~23% of results unobtainable.\n\nExcluded\n- Mathews 1968: excluded because no clinically relevant outcomes reported (20 women in labour; fetal scalp measures only).\n\nRisk of bias\n- Randomization/allocation concealment judged adequate (low risk) in included trials. Blinding variable: Coxon blinded women/attendants; offspring assessment in Liddicoat was blinded. Concern: placebo at \u221220 mmHg in Coxon may have physiological effect.\n\nMain quantitative outcomes (from pooled/individual trial data)\n- Admission for pre\u2010eclampsia: 1 study, n=411 \u2014 Risk ratio (RR) 1.06 (95% CI 0.47 to 2.38).\n- Low birthweight: 1 study, n=253 \u2014 RR 0.69 (95% CI 0.27 to 1.77).\n- Apgar score <4 at 1 minute: 1 study, n=242 \u2014 RR 1.00 (95% CI 0.21 to 4.86).\n- Stillbirth: 2 studies, n=709 \u2014 RR 4.68 (95% CI 0.80 to 27.31) (wide CI).\n- Neonatal death: 2 studies, n=705 \u2014 RR 1.11 (95% CI 0.23 to 5.43).\n- Perinatal mortality: 2 studies, n=709 \u2014 RR 2.47 (95% CI 0.77 to 7.92).\n\nOther findings\n- Mathews & Loeffler (labour study excluded from main review) found a non\u2011significant greater increase in scalp blood pH with decompression (+0.05 vs +0.01).\n- No consistent benefit found for admission for pre\u2010eclampsia, fetal growth, Apgar scores, perinatal mortality, or childhood development.\n- Small excess of perinatal deaths in decompression groups noted; may be chance (CIs wide).\n- Unexpected observations meriting further study:\n  - Liddicoat 1968: more children rated undisciplined/aggressive at 3 years in decompression group (14/89 vs 2/90).\n  - Coxon 1973: placental weights lower in high decompression group: 627 (SEM 9) g vs 653 (SEM 9) g in low decompression group.\n\nAuthors\u2019 conclusions and implications\n- Practice: Convincing evidence that antenatal abdominal decompression in uncomplicated pregnancies does not improve measured outcomes \u2014 no support for clinical prophylactic use in normal pregnancies.\n- Intrapartum abdominal decompression: insufficiently evaluated to recommend or reject.\n- Research: Future research should focus on use during labour and in complicated pregnancies; investigate psychosocial/physiological mechanisms suggested by the unexpected observations (child behaviour, placental mass).\n\nStudy/publication details\n- Review protocol first published: Issue 2, 1998; review first published: Issue 2, 1998. Review updated; 2 Feb 2012 update: new citation required but conclusions unchanged.\n- Review authors: GJ Hofmeyr (original), R Kulier (checked/modified). Internal/external supports listed (University of the Witwatersrand; Geneva Univ Hospital; South African Medical Research Council).\n\nReferences (included trials)\n- Coxon A et al., Journal of Obstetrics and Gynaecology (British Commonwealth) 1973;80:1081\u201385.\n- Liddicoat R., South African Medical Journal 1968;42:203\u201311.\n- Hofmeyr GJ et al., BJOG 1990;97:547\u201348.",
+  "description": "Abdominal decompression was developed as a means of pain relief during labour. It has also been used for complications of pregnancy, and in healthy pregnant women in an attempt to improve fetal wellbeing and intellectual development. The objective ...",
+  "publishedTime": "",
+  "metadata": {
+    "lang": "en",
+    "HandheldFriendly": "True",
+    "MobileOptimized": "320",
+    "viewport": "width=device-width, initial-scale=1.0",
+    "msapplication-config": "https://cdn.ncbi.nlm.nih.gov/pmc/pd-medc-pmc-cloudpmc-viewer/production/bb3d0162/var/data/static/img/favicons/browserconfig.xml",
+    "theme-color": "#ffffff",
+    "ncbi_app": "cloudpmc-viewer",
+    "ncbi_db": "pmc",
+    "ncbi_phid": "9DB8B565A662E86301B565001B1A6BB6.m_1",
+    "ncbi_pinger_stat_url": "https://pmc.ncbi.nlm.nih.gov/stat",
+    "ncbi_pdid": "article",
+    "ncbi_domain": "cochrev",
+    "ncbi_type": "fulltext",
+    "ncbi_pcid": "journal",
+    "robots": "INDEX,NOFOLLOW,NOARCHIVE",
+    "citation_journal_title": "The Cochrane Database of Systematic Reviews",
+    "citation_title": "Abdominal decompression in normal pregnancy",
+    "citation_author": [
+      "G Justus Hofmeyr",
+      "Regina Kulier"
+    ],
+    "citation_author_institution": [
+      "University of the Witwatersrand, University of Fort Hare, Eastern Cape Department of Health, Department of Obstetrics and Gynaecology, East London Hospital Complex, Frere and Cecilia Makiwane Hospitals, Private Bag X 9047, East London, Eastern Cape, South Africa, 5200",
+      "Geneva, Switzerland"
+    ],
+    "citation_publication_date": "2012 Jun 13",
+    "citation_volume": "2012",
+    "citation_issue": "6",
+    "citation_firstpage": "CD001062",
+    "citation_doi": "10.1002/14651858.CD001062.pub2",
+    "citation_pmid": "22696321",
+    "citation_abstract_html_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/",
+    "citation_fulltext_html_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/",
+    "citation_pdf_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/pdf/CD001062.pdf",
+    "description": "Abdominal decompression was developed as a means of pain relief during labour. It has also been used for complications of pregnancy, and in healthy pregnant women in an attempt to improve fetal wellbeing and intellectual development. The objective ...",
+    "og:title": "Abdominal decompression in normal pregnancy",
+    "og:type": "article",
+    "og:site_name": "PubMed Central (PMC)",
+    "og:description": "Abdominal decompression was developed as a means of pain relief during labour. It has also been used for complications of pregnancy, and in healthy pregnant women in an attempt to improve fetal wellbeing and intellectual development. The objective ...",
+    "og:url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/",
+    "og:image": "https://cdn.ncbi.nlm.nih.gov/pmc/cms/images/pmc-card-share.jpg?_=0",
+    "twitter:card": "summary_large_image",
+    "twitter:site": "@ncbi"
+  },
+  "success": true
+}
+2026-07-26 12:28:02,343 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:02,346 - sciconharness.mcp_client.mcp_client - INFO - Starting iteration 3
+2026-07-26 12:28:02,346 - sciconharness.mcp_client.mcp_client - INFO - Calling LLM with 10 messages (approx 25813 input tokens, ~86632 chars)
+2026-07-26 12:28:02,347 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:28:02,347 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - USING SYSTEM PROMPT FOR OPENROUTER
+2026-07-26 12:28:02,347 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:28:02,347 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - System prompt length: 2186 characters
+2026-07-26 12:28:02,348 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - System prompt preview: You are a research assistant who answers scientific questions by identifying relevant sources, assessing their evidence quality and certainty, and synthesizing the evidence into evidence-backed conclusions.\n\nTask Requirements:\n- Synthesize a comprehensive, paragraph-long conclusion that directly ans...
+2026-07-26 12:28:02,348 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - Tools passed: 3
+2026-07-26 12:28:02,348 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:28:02,349 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - Passing 3 tools to OpenRouter API: ['semantic_scholar_snippet_search', 'serper_google_webpage_search', 'jina_fetch_webpage_content']
+2026-07-26 12:28:18,329 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter reasoning_content length: 2584 chars
+2026-07-26 12:28:18,329 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter reasoning_details: 1 block(s)
+2026-07-26 12:28:18,329 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter returned 1 tool call(s): ['jina_fetch_webpage_content']
+2026-07-26 12:28:18,330 - sciconharness.mcp_client.mcp_client - INFO - LLM call completed - text_content: None, tool_calls: 1
+2026-07-26 12:28:18,331 - sciconharness.mcp_client.mcp_client - INFO - Tool Calls: [{'id': 'call_86d25830a6854c6eb7c71c13', 'type': 'function', 'function': {'name': 'jina_fetch_webpage_content', 'arguments': '{"webpage_url": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0284230"}'}}]
+2026-07-26 12:28:18,332 - sciconharness.mcp_client.mcp_client - INFO - Reasoning Summary: Excellent. I now have the complete details from the two highly relevant Cochrane reviews by Hofmeyr (2012 update, originally 2000) regarding antenatal abdominal decompression.
+Let's synthesize the findings specifically for the user's question: "For pregnant women with hypertension or impaired fetal growth, what are the effects of antenatal abdominal decompression on perinatal outcomes?"
+
+Key findings from the Cochrane review on "Abdominal decompression for suspected fetal compromise/pre-eclampsia" (Hofmeyr 2012, PMC7061357):
+- Population: Pregnant women with pre-eclampsia, maternal hypertension, or suspected fetal compromise (impaired fetal growth).
+- Intervention: Antenatal abdominal decompression (rigid dome + airtight suit around the abdomen applying negative pressure).
+- Trials: Only 3 randomized or quasi-randomized trials identified, all conducted between 1967 and 1973 (Blecher 1967, MacRae 1971, Varma 1973), involving around 356-367 women.
+- Perinatal outcomes (apparent benefits found, but with major caveats):
+  - Low birthweight: RR 0.50 (95% CI 0.40 to 0.63) - 50% reduction in risk.
+  - Perinatal mortality: RR 0.39 (95% CI 0.22 to 0.71) - 61% reduction.
+  - Apgar score <6 at 1 minute: RR 0.26 (95% CI 0.12 to 0.56).
+  - Fetal distress in labour: RR 0.37 (95% CI 0.19 to 0.71).
+  - Persistent pre-eclampsia: RR 0.36 (95% CI 0.18 to 0.72).
+- Evidence Quality/Limitations:
+  - All three trials had substantial methodological limitations (high risk of bias).
+  - Allocation was by alternation or unspecified "at random" (high risk of selection bias).
+  - Lack of observer blinding.
+  - Post-randomization exclusions/reallocations (e.g., in Varma 1973, women who didn't accept decompression were reallocated, breaking intention-to-treat).
+  - Because of these serious methodological flaws, the observed large effects may be exaggerated or completely spurious.
+  - No new trials have been identified in subsequent updates up to 2012.
+- Conclusion: The clinical use of antenatal abdominal decompression cannot be recommended based on this low-quality, outdated evidence. However, the apparent improvements in birthweight and perinatal mortality were striking enough to justify further evaluation in well-designed modern randomized controlled trials, though none appear to have been conducted since.
+
+Let's also briefly check if there is any newer evidence (e.g., the 2023 PLOS One paper on maternal intra-abdominal pressure by Jayasundara).
+I'll do a quick fetch of the PLOS One paper to see if it adds any new intervention data or just observational data on IAP.
+
+2026-07-26 12:28:38,578 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:38,578 - sciconharness.mcp_client.utils.utils - INFO - JINA API RESULTS (jina_fetch_webpage_content)
+2026-07-26 12:28:38,578 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:38,578 - sciconharness.mcp_client.utils.utils - INFO - URL: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0284230
+2026-07-26 12:28:38,580 - sciconharness.mcp_client.utils.utils - INFO - Content length: 4,352 characters
+2026-07-26 12:28:38,580 - sciconharness.mcp_client.utils.utils - INFO - Content preview (first 500 chars): Citation and publication
+- Jayasundara S, Goonewardene M, Dassanayake L. The association between maternal intra-abdominal pressure and hypertension in pregnancy. PLoS ONE. Published Oct 18, 2023. DOI: 10.1371/journal.pone.0284230. Received Mar 26, 2023; Accepted Oct 3, 2023. Open access; no specific funding; authors declare no competing interests.
+
+Objective
+- Determine antepartum and postpartum intra-abdominal pressure (IAP) in women undergoing non-emergency cesarean delivery (CD) and assess as
+2026-07-26 12:28:38,581 - sciconharness.mcp_client.utils.utils - INFO - Full Results:
+{
+  "url": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0284230",
+  "title": "The association between maternal intra-abdominal pressure and hypertension in pregnancy",
+  "content": "Citation and publication\n- Jayasundara S, Goonewardene M, Dassanayake L. The association between maternal intra-abdominal pressure and hypertension in pregnancy. PLoS ONE. Published Oct 18, 2023. DOI: 10.1371/journal.pone.0284230. Received Mar 26, 2023; Accepted Oct 3, 2023. Open access; no specific funding; authors declare no competing interests.\n\nObjective\n- Determine antepartum and postpartum intra-abdominal pressure (IAP) in women undergoing non-emergency cesarean delivery (CD) and assess association between IAP and hypertension in pregnancy (HIP).\n\nStudy design and participants\n- Cross-sectional study (enrolment 2016\u20132017) at Teaching Hospital, Mahamodara, Galle, Sri Lanka.\n- n = 70 singleton pregnancies undergoing antepartum, non-emergency CD: 55 normotensive (78.6%); 15 HIP (21.4%) \u2014 HIP breakdown: gestational hypertension n=5; preeclampsia n=8; eclampsia n=1; chronic hypertension n=1.\n- Exclusions: Category 1 CD, CDs during active labor, vaginal deliveries.\n\nIAP measurement protocol\n- Intravesical pressure used as surrogate for IAP following World Abdominal Compartment Society recommendations.\n- Procedure: 16-Fr Foley catheter, bladder emptied, 25 mL saline inflation, supine position, mid-axillary zero reference; three consecutive end-expiration readings; mean recorded.\n- Timing: before spinal/general anesthesia (pre-op) and repeated 6\u20138 hours postoperatively when pain VAS < 3.\n\nStatistical methods\n- SPSS v22.0. Normality by Kolmogorov\u2013Smirnov. Group comparisons via independent t-test and Chi-square. Two-tailed p<0.05 considered significant.\n- Multivariable least-squares linear regression for three continuous dependent variables: antepartum IAP, postpartum IAP, and IAP difference (antepartum \u2212 postpartum).\n- Candidate covariates: hypertension (binary), maternal BMI, birthweight, parity. Gestational age removed due to high collinearity with birthweight (Pearson r = 0.78).\n- Model selection used adjusted R2; squared transformations tested.\n\nKey results \u2014 descriptive\n- Normotensive group (mean gestational age 38.2 weeks; 95% CI 37.9\u201338.6):\n  - Mean antepartum IAP = 12.7 mmHg (95% CI 11.6\u201313.8).\n  - Mean postpartum IAP = 7.3 mmHg (95% CI 6.5\u20138.0).\n- HIP group (mean gestational age 34.3 weeks; mean birthweight 1,886.66 g):\n  - Mean antepartum IAP = 12.5 mmHg (95% CI 10.0\u201315.0).\n  - Mean postpartum IAP = 9.2 mmHg (95% CI 7.3\u201311.1).\n\nKey results \u2014 multivariable regression (models adjusted as above)\n- Antepartum IAP model:\n  - Best model included hypertension and birthweight. Adjusted R2 = 0.032.\n  - Birthweight significant predictor (p = 0.042).\n  - Hypertension coefficient = +1.617 mmHg (p = 0.268) \u2014 positive association but not statistically significant.\n- IAP difference (antepartum \u2212 postpartum) model:\n  - Best model included hypertension and birthweight^2. R2 = 0.190.\n  - Hypertension coefficient = \u22121.013 mmHg (p = 0.179) \u2014 reduction in IAP from antepartum to postpartum was smaller in HIP but not statistically significant.\n- Postpartum IAP model:\n  - Best model included hypertension and birthweight. R2 = 0.059.\n  - Hypertension coefficient = +2.519 mmHg; statistically significant (p = 0.018).\n\nMain conclusions\n- In term normotensive pregnancies, antepartum mean IAP (~12.7 mmHg) falls within the intra-abdominal hypertension (IAH) range reported for non-pregnant populations; postpartum mean IAP ~7.3 mmHg.\n- HIP is associated with higher antepartum and postpartum IAP and with a smaller reduction in IAP after delivery compared with normotensive pregnancies.\n- After adjustment, postpartum IAP was significantly higher in HIP (coef +2.519 mmHg, p = 0.018); antepartum IAP and IAP reduction showed positive/negative associations with HIP respectively but did not reach statistical significance (p = 0.268 and p = 0.179).\n- Authors note limited HIP sample size and recommend prospective studies with serial IAP measurements across gestation and postpartum.\n\nOther notable details\n- IAP ranges from other studies: antepartum in singleton normotensive pregnancies previously reported 7.3\u201314.1 mmHg; postpartum 3.7\u201310.8 mmHg.\n- Clinical implications discussed: hypothesis that elevated IAP may contribute to preeclampsia pathophysiology; historical and small pilot data on abdominal decompression and prone positioning suggest potential for IAP-lowering interventions, but evidence is limited.",
+  "description": "Introduction Pregnancy leads to a state of chronically increased intra\u2010abdominal pressure (IAP) caused by a growing fetus, fluid, and tissue. Increased intra-abdominal pressure is leading to state of Intra-Abdominal Hypertension (IAH) and Abdominal Compartment Syndrome. Clinical features and risk factors of preeclampsia is comparable to abdominal compartment syndrome. IAP may be associated with the hypertension in pregnancy (HIP).   Objectives The study aimed to determine the antepartum and postpartum IAP levels in women undergoing caesarean delivery (CD) and association between hypertension in pregnancy, and antepartum and postpartum IAP levels in women undergoing CD.   Method Seventy pregnant women (55 normotensive, 15 HIP) undergoing antepartum, non-emergency CD, had their intravesical pressure measured before and after the CD, the intravesical pressure measurements obtained with the patient in the supine position were considered to correspond to the IAP. Multivariable linear regression models were used to study associations between intraabdominal pressure and baseline characteristics in normotensive pregnancies and hypertensive pregnancies.   Results In normotensive pregnancies at mean gestation age of 38.2 weeks (95%CI 37.9 to 38.6), mean antepartum IAP was 12.7 mmHg(95%CI 11.6 to 13.8) and the mean postpartum IAP was 7.3 mmHg (95% CI 11.6 to 13.8). Multivariable linear regression models showed HIP group antepartum IAP positively associated with coefficient value of 1.617 (p = 0.268) comparing with normotensive pregnancy group. Postpartum IAP in HIP group positively associated with coefficient value of 2.519 (p = 0.018) comparing with normotensive pregnancy group. IAP difference is negatively associated with HIP (coefficient -1.013, p = 0.179).   Conclusion In normotensive pregnancies at term, the IAP was in the IAH range of the non-pregnant population. Higher Antepartum IAP and Postpartum IAP are associated with HIP. Reduction of IAP from antepartum period to postpartum period was less with HIP.",
+  "publishedTime": "",
+  "metadata": {
+    "lang": "en",
+    "description": "Introduction Pregnancy leads to a state of chronically increased intra\u2010abdominal pressure (IAP) caused by a growing fetus, fluid, and tissue. Increased intra-abdominal pressure is leading to state of Intra-Abdominal Hypertension (IAH) and Abdominal Compartment Syndrome. Clinical features and risk factors of preeclampsia is comparable to abdominal compartment syndrome. IAP may be associated with the hypertension in pregnancy (HIP).   Objectives The study aimed to determine the antepartum and postpartum IAP levels in women undergoing caesarean delivery (CD) and association between hypertension in pregnancy, and antepartum and postpartum IAP levels in women undergoing CD.   Method Seventy pregnant women (55 normotensive, 15 HIP) undergoing antepartum, non-emergency CD, had their intravesical pressure measured before and after the CD, the intravesical pressure measurements obtained with the patient in the supine position were considered to correspond to the IAP. Multivariable linear regression models were used to study associations between intraabdominal pressure and baseline characteristics in normotensive pregnancies and hypertensive pregnancies.   Results In normotensive pregnancies at mean gestation age of 38.2 weeks (95%CI 37.9 to 38.6), mean antepartum IAP was 12.7 mmHg(95%CI 11.6 to 13.8) and the mean postpartum IAP was 7.3 mmHg (95% CI 11.6 to 13.8). Multivariable linear regression models showed HIP group antepartum IAP positively associated with coefficient value of 1.617 (p = 0.268) comparing with normotensive pregnancy group. Postpartum IAP in HIP group positively associated with coefficient value of 2.519 (p = 0.018) comparing with normotensive pregnancy group. IAP difference is negatively associated with HIP (coefficient -1.013, p = 0.179).   Conclusion In normotensive pregnancies at term, the IAP was in the IAH range of the non-pregnant population. Higher Antepartum IAP and Postpartum IAP are associated with HIP. Reduction of IAP from antepartum period to postpartum period was less with HIP.",
+    "citation_abstract": "Introduction Pregnancy leads to a state of chronically increased intra\u2010abdominal pressure (IAP) caused by a growing fetus, fluid, and tissue. Increased intra-abdominal pressure is leading to state of Intra-Abdominal Hypertension (IAH) and Abdominal Compartment Syndrome. Clinical features and risk factors of preeclampsia is comparable to abdominal compartment syndrome. IAP may be associated with the hypertension in pregnancy (HIP).   Objectives The study aimed to determine the antepartum and postpartum IAP levels in women undergoing caesarean delivery (CD) and association between hypertension in pregnancy, and antepartum and postpartum IAP levels in women undergoing CD.   Method Seventy pregnant women (55 normotensive, 15 HIP) undergoing antepartum, non-emergency CD, had their intravesical pressure measured before and after the CD, the intravesical pressure measurements obtained with the patient in the supine position were considered to correspond to the IAP. Multivariable linear regression models were used to study associations between intraabdominal pressure and baseline characteristics in normotensive pregnancies and hypertensive pregnancies.   Results In normotensive pregnancies at mean gestation age of 38.2 weeks (95%CI 37.9 to 38.6), mean antepartum IAP was 12.7 mmHg(95%CI 11.6 to 13.8) and the mean postpartum IAP was 7.3 mmHg (95% CI 11.6 to 13.8). Multivariable linear regression models showed HIP group antepartum IAP positively associated with coefficient value of 1.617 (p = 0.268) comparing with normotensive pregnancy group. Postpartum IAP in HIP group positively associated with coefficient value of 2.519 (p = 0.018) comparing with normotensive pregnancy group. IAP difference is negatively associated with HIP (coefficient -1.013, p = 0.179).   Conclusion In normotensive pregnancies at term, the IAP was in the IAH range of the non-pregnant population. Higher Antepartum IAP and Postpartum IAP are associated with HIP. Reduction of IAP from antepartum period to postpartum period was less with HIP.",
+    "keywords": "Hypertensive disorders in pregnancy,Preeclampsia,Pregnancy,Birth weight,Blood pressure,Hypertension,Placenta,Portal veins",
+    "citation_doi": "10.1371/journal.pone.0284230",
+    "citation_author": [
+      "Sajith Jayasundara",
+      "Malik Goonewardene",
+      "Lanka Dassanayake"
+    ],
+    "citation_author_institution": [
+      "Academic Obstetric Unit, Teaching Hospital, Galle, Sri Lanka",
+      "Academic Obstetric Unit, Teaching Hospital, Galle, Sri Lanka",
+      "Department of obstetrics and gynaecology, Faculty of Medicine, University of Ruhuna, Galle, Sri Lanka",
+      "Academic Obstetric Unit, Teaching Hospital, Galle, Sri Lanka",
+      "Department of obstetrics and gynaecology, Faculty of Medicine, University of Ruhuna, Galle, Sri Lanka"
+    ],
+    "citation_title": "The association between maternal intra-abdominal pressure and hypertension in pregnancy",
+    "citation_journal_title": "PLOS ONE",
+    "citation_journal_abbrev": "PLOS ONE",
+    "citation_date": "Oct 18, 2023",
+    "citation_firstpage": "e0284230",
+    "citation_issue": "10",
+    "citation_volume": "18",
+    "citation_issn": "1932-6203",
+    "citation_publisher": "Public Library of Science",
+    "citation_pdf_url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0284230&type=printable",
+    "citation_article_type": "Research Article",
+    "dc.identifier": "10.1371/journal.pone.0284230",
+    "twitter:card": "summary",
+    "twitter:site": "plosone",
+    "twitter:title": "The association between maternal intra-abdominal pressure and hypertension in pregnancy",
+    "twitter:description": "Introduction Pregnancy leads to a state of chronically increased intra\u2010abdominal pressure (IAP) caused by a growing fetus, fluid, and tissue. Increased intra-abdominal pressure is leading to state of Intra-Abdominal Hypertension (IAH) and Abdominal Compartment Syndrome. Clinical features and risk factors of preeclampsia is comparable to abdominal compartment syndrome. IAP may be associated with the hypertension in pregnancy (HIP).   Objectives The study aimed to determine the antepartum and postpartum IAP levels in women undergoing caesarean delivery (CD) and association between hypertension in pregnancy, and antepartum and postpartum IAP levels in women undergoing CD.   Method Seventy pregnant women (55 normotensive, 15 HIP) undergoing antepartum, non-emergency CD, had their intravesical pressure measured before and after the CD, the intravesical pressure measurements obtained with the patient in the supine position were considered to correspond to the IAP. Multivariable linear regression models were used to study associations between intraabdominal pressure and baseline characteristics in normotensive pregnancies and hypertensive pregnancies.   Results In normotensive pregnancies at mean gestation age of 38.2 weeks (95%CI 37.9 to 38.6), mean antepartum IAP was 12.7 mmHg(95%CI 11.6 to 13.8) and the mean postpartum IAP was 7.3 mmHg (95% CI 11.6 to 13.8). Multivariable linear regression models showed HIP group antepartum IAP positively associated with coefficient value of 1.617 (p = 0.268) comparing with normotensive pregnancy group. Postpartum IAP in HIP group positively associated with coefficient value of 2.519 (p = 0.018) comparing with normotensive pregnancy group. IAP difference is negatively associated with HIP (coefficient -1.013, p = 0.179).   Conclusion In normotensive pregnancies at term, the IAP was in the IAH range of the non-pregnant population. Higher Antepartum IAP and Postpartum IAP are associated with HIP. Reduction of IAP from antepartum period to postpartum period was less with HIP.",
+    "twitter:image": "https://journals.plos.org/plosone/article/figure/image?id=10.1371/journal.pone.0284230.g003&size=inline",
+    "og:type": "article",
+    "og:url": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0284230",
+    "og:title": "The association between maternal intra-abdominal pressure and hypertension in pregnancy",
+    "og:description": "Introduction Pregnancy leads to a state of chronically increased intra\u2010abdominal pressure (IAP) caused by a growing fetus, fluid, and tissue. Increased intra-abdominal pressure is leading to state of Intra-Abdominal Hypertension (IAH) and Abdominal Compartment Syndrome. Clinical features and risk factors of preeclampsia is comparable to abdominal compartment syndrome. IAP may be associated with the hypertension in pregnancy (HIP).   Objectives The study aimed to determine the antepartum and postpartum IAP levels in women undergoing caesarean delivery (CD) and association between hypertension in pregnancy, and antepartum and postpartum IAP levels in women undergoing CD.   Method Seventy pregnant women (55 normotensive, 15 HIP) undergoing antepartum, non-emergency CD, had their intravesical pressure measured before and after the CD, the intravesical pressure measurements obtained with the patient in the supine position were considered to correspond to the IAP. Multivariable linear regression models were used to study associations between intraabdominal pressure and baseline characteristics in normotensive pregnancies and hypertensive pregnancies.   Results In normotensive pregnancies at mean gestation age of 38.2 weeks (95%CI 37.9 to 38.6), mean antepartum IAP was 12.7 mmHg(95%CI 11.6 to 13.8) and the mean postpartum IAP was 7.3 mmHg (95% CI 11.6 to 13.8). Multivariable linear regression models showed HIP group antepartum IAP positively associated with coefficient value of 1.617 (p = 0.268) comparing with normotensive pregnancy group. Postpartum IAP in HIP group positively associated with coefficient value of 2.519 (p = 0.018) comparing with normotensive pregnancy group. IAP difference is negatively associated with HIP (coefficient -1.013, p = 0.179).   Conclusion In normotensive pregnancies at term, the IAP was in the IAH range of the non-pregnant population. Higher Antepartum IAP and Postpartum IAP are associated with HIP. Reduction of IAP from antepartum period to postpartum period was less with HIP.",
+    "og:image": "https://journals.plos.org/plosone/article/figure/image?id=10.1371/journal.pone.0284230.g003&size=inline",
+    "citation_reference": [
+      "citation_title=Epidemiology of pregnancy-induced hypertension;citation_author=J Zhang;citation_author=J Zeisler;citation_author=MC Hatch;citation_author=G Berkowitz;citation_journal_title=Epidemiol Rev;citation_volume=19;citation_number=19;citation_issue=2;citation_first_page=218;citation_last_page=32;citation_publication_date=1997;",
+      "citation_title=Chronically increased intra-abdominal pressure produces systemic hypertension in dogs;citation_author=GL Bloomfield;citation_author=HJ Sugerman;citation_author=CR Blocher;citation_author=TW Gehr;citation_author=DA Sica;citation_journal_title=Int J Obes Relat Metab Disord;citation_volume=24;citation_number=24;citation_issue=7;citation_first_page=819;citation_last_page=24;citation_publication_date=2000;",
+      "citation_title=The Intra-abdominal Pressure in Pregnancy;citation_author=RH Paramore;citation_journal_title=Proc R Soc Med;citation_volume=6;citation_number=6;citation_issue=Obstet Gynaecol Sect;citation_first_page=291;citation_last_page=334;citation_publication_date=1913;",
+      "citation_title=Hypothesis: preeclampsia is a venous disease secondary to an increased intra-abdominal pressure;citation_author=HJ Sugerman;citation_journal_title=Med Hypotheses;citation_volume=77;citation_number=77;citation_issue=5;citation_first_page=841;citation_last_page=9;citation_publication_date=2011;",
+      "citation_title=Preeclampsia is a Syndrome of Intra-Abdominal Hypertension in Pregnancy \u2010 would a Hypothesis become a Theory?;citation_author=DV Marshalov;citation_author=EM Shifman;citation_author=IA Salov;citation_author=AP Petrenko;citation_author=A Ioscovich;citation_journal_title=J Clin Anesth Manag;citation_volume=2;citation_number=2;citation_issue=1;citation_publication_date=2017;",
+      "citation_title=Distinct inflammatory profile in preeclampsia and postpartum preeclampsia reveal unique mechanisms;citation_author=ME Brien;citation_author=I Boufaied;citation_author=DD Soglio;citation_author=E Rey;citation_author=L Leduc;citation_author=S Girard;citation_journal_title=Biol Reprod;citation_volume=100;citation_number=100;citation_issue=1;citation_first_page=187;citation_last_page=194;citation_publication_date=2019;",
+      "citation_title=Are standard intra-abdominal pressure values different during pregnancy?;citation_author=F Fuchs;citation_author=M Bruyere;citation_author=MV Senat;citation_author=E Purenne;citation_author=D Benhamou;citation_author=H Fernandez;citation_journal_title=PLoS One;citation_volume=8;citation_number=8;citation_issue=10;citation_first_page=e77324;citation_publication_date=2013;",
+      "citation_title=Measurement of intra-abdominal pressure in term pregnancy: a pilot study;citation_author=R Chun;citation_author=L Baghirzada;citation_author=C Tiruta;citation_author=AW Kirkpatrick;citation_journal_title=Int J Obstet Anesth;citation_volume=21;citation_number=21;citation_issue=2;citation_first_page=135;citation_last_page=9;citation_publication_date=2012;",
+      "citation_title=Intra-abdominal pressure measurements in term pregnancy and postpartum: an observational study;citation_author=AS Staelens;citation_author=S Van Cauwelaert;citation_author=K Tomsin;citation_author=T Mesens;citation_author=ML Malbrain;citation_author=W Gyselaers;citation_journal_title=PLoS One;citation_volume=9;citation_number=9;citation_issue=8;citation_first_page=e104782;citation_publication_date=2014;",
+      "citation_title=Measurement of intraabdominal pressure in pregnant women at term;citation_author=A Al-Khan;citation_author=M Shah;citation_author=M Altabban;citation_author=S Kaul;citation_author=KY Dyer;citation_author=M Alvarez;citation_journal_title=J Reprod Med;citation_volume=56;citation_number=56;citation_issue=1\u20132;citation_first_page=53;citation_last_page=7;citation_publication_date=2011;",
+      "citation_title=Normative postpartum intraabdominal pressure: potential implications in the diagnosis of abdominal compartment syndrome;citation_author=SS Abdel-Razeq;citation_author=K Campbell;citation_author=EF Funai;citation_author=LJ Kaplan;citation_author=MO Bahtiyar;citation_journal_title=Am J Obstet Gynecol;citation_volume=203;citation_number=203;citation_issue=2;citation_first_page=149;citation_publication_date=2010;",
+      "citation_title=Effects of intra-abdominal hypertension on maternal-fetal outcomes in term pregnant women: A systematic review;citation_author=ML Arruda Correia;citation_author=FM Peixoto Filho;citation_author=SC Gomes J\u00fanior;citation_author=MVM Peixoto;citation_journal_title=PLoS One;citation_volume=18;citation_number=18;citation_issue=6;citation_publication_date=2023;",
+      "citation_title=The Relationship Between Intraabdominal Hypertension and Preeclampsia;citation_author=MA \u00dcnsal;citation_author=\u00dc \u0130nce;citation_author=S Cengiz;citation_author=SC Karahan;citation_author=T Aran;citation_journal_title=Gynecol Obstet Reprod Med;citation_volume=23;citation_number=23;citation_issue=1;citation_first_page=1;citation_last_page=5;citation_publication_date=2017;",
+      "citation_title=Intraabdominal pressure in non-laboring preeclamptic vs normotensive patients undergoing cesarean section: A prospective observational study;citation_author=V Arora;citation_author=A Tyagi;citation_author=M Ramanujam;citation_author=A Luthra;citation_journal_title=Acta Obstet Gynecol Scand;citation_volume=99;citation_number=99;citation_issue=8;citation_first_page=1031;citation_last_page=1038;citation_publication_date=2020;",
+      "citation_title=Progress in preeclampsia: the contribution of animal models;citation_author=K Chau;citation_author=M Welsh;citation_author=A Makris;citation_author=A Hennessy;citation_journal_title=J Hum Hypertens;citation_volume=36;citation_number=36;citation_issue=8;citation_first_page=705;citation_last_page=710;citation_publication_date=2022;",
+      "citation_title=Abdominal decompression in the treatment of the toxaemias of pregnancy;citation_author=JA Blecher;citation_author=OS Heyns;citation_journal_title=Lancet;citation_volume=2;citation_number=2;citation_issue=7517;citation_first_page=621;citation_last_page=4;citation_publication_date=1967;",
+      "citation_title=The prone position in healthy pregnant women and in women with preeclampsia \u2010 a pilot study;citation_author=AT Dennis;citation_author=L Hardy;citation_author=L Leeton;citation_journal_title=BMC Pregnancy Childbirth;citation_volume=18;citation_number=18;citation_issue=1;citation_first_page=445;citation_publication_date=2018;"
+    ]
+  },
+  "success": true
+}
+2026-07-26 12:28:38,582 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:28:38,590 - sciconharness.mcp_client.mcp_client - INFO - Starting iteration 4
+2026-07-26 12:28:38,591 - sciconharness.mcp_client.mcp_client - INFO - Calling LLM with 12 messages (approx 33659 input tokens, ~110401 chars)
+2026-07-26 12:28:38,591 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:28:38,591 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - USING SYSTEM PROMPT FOR OPENROUTER
+2026-07-26 12:28:38,592 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:28:38,593 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - System prompt length: 2186 characters
+2026-07-26 12:28:38,593 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - System prompt preview: You are a research assistant who answers scientific questions by identifying relevant sources, assessing their evidence quality and certainty, and synthesizing the evidence into evidence-backed conclusions.\n\nTask Requirements:\n- Synthesize a comprehensive, paragraph-long conclusion that directly ans...
+2026-07-26 12:28:38,594 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - Tools passed: 3
+2026-07-26 12:28:38,594 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - ================================================================================
+2026-07-26 12:28:38,595 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - Passing 3 tools to OpenRouter API: ['semantic_scholar_snippet_search', 'serper_google_webpage_search', 'jina_fetch_webpage_content']
+2026-07-26 12:29:32,191 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter reasoning_content length: 6638 chars
+2026-07-26 12:29:32,192 - sciconharness.mcp_client.llm_providers.openrouter_provider - INFO - OpenRouter reasoning_details: 1 block(s)
+2026-07-26 12:29:32,192 - sciconharness.mcp_client.mcp_client - INFO - LLM call completed - text_content: present, tool_calls: 0
+2026-07-26 12:29:32,195 - sciconharness.mcp_client.utils.utils - INFO - ============================================================
+2026-07-26 12:29:32,195 - sciconharness.mcp_client.utils.utils - INFO - TOKEN USAGE SUMMARY
+2026-07-26 12:29:32,195 - sciconharness.mcp_client.utils.utils - INFO - ============================================================
+2026-07-26 12:29:32,196 - sciconharness.mcp_client.utils.utils - INFO - Input tokens: 33659
+2026-07-26 12:29:32,196 - sciconharness.mcp_client.utils.utils - INFO - Output tokens: 1131
+2026-07-26 12:29:32,197 - sciconharness.mcp_client.utils.utils - INFO - Total tokens: 34790
+2026-07-26 12:29:32,198 - sciconharness.mcp_client.utils.utils - INFO - Iterations: 4
+2026-07-26 12:29:32,199 - sciconharness.mcp_client.utils.utils - INFO - Tool calls: 8
+2026-07-26 12:29:32,200 - sciconharness.mcp_client.utils.utils - INFO - ------------------------------------------------------------
+2026-07-26 12:29:32,201 - sciconharness.mcp_client.utils.utils - INFO - INPUT TOKEN BREAKDOWN:
+2026-07-26 12:29:32,201 - sciconharness.mcp_client.utils.utils - INFO -   Initial messages: 27 (0.1%)
+2026-07-26 12:29:32,202 - sciconharness.mcp_client.utils.utils - INFO -   Tool definitions: 4100 (12.2%) [counted 4 times]
+2026-07-26 12:29:32,203 - sciconharness.mcp_client.utils.utils - INFO -   Tool results: 27160 (80.7%)
+2026-07-26 12:29:32,203 - sciconharness.mcp_client.utils.utils - INFO -   Reasoning summaries: 1792 (5.3%)
+2026-07-26 12:29:32,203 - sciconharness.mcp_client.utils.utils - INFO -   Tool calls: 580 (1.7%)
+2026-07-26 12:29:32,203 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,204 - sciconharness.mcp_client.utils.utils - INFO - ============================================================
+2026-07-26 12:29:32,204 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,205 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:29:32,205 - sciconharness.mcp_client.utils.utils - INFO - QUERY RUN SUMMARY
+2026-07-26 12:29:32,206 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:29:32,207 - sciconharness.mcp_client.utils.utils - INFO - Original Query: For pregnant women with hypertension or impaired fetal growth, what are the effects of antenatal abdominal decompression on perinatal outcomes?
+2026-07-26 12:29:32,208 - sciconharness.mcp_client.utils.utils - INFO - Publication Date Cutoff: 13 June 2012
+2026-07-26 12:29:32,209 - sciconharness.mcp_client.utils.utils - INFO - Iterations: 4
+2026-07-26 12:29:32,209 - sciconharness.mcp_client.utils.utils - INFO - Tool Calls Made: 8
+2026-07-26 12:29:32,209 - sciconharness.mcp_client.utils.utils - INFO - Total Tokens: 34790
+2026-07-26 12:29:32,210 - sciconharness.mcp_client.utils.utils - INFO - Response Length: 4998 characters
+2026-07-26 12:29:32,211 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,212 - sciconharness.mcp_client.utils.utils - INFO - COMPLETE MESSAGE CONTEXT:
+2026-07-26 12:29:32,212 - sciconharness.mcp_client.utils.utils - INFO - --------------------------------------------------------------------------------
+2026-07-26 12:29:32,213 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,214 - sciconharness.mcp_client.utils.utils - INFO - [Message 1]
+2026-07-26 12:29:32,215 - sciconharness.mcp_client.utils.utils - INFO - Role: User
+2026-07-26 12:29:32,215 - sciconharness.mcp_client.utils.utils - INFO - Content: For pregnant women with hypertension or impaired fetal growth, what are the effects of antenatal abdominal decompression on perinatal outcomes?
+2026-07-26 12:29:32,216 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,217 - sciconharness.mcp_client.utils.utils - INFO - [Message 2]
+2026-07-26 12:29:32,218 - sciconharness.mcp_client.utils.utils - INFO - Role: Assistant
+2026-07-26 12:29:32,219 - sciconharness.mcp_client.utils.utils - INFO - Tool Calls (4):
+2026-07-26 12:29:32,219 - sciconharness.mcp_client.utils.utils - INFO -   - Tool: semantic_scholar_snippet_search (ID: call_bf52a451c2454b23909ab8a3)
+2026-07-26 12:29:32,220 - sciconharness.mcp_client.utils.utils - INFO -     Arguments: {
+    "query": "antenatal abdominal decompression",
+    "limit": 10
+}
+2026-07-26 12:29:32,221 - sciconharness.mcp_client.utils.utils - INFO -   - Tool: serper_google_webpage_search (ID: call_b1e7b857bc0c4694be4604de)
+2026-07-26 12:29:32,222 - sciconharness.mcp_client.utils.utils - INFO -     Arguments: {
+    "query": "\"antenatal abdominal decompression\" pregnancy hypertension \"fetal growth\"",
+    "num_results": 10
+}
+2026-07-26 12:29:32,222 - sciconharness.mcp_client.utils.utils - INFO -   - Tool: semantic_scholar_snippet_search (ID: call_fb1dc22b5c494e0da94c3c88)
+2026-07-26 12:29:32,222 - sciconharness.mcp_client.utils.utils - INFO -     Arguments: {
+    "query": "abdominal decompression pregnancy preeclampsia OR \"fetal growth restriction\"",
+    "limit": 10
+}
+2026-07-26 12:29:32,223 - sciconharness.mcp_client.utils.utils - INFO -   - Tool: serper_google_webpage_search (ID: call_cebfd9bd3b01489f9bb74fc0)
+2026-07-26 12:29:32,224 - sciconharness.mcp_client.utils.utils - INFO -     Arguments: {
+    "query": "\"abdominal decompression\" pregnancy \"perinatal outcome\" OR \"birth weight\" hypertension OR IUGR",
+    "num_results": 10
+}
+2026-07-26 12:29:32,225 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,225 - sciconharness.mcp_client.utils.utils - INFO - [Message 3]
+2026-07-26 12:29:32,226 - sciconharness.mcp_client.utils.utils - INFO - Role: Tool/Function
+2026-07-26 12:29:32,227 - sciconharness.mcp_client.utils.utils - INFO - Tool Name: N/A
+2026-07-26 12:29:32,234 - sciconharness.mcp_client.utils.utils - INFO - Tool Result (JSON):
+{
+  "data": [
+    {
+      "score": 0.37702409206398696,
+      "paper": {
+        "corpusId": "11443775",
+        "title": "Meconium pseudocyst secondary to ileum volvulus perforation without peritoneal calcification: a case report",
+        "authors": [
+          "Esther Valladares",
+          "D. Rodr\u00edguez",
+          "A. Vela",
+          "S. Cabr\u00e9",
+          "J. Lailla"
+        ],
+        "openAccessInfo": {
+          "license": "CCBY",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://pmc.ncbi.nlm.nih.gov/articles/PMC2936322, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "Meconium peritonitis is an uncommon fetal and neonatal condition and it should be considered in the differential diagnosis when an echogenic intra-abdominal mass is observed. The prenatal appearance can be accompanied by signs of bowel obstruction, such as polyhydramnios and bowel dilatation. Generalized hydrops increases the severity of this disease. \n\nSurgery should be performed as soon as possible after delivery and initial resuscitation although immediate decompression paracentesis may result in a rapid improvement in the overall state of the newborn while preparation for surgery is underway. A two stageapproach with temporary enterostomy and delayed reversal is the best choice. \n\nOur case is unusual in comparison to other sonographically described prenatal cases due to the large size of the pseudocyst, the absence of ascites, bowel dilatation, or polyhydramnios, as well as a lack of abdominal calcifications in a newborn without cystic fibrosis. \n\nThe clinical utility of this case is the recognition that meconium pseudocyst may present without typical ultrasound features, and should be considere...
+2026-07-26 12:29:32,234 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,234 - sciconharness.mcp_client.utils.utils - INFO - [Message 4]
+2026-07-26 12:29:32,235 - sciconharness.mcp_client.utils.utils - INFO - Role: Tool/Function
+2026-07-26 12:29:32,236 - sciconharness.mcp_client.utils.utils - INFO - Tool Name: N/A
+2026-07-26 12:29:32,237 - sciconharness.mcp_client.utils.utils - INFO - Tool Result (JSON):
+{
+  "organic": [
+    {
+      "title": "Abdominal decompression for suspected fetal compromise/ ...",
+      "link": "https://pubmed.ncbi.nlm.nih.gov/10796079/",
+      "snippet": "by GJ Hofmeyr \u00b7 2000 \u00b7 Cited by 26 \u2014 Objectives: The objective of this review was to assess the effects of antenatal abdominal decompression for maternal hypertension or impaired fetal growth, on ...",
+      "position": 1
+    },
+    {
+      "title": "Abdominal decompression in normal pregnancy - PMC - NIH",
+      "link": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/",
+      "snippet": "by GJ Hofmeyr \u00b7 2012 \u00b7 Cited by 12 \u2014 ... fetal growth, perinatal morbidity and mortality and childhood development. ... There is thus no support for the clinical use of antenatal abdominal decompression ...",
+      "position": 2
+    },
+    {
+      "title": "Pre-eclampsia renamed and reframed: Intra-abdominal ...",
+      "link": "https://www.sciencedirect.com/science/article/pii/S0306987714002722",
+      "snippet": "by DJ Sawchuck \u00b7 2014 \u00b7 Cited by 81 \u2014 ... antenatal abdominal decompression ... Inflammation in rat pregnancy inhibits spiral artery remodeling leading to fetal growth restriction and features of ...",
+      "position": 3
+    },
+    {
+      "title": "Abdominal decompression in normal pregnancy | Request PDF",
+      "link": "https://www.researchgate.net/publication/225305204_Abdominal_decompression_in_normal_pregnancy",
+      "snippet": "The objective of this review was to assess the effects of antenatal abdominal decompression for maternal hypertension or impaired fetal growth, on perinatal ...",
+      "position": 4
+    },
+    {
+      "title": "Abdominal decompression for suspected fetal compromise ...",
+      "link": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/",
+      "snippet": "by GJ Hofmeyr \u00b7 2012 \u00b7 Cited by 26 \u2014 The objective of this review was to assess the effects of antenatal abdominal decompression for maternal hyperten...
+2026-07-26 12:29:32,238 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,238 - sciconharness.mcp_client.utils.utils - INFO - [Message 5]
+2026-07-26 12:29:32,239 - sciconharness.mcp_client.utils.utils - INFO - Role: Tool/Function
+2026-07-26 12:29:32,240 - sciconharness.mcp_client.utils.utils - INFO - Tool Name: N/A
+2026-07-26 12:29:32,247 - sciconharness.mcp_client.utils.utils - INFO - Tool Result (JSON):
+{
+  "data": [
+    {
+      "score": 0.43849169188882686,
+      "paper": {
+        "corpusId": "34157536",
+        "title": "Maternal exposure to folic acid antagonists and placenta-mediated adverse pregnancy outcomes",
+        "authors": [
+          "S. Wen",
+          "Jia Zhou",
+          "Qiuying Yang",
+          "W. Fraser",
+          "O. Olatunbosun",
+          "M. Walker"
+        ],
+        "openAccessInfo": {
+          "license": "CCBYNCND",
+          "status": "GOLD",
+          "disclaimer": "Notice: This snippet is extracted from the open access paper or abstract available at https://api.unpaywall.org/v2/10.1503/cmaj.080859?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.1503/cmaj.080859, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+        }
+      },
+      "snippet": {
+        "text": "We examined the following adverse outcomes of pregnancy: preeclampsia, severe preeclampsia, placental abruption, fetal growth restriction and fetal death. We used the International Classification of Diseases, 9th revision, to identify cases of preeclampsia (codes 642.4-642.7), severe preeclampsia (codes 642.5-642.7) and placental abruption (code 641.2). Although fetal growth restriction (also called \"small-forgestational age\") is usually defined as birth weight less than the 10th percentile, relative to the corresponding standard population stratum, 20 we defined 2 levels of fetal growth restriction: birth weight less than the 3rd percentile and birth weight less than the 10th percentile, relative to the corresponding standard population stratum. Using 2 levels of fetal growth restriction allowed us to test the hypothesis that maternal exposure to folic acid antagonists might have a stronger effect on severe fetal growth restriction. We defined fetal death as intrauterine death occurring at gestational age greater than 20 weeks or weight gre...
+2026-07-26 12:29:32,247 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,247 - sciconharness.mcp_client.utils.utils - INFO - [Message 6]
+2026-07-26 12:29:32,248 - sciconharness.mcp_client.utils.utils - INFO - Role: Tool/Function
+2026-07-26 12:29:32,248 - sciconharness.mcp_client.utils.utils - INFO - Tool Name: N/A
+2026-07-26 12:29:32,250 - sciconharness.mcp_client.utils.utils - INFO - Tool Result (JSON):
+{
+  "organic": [
+    {
+      "title": "Abdominal decompression for suspected fetal compromise/ ...",
+      "link": "https://pubmed.ncbi.nlm.nih.gov/10796079/",
+      "snippet": "by GJ Hofmeyr \u00b7 2000 \u00b7 Cited by 26 \u2014 ... abdominal decompression for maternal hypertension or impaired fetal growth, on perinatal outcome. Search strategy: The Cochrane Pregnancy and Childbirth ...",
+      "position": 1
+    },
+    {
+      "title": "Pre-eclampsia renamed and reframed: Intra-abdominal ...",
+      "link": "https://www.sciencedirect.com/science/article/pii/S0306987714002722",
+      "snippet": "by DJ Sawchuck \u00b7 2014 \u00b7 Cited by 81 \u2014 ... perinatal outcome [140], [141]. Commensurate with the theory that PE is ... Abdominal decompression in normal pregnancy. Cochrane Database Syst Rev (6) ...",
+      "position": 2
+    },
+    {
+      "title": "Abdominal decompression in normal pregnancy | Request PDF",
+      "link": "https://www.researchgate.net/publication/225305204_Abdominal_decompression_in_normal_pregnancy",
+      "snippet": "... pregnancy | Abdominal decompression ... abdominal decompression for maternal hypertension or impaired fetal growth, on perinatal outcome. ... birth weight (relative ...",
+      "position": 3
+    },
+    {
+      "title": "Abdominal decompression for suspected fetal compromise ...",
+      "link": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/",
+      "snippet": "by GJ Hofmeyr \u00b7 2012 \u00b7 Cited by 26 \u2014 Antenatal abdominal decompression. Types of outcome measures. Maternal blood pressure and proteinuria, morbidity and perinatal outcome. Outcomes ...",
+      "position": 4
+    },
+    {
+      "title": "Prevention and Treatment of IUGR | Springer Nature Link",
+      "link": "https://link.springer.com/chapter/10.1007/978-1-4471-0735-4_16",
+      "snippet": "by JJ Walker \u00b7 Cited by 1 \u2014 Birthweight is the most important determinant of perinatal outcome and as such IUGR remains a major cause of perinatal morbidit...
+2026-07-26 12:29:32,250 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,250 - sciconharness.mcp_client.utils.utils - INFO - [Message 7]
+2026-07-26 12:29:32,251 - sciconharness.mcp_client.utils.utils - INFO - Role: Assistant
+2026-07-26 12:29:32,252 - sciconharness.mcp_client.utils.utils - INFO - Tool Calls (3):
+2026-07-26 12:29:32,252 - sciconharness.mcp_client.utils.utils - INFO -   - Tool: jina_fetch_webpage_content (ID: call_0204905674604f9da61cdb9f)
+2026-07-26 12:29:32,253 - sciconharness.mcp_client.utils.utils - INFO -     Arguments: {
+    "webpage_url": "https://pubmed.ncbi.nlm.nih.gov/10796079/"
+}
+2026-07-26 12:29:32,254 - sciconharness.mcp_client.utils.utils - INFO -   - Tool: jina_fetch_webpage_content (ID: call_e2c0c014ec4d47239b327344)
+2026-07-26 12:29:32,255 - sciconharness.mcp_client.utils.utils - INFO -     Arguments: {
+    "webpage_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/"
+}
+2026-07-26 12:29:32,255 - sciconharness.mcp_client.utils.utils - INFO -   - Tool: jina_fetch_webpage_content (ID: call_91750f3f227e4e5c983b5629)
+2026-07-26 12:29:32,256 - sciconharness.mcp_client.utils.utils - INFO -     Arguments: {
+    "webpage_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/"
+}
+2026-07-26 12:29:32,257 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,257 - sciconharness.mcp_client.utils.utils - INFO - [Message 8]
+2026-07-26 12:29:32,257 - sciconharness.mcp_client.utils.utils - INFO - Role: Tool/Function
+2026-07-26 12:29:32,258 - sciconharness.mcp_client.utils.utils - INFO - Tool Name: N/A
+2026-07-26 12:29:32,259 - sciconharness.mcp_client.utils.utils - INFO - Tool Result (JSON):
+{
+  "url": "https://pubmed.ncbi.nlm.nih.gov/10796079/",
+  "title": "Abdominal decompression for suspected fetal compromise/pre-eclampsia - PubMed",
+  "content": "Title/Citation\n- Abdominal decompression for suspected fetal compromise/pre-eclampsia. GJ Hofmeyr. Cochrane Database Syst Rev. 2000. Updated: Hofmeyr GJ. Cochrane Database Syst Rev. 2012 Jun 13;2012(6):CD000004. doi: 10.1002/14651858.CD000004.pub2. PMID: 22696313. Full text: https://doi.org/10.1002/14651858.CD000004\n\nObjective\n- Assess effects of antenatal abdominal decompression for maternal hypertension and/or impaired fetal growth on perinatal outcome.\n\nMethods\n- Searches: Cochrane Pregnancy and Childbirth Group trials register and Cochrane Controlled Trials Register; last search Feb 1998.\n- Inclusion: randomised or quasi-randomised trials comparing abdominal decompression versus no decompression in women with pre-eclampsia and/or suspected fetal compromise.\n- Eligibility and trial quality assessed by one reviewer.\n\nIncluded studies and quality\n- Three studies included.\n- All studies had the possibility of serious bias (methodological limitations).\n\nMain results (therapeutic abdominal decompression vs no decompression)\n- Persistent pre-eclampsia: relative risk (RR) 0.36; 95% CI 0.18 to 0.72.\n- Fetal distress in labour: RR 0.37; 95% CI 0.19 to 0.71.\n- Low birthweight: RR 0.50; 95% CI 0.40 to 0.63.\n- Apgar <6 at 1 minute: RR 0.26; 95% CI 0.12 to 0.56.\n- Perinatal mortality: RR 0.39; 95% CI 0.22 to 0.71.\n\nReviewer's conclusions\n- Effects are not clear because of methodological limitations and risk of bias in included trials.\n- Apparent improvements in birthweight and perinatal mortality justify further evaluation of abdominal decompression for impaired fetal growth and possibly for women with pre-eclampsia.\n\nOther\n- Original review date: 2000; updated review published 13 June 2012 (see citation above).",
+  "description": "Due to the methodological limitations of the studies, the e...
+2026-07-26 12:29:32,259 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,259 - sciconharness.mcp_client.utils.utils - INFO - [Message 9]
+2026-07-26 12:29:32,259 - sciconharness.mcp_client.utils.utils - INFO - Role: Tool/Function
+2026-07-26 12:29:32,260 - sciconharness.mcp_client.utils.utils - INFO - Tool Name: N/A
+2026-07-26 12:29:32,261 - sciconharness.mcp_client.utils.utils - INFO - Tool Result (JSON):
+{
+  "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7061357/",
+  "title": "Abdominal decompression for suspected fetal compromise/pre\u2010eclampsia",
+  "content": "Topic: Antenatal abdominal decompression for maternal hypertension or impaired fetal growth \u2014 Cochrane review (updated search 2 Feb 2012)\n\nIntervention\n- Abdominal decompression: rigid dome + airtight suit around the abdomen; negative pressure \u221250 to \u2212100 mmHg applied for 15\u201330 seconds each minute for 30 minutes once to thrice daily, or continuously during labour. Proposed mechanism: increased intervillous blood flow.\n\nScope and trials\n- Objective: assess effects of antenatal abdominal decompression for pre\u2011eclampsia and/or suspected fetal compromise on fetal growth and perinatal outcomes.\n- Trials identified: 3 randomized or quasi\u2011randomized trials reported 1967\u20131973:\n  - Blecher 1967 (pre\u2011eclampsia, essential hypertension, chronic nephritis)\n  - MacRae 1971 (small\u2011for\u2011date fetuses, low urinary estriol)\n  - Varma 1973 (clinically small\u2011for\u2011dates, biparietal diameter <10th percentile)\n- Total sample reported in text: 356 pregnant women (review notes some inconsistencies; perinatal mortality analysis cites 367 participants).\n- One excluded non\u2011randomized trial: Coppola 1985.\n\nKey quantitative results (effect sizes reported as Risk Ratio [RR] with 95% CI; number of studies/participants shown in review table)\n- Persistent (unchanged or worsening) pre\u2011eclampsia: 1 study, 80 participants \u2014 RR 0.36 (95% CI 0.18 to 0.72).\n- Fetal distress in labour: 1 study, 140 participants \u2014 RR 0.37 (95% CI 0.19 to 0.71).\n- Low birthweight: 2 studies, 304 participants \u2014 RR 0.50 (95% CI 0.40 to 0.63).\n- Apgar score <6 at 1 minute: 1 study, 140 participants \u2014 RR 0.26 (95% CI 0.12 to 0.56).\n- Perinatal mortality: 3 studies, 367 participants \u2014 RR 0.39 (95% CI 0.22 to 0.71).\n- Induction of labour (all indications): 2...
+2026-07-26 12:29:32,261 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,261 - sciconharness.mcp_client.utils.utils - INFO - [Message 10]
+2026-07-26 12:29:32,262 - sciconharness.mcp_client.utils.utils - INFO - Role: Tool/Function
+2026-07-26 12:29:32,262 - sciconharness.mcp_client.utils.utils - INFO - Tool Name: N/A
+2026-07-26 12:29:32,263 - sciconharness.mcp_client.utils.utils - INFO - Tool Result (JSON):
+{
+  "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7050618/",
+  "title": "Abdominal decompression in normal pregnancy",
+  "content": "Topic: Prophylactic abdominal decompression in normal pregnancy \u2014 Cochrane review (search updated 2 Feb 2012)\n\nScope and objective\n- Assess effects of prophylactic antenatal abdominal decompression on admission for pre\u2010eclampsia, fetal growth, perinatal morbidity and mortality, and childhood development in healthy pregnant women.\n- Search: Cochrane Pregnancy and Childbirth Group Trials Register (2 Feb 2012). No language restrictions. No new trials identified in the update.\n\nIntervention (definition)\n- Abdominal decompression: rigid dome around the abdomen with airtight suit; intermittent negative pressure (typically \u221250 to \u2212100 mmHg) applied for 15\u201330 seconds each minute for 30 minutes, once to thrice daily, or applied with contractions during labour. Intended to improve uteroplacental blood flow.\n\nIncluded trials (3)\n1. Coxon 1973 (UK) \u2014 randomized allocation; primigravidae single fetus; decompression from ~28 weeks, 15 s/min for 30 min twice weekly. Comparison: \u221270 mmHg (n=200) versus \u221220 mmHg 'control' (n=211). Outcomes: BP, admission for pre\u2010eclampsia, birthweight, placental weight, perinatal mortality. Note: control (\u221220 mmHg) may not be an inert placebo.\n2. Liddicoat 1968 (South Africa) \u2014 randomized allocation; antenatal decompression versus routine antenatal physiotherapy classes. Offspring evaluated blind at 1, 4, 9 months and 3 years (Merrill-Palmer at 3 years). High dropout: 45% at 9 months, 56% by 3 years.\n3. Hofmeyr 1990 \u2014 review of hospital notes from the Liddicoat cohort to report perinatal data (early 1960s cohort). ~23% of results unobtainable.\n\nExcluded\n- Mathews 1968: excluded because no clinically relevant outcomes reported (20 women in labour; fetal scalp measures only).\n\nRisk of bias\n- Randomization/allocation concealment judged adequa...
+2026-07-26 12:29:32,263 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,264 - sciconharness.mcp_client.utils.utils - INFO - [Message 11]
+2026-07-26 12:29:32,264 - sciconharness.mcp_client.utils.utils - INFO - Role: Assistant
+2026-07-26 12:29:32,265 - sciconharness.mcp_client.utils.utils - INFO - Tool Calls (1):
+2026-07-26 12:29:32,266 - sciconharness.mcp_client.utils.utils - INFO -   - Tool: jina_fetch_webpage_content (ID: call_86d25830a6854c6eb7c71c13)
+2026-07-26 12:29:32,267 - sciconharness.mcp_client.utils.utils - INFO -     Arguments: {
+    "webpage_url": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0284230"
+}
+2026-07-26 12:29:32,267 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,268 - sciconharness.mcp_client.utils.utils - INFO - [Message 12]
+2026-07-26 12:29:32,268 - sciconharness.mcp_client.utils.utils - INFO - Role: Tool/Function
+2026-07-26 12:29:32,269 - sciconharness.mcp_client.utils.utils - INFO - Tool Name: N/A
+2026-07-26 12:29:32,270 - sciconharness.mcp_client.utils.utils - INFO - Tool Result (JSON):
+{
+  "url": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0284230",
+  "title": "The association between maternal intra-abdominal pressure and hypertension in pregnancy",
+  "content": "Citation and publication\n- Jayasundara S, Goonewardene M, Dassanayake L. The association between maternal intra-abdominal pressure and hypertension in pregnancy. PLoS ONE. Published Oct 18, 2023. DOI: 10.1371/journal.pone.0284230. Received Mar 26, 2023; Accepted Oct 3, 2023. Open access; no specific funding; authors declare no competing interests.\n\nObjective\n- Determine antepartum and postpartum intra-abdominal pressure (IAP) in women undergoing non-emergency cesarean delivery (CD) and assess association between IAP and hypertension in pregnancy (HIP).\n\nStudy design and participants\n- Cross-sectional study (enrolment 2016\u20132017) at Teaching Hospital, Mahamodara, Galle, Sri Lanka.\n- n = 70 singleton pregnancies undergoing antepartum, non-emergency CD: 55 normotensive (78.6%); 15 HIP (21.4%) \u2014 HIP breakdown: gestational hypertension n=5; preeclampsia n=8; eclampsia n=1; chronic hypertension n=1.\n- Exclusions: Category 1 CD, CDs during active labor, vaginal deliveries.\n\nIAP measurement protocol\n- Intravesical pressure used as surrogate for IAP following World Abdominal Compartment Society recommendations.\n- Procedure: 16-Fr Foley catheter, bladder emptied, 25 mL saline inflation, supine position, mid-axillary zero reference; three consecutive end-expiration readings; mean recorded.\n- Timing: before spinal/general anesthesia (pre-op) and repeated 6\u20138 hours postoperatively when pain VAS < 3.\n\nStatistical methods\n- SPSS v22.0. Normality by Kolmogorov\u2013Smirnov. Group comparisons via independent t-test and Chi-square. Two-tailed p<0.05 considered significant.\n- Multivariable least-squares linear regression for three continuous dependent variables: antepartum IAP, postpartum IAP, and IAP difference (antepartum \u2212 postpartum).\n- Candid...
+2026-07-26 12:29:32,270 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,271 - sciconharness.mcp_client.utils.utils - INFO - [Message 13]
+2026-07-26 12:29:32,272 - sciconharness.mcp_client.utils.utils - INFO - Role: Assistant
+2026-07-26 12:29:32,273 - sciconharness.mcp_client.utils.utils - INFO - Content: ### Evidence Synthesis
+
+**1. Historical Clinical Trials and Systematic Reviews**
+The primary evidence evaluating antenatal abdominal decompression (the application of negative pressure via an airtight suit around the abdomen to theoretically improve uteroplacental blood flow) for women with hypertension or impaired fetal growth comes from a Cochrane systematic review by Hofmeyr (updated in 2012). The review identified only three small randomized or quasi-randomized trials, all conducted over 50 years ago between 1967 and 1973 (Blecher 1967; MacRae 1971; Varma 1973), involving approximately 360 women [1, 2]. 
+
+These historical trials reported striking, consistent apparent benefits for the intervention compared to no decompression:
+*   **Low Birthweight:** A 50% reduction in risk (Risk Ratio [RR] 0.50, 95% CI 0.40 to 0.63) [1].
+*   **Perinatal Mortality:** A 61% reduction in risk (RR 0.39, 95% CI 0.22 to 0.71) [1].
+*   **Fetal Distress & Apgar Scores:** Significant reductions in fetal di...
+2026-07-26 12:29:32,274 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,274 - sciconharness.mcp_client.utils.utils - INFO - --------------------------------------------------------------------------------
+2026-07-26 12:29:32,275 - sciconharness.mcp_client.utils.utils - INFO - Final Answer (about to be returned):
+2026-07-26 12:29:32,276 - sciconharness.mcp_client.utils.utils - INFO - --------------------------------------------------------------------------------
+2026-07-26 12:29:32,276 - sciconharness.mcp_client.utils.utils - INFO - ### Evidence Synthesis
+
+**1. Historical Clinical Trials and Systematic Reviews**
+The primary evidence evaluating antenatal abdominal decompression (the application of negative pressure via an airtight suit around the abdomen to theoretically improve uteroplacental blood flow) for women with hypertension or impaired fetal growth comes from a Cochrane systematic review by Hofmeyr (updated in 2012). The review identified only three small randomized or quasi-randomized trials, all conducted over 50 years ago between 1967 and 1973 (Blecher 1967; MacRae 1971; Varma 1973), involving approximately 360 women [1, 2]. 
+
+These historical trials reported striking, consistent apparent benefits for the intervention compared to no decompression:
+*   **Low Birthweight:** A 50% reduction in risk (Risk Ratio [RR] 0.50, 95% CI 0.40 to 0.63) [1].
+*   **Perinatal Mortality:** A 61% reduction in risk (RR 0.39, 95% CI 0.22 to 0.71) [1].
+*   **Fetal Distress & Apgar Scores:** Significant reductions in fetal distress in labor (RR 0.37) and low Apgar scores (<6 at 1 minute; RR 0.26) [1].
+*   **Maternal Hypertension:** A reduction in persistent or worsening pre-eclampsia (RR 0.36) [1].
+
+Despite these large effect sizes, the Cochrane review concluded that the clinical use of abdominal decompression cannot be recommended due to profound methodological limitations [1, 2]. The trials suffered from a high risk of bias: allocation was often done by alternation rather than concealed randomization, outcome assessors were not blinded, and post-randomization exclusions occurred (e.g., reallocating women who refused to wear the decompression suit, violating intention-to-treat principles) [1]. Because of these flaws, the observed benefits may be exaggerated or entirely spurious. No new eligible trials have been identified in subsequent updates [1, 2].
+
+**2. Theoretical Rationale and Recent Observational Data**
+Recent literature has revisited the physiological rationale behind abdominal decompression. Pregnancy naturally induces a state of chronically elevated intra-abdominal pressure (IAP) [3]. A 2023 cross-sectional study by Jayasundara et al. found that hypertensive disorders in pregnancy (HIP) are associated with higher postpartum IAP and a blunted reduction in IAP after delivery compared to normotensive pregnancies [3]. Furthermore, theoretical frameworks (e.g., Sawchuck, 2014) propose that pre-eclampsia may share pathophysiological features with abdominal compartment syndrome, where elevated IAP compresses renal veins and the inferior vena cava, reducing cardiac preload and uteroplacental perfusion while contributing to systemic hypertension [4]. While this provides a plausible mechanistic rationale for why lowering IAP via decompression might historically have shown benefits, it remains purely observational and theoretical, lacking rigorous interventional validation.
+
+### Conclusion
+
+[[[For pregnant women with hypertension or impaired fetal growth, the effects of antenatal abdominal decompression on perinatal outcomes remain highly uncertain, and the intervention cannot be recommended for clinical use. The available evidence relies almost entirely on three small, quasi-randomized trials conducted between 1967 and 1973, which reported striking apparent benefits, including significant reductions in low birthweight (RR 0.50), perinatal mortality (RR 0.39), and fetal distress. However, the quality of this evidence is very low due to severe methodological flaws, including inadequate allocation concealment, lack of blinding, and post-randomization exclusions, all of which introduce a high risk of selection and observer bias that likely exaggerates the observed effects. While recent observational studies and theoretical models provide a plausible physiological rationale—suggesting that pre-eclampsia shares features with abdominal compartment syndrome and that lowering maternal intra-abdominal pressure could improve uteroplacental blood flow—there is a complete absence of modern, rigorous randomized controlled trials to validate these historical findings. Consequently, the evidence is limited, outdated, and of low quality; well-designed contemporary trials would be necessary to definitively establish whether antenatal abdominal decompression offers any genuine perinatal benefit in the context of modern obstetric care.]]]
+
+### References
+1. Hofmeyr GJ. Abdominal decompression for suspected fetal compromise/pre-eclampsia. *Cochrane Database of Systematic Reviews*. 2012;2012(6):CD000004. (PMC7061357)
+2. Hofmeyr GJ, Kulier R. Abdominal decompression in normal pregnancy. *Cochrane Database of Systematic Reviews*. 2012;2012(6):CD001062. (PMC7050618)
+3. Jayasundara S, Goonewardene M, Dassanayake L. The association between maternal intra-abdominal pressure and hypertension in pregnancy. *PLoS ONE*. 2023;18(10):e0284230.
+4. Sawchuck DJ. Pre-eclampsia renamed and reframed: Intra-abdominal hypertension in pregnancy. *Medical Hypotheses*. 2014;83(4):434-440.
+2026-07-26 12:29:32,277 - sciconharness.mcp_client.utils.utils - INFO - --------------------------------------------------------------------------------
+2026-07-26 12:29:32,277 - sciconharness.mcp_client.utils.utils - INFO - ================================================================================
+2026-07-26 12:29:32,278 - sciconharness.mcp_client.utils.utils - INFO - 
+2026-07-26 12:29:32,278 - sciconharness.mcp_client.filters.cochrane - INFO - 
+2026-07-26 12:29:32,278 - sciconharness.mcp_client.filters.cochrane - INFO - ================================================================================
+2026-07-26 12:29:32,279 - sciconharness.mcp_client.filters.cochrane - INFO - FILTERING SUMMARY
+2026-07-26 12:29:32,280 - sciconharness.mcp_client.filters.cochrane - INFO - ================================================================================
+2026-07-26 12:29:32,280 - sciconharness.mcp_client.filters.cochrane - INFO - 
+2026-07-26 12:29:32,281 - sciconharness.mcp_client.filters.cochrane - INFO - Breakdown by API:
+2026-07-26 12:29:32,281 - sciconharness.mcp_client.filters.cochrane - INFO -   - Google Serper: 2 item(s)
+2026-07-26 12:29:32,282 - sciconharness.mcp_client.filters.cochrane - INFO - 
+2026-07-26 12:29:32,282 - sciconharness.mcp_client.filters.cochrane - INFO - Detailed Filtering Results:
+2026-07-26 12:29:32,283 - sciconharness.mcp_client.filters.cochrane - INFO - --------------------------------------------------------------------------------
+2026-07-26 12:29:32,283 - sciconharness.mcp_client.filters.cochrane - INFO - 
+2026-07-26 12:29:32,283 - sciconharness.mcp_client.filters.cochrane - INFO - Google Serper (2 item(s)):
+2026-07-26 12:29:32,284 - sciconharness.mcp_client.filters.cochrane - INFO - --------------------------------------------------------------------------------
+2026-07-26 12:29:32,284 - sciconharness.mcp_client.filters.cochrane - INFO -   1. Filtered by: Google Serper
+2026-07-26 12:29:32,285 - sciconharness.mcp_client.filters.cochrane - INFO -      URL: https://www.cochranelibrary.com/cdsr/doi/10.1002/14651858.CD000004.pub2/abstract/ru
+2026-07-26 12:29:32,286 - sciconharness.mcp_client.filters.cochrane - INFO -      Title: Абдоминальная декомпрессия при подозрении на проблемы ...
+2026-07-26 12:29:32,287 - sciconharness.mcp_client.filters.cochrane - INFO -      How filtered: Cochrane URL: https://www.cochranelibrary.com/cdsr/doi/10.1002/14651858.CD000004.pub2/abstract/ru
+2026-07-26 12:29:32,287 - sciconharness.mcp_client.filters.cochrane - INFO - 
+2026-07-26 12:29:32,288 - sciconharness.mcp_client.filters.cochrane - INFO -   2. Filtered by: Google Serper
+2026-07-26 12:29:32,289 - sciconharness.mcp_client.filters.cochrane - INFO -      URL: https://www.cochrane.org/th/evidence/CD000004_antenatal-abdominal-decompression-maternal-hypertension-or-impaired-fetal-growth
+2026-07-26 12:29:32,290 - sciconharness.mcp_client.filters.cochrane - INFO -      Title: Antenatal abdominal decompression for maternal ...
+2026-07-26 12:29:32,291 - sciconharness.mcp_client.filters.cochrane - INFO -      Date: Jul 1, 2021
+2026-07-26 12:29:32,291 - sciconharness.mcp_client.filters.cochrane - INFO -      How filtered: Cochrane URL: https://www.cochrane.org/th/evidence/CD000004_antenatal-abdominal-decompression-maternal-hypertension-or-impaired-fetal-growth
+2026-07-26 12:29:32,292 - sciconharness.mcp_client.filters.cochrane - INFO - 
+2026-07-26 12:29:32,293 - sciconharness.mcp_client.filters.cochrane - INFO - 
+2026-07-26 12:29:32,293 - sciconharness.mcp_client.filters.cochrane - INFO - Total items filtered: 2
+2026-07-26 12:29:32,294 - sciconharness.mcp_client.filters.cochrane - INFO - ================================================================================
+2026-07-26 12:29:32,294 - sciconharness.mcp_client.filters.cochrane - INFO - 

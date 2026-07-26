@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-07-26T02:12:46.993477",
+  "provider": "openrouter",
+  "model": "z-ai/glm-5.2",
+  "run_id": "10.1002/14651858.CD000004.pub2",
+  "query": "For pregnant women with hypertension or impaired fetal growth, what are the effects of antenatal abdominal decompression on perinatal outcomes?",
+  "response": "I now have comprehensive information from the Cochrane systematic review (Hofmeyr 2012) and supporting PubMed data. No newer trials have been identified since the 2012 review update. Let me synthesize the conclusion.\n\n[[[The evidence on antenatal abdominal decompression for pregnant women with hypertension or impaired fetal growth comes exclusively from three small, methodologically flawed randomized or quasi-randomized trials conducted between 1967 and 1973 (Blecher 1967; MacRae et al. 1971; Varma & Curzen 1973), encompassing approximately 356–367 women total, as systematically reviewed by Hofmeyr (Cochrane Database Syst Rev, 2012; PMID: 22696313). The intervention involves applying subatmospheric pressure (−50 to −100 mmHg) via a rigid dome and airtight suit around the abdomen for 15–30 seconds per minute over 30-minute sessions, one to three times daily, with the proposed mechanism of increasing intervillous placental blood flow. Pooled analyses showed apparently large benefits: persistent pre-eclampsia was reduced (RR 0.36, 95% CI 0.18–0.72; 1 study, 80 women), fetal distress in labour was reduced (RR 0.37, 95% CI 0.19–0.71; 1 study, 140 women), low birthweight was halved (RR 0.50, 95% CI 0.40–0.63; 2 studies, 304 women), Apgar scores <6 at 1 minute were reduced (RR 0.26, 95% CI 0.12–0.56; 1 study, 140 women), and perinatal mortality was reduced by over 60% (RR 0.39, 95% CI 0.22–0.71; 3 studies, 367 women), with Varma & Curzen (1973) also reporting increased urinary estriol excretion and faster fetal biparietal diameter growth with decompression. However, the certainty of this evidence is very low: all three trials used allocation methods (alternation or unspecified \"at random\") with high risk of selection bias, lacked observer blinding for partly subjective outcomes, and in Varma & Curzen (1973), post-randomization reallocation of women who declined decompression introduced additional bias that could not be corrected by intention-to-treat analysis; the small sample sizes also raise concerns about imprecision, and no new trials have been identified since the 2012 Cochrane search despite multiple updates since 1996. While birthweight—an objective outcome less susceptible to observer bias—showed a consistent and statistically robust improvement across two trials, the review authors concluded that the methodological limitations preclude recommending clinical use, and that the striking apparent benefits in birthweight and perinatal mortality warrant evaluation in well-designed, adequately powered randomized controlled trials, particularly for impaired fetal growth and possibly for pre-eclampsia. The complete absence of modern trial evidence in over five decades represents a major evidence gap, and contemporary studies using rigorous randomization, blinding where feasible, and standardized outcome definitions are needed before any conclusions about efficacy or safety can be drawn.]]]\n\n**References:**\n\n1. Hofmeyr GJ. Abdominal decompression for suspected fetal compromise/pre-eclampsia. Cochrane Database Syst Rev. 2012;(6):CD000004. doi:10.1002/14651858.CD000004.pub2. PMID: 22696313. (Full text available at PMC7061357)\n\n2. Blecher JA. Abdominal decompression in the treatment of toxaemias of pregnancy. MD thesis, 1967. [Referenced in Hofmeyr 2012]\n\n3. MacRae DJ, Mohamedally SM, Willmott MP. Abdominal decompression in the management of the small-for-date fetus. J Obstet Gynaecol Br Commonw. 1971;78:636–641. [Referenced in Hofmeyr 2012]\n\n4. Varma TR, Curzen P. Abdominal decompression in the management of the small-for-date fetus. J Obstet Gynaecol Br Commonw. 1973;80:1086–1094. [Referenced in Hofmeyr 2012]",
+  "token_usage": {
+    "input_tokens": 70814,
+    "output_tokens": 933,
+    "total_tokens": 71747,
+    "iterations": 10,
+    "tool_call_count": 24,
+    "tool_usage": {
+      "semantic_scholar_snippet_search": 7,
+      "serper_google_webpage_search": 13,
+      "jina_fetch_webpage_content": 4
+    },
+    "initial_message_tokens": 27,
+    "tool_def_tokens": 10250,
+    "tool_result_tokens": 57899,
+    "tool_call_tokens": 1827
+  },
+  "model_parameters": {
+    "temperature": null,
+    "max_tokens": null,
+    "reasoning_effort": "xhigh",
+    "reasoning_enabled": true,
+    "base_url": "https://openrouter.ai/api/v1"
+  },
+  "doi": "10.1002/14651858.CD000004.pub2",
+  "publication_date": "13 June 2012",
+  "enable_tool_calling": true,
+  "enable_filtering": true
+}

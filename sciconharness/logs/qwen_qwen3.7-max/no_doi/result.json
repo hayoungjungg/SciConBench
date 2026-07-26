@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-07-26T12:33:52.778938",
+  "provider": "openrouter",
+  "model": "qwen/qwen3.7-max",
+  "run_id": null,
+  "query": "What are the benefits and harms of oral antibiotics for otitis media?",
+  "response": "[[[Oral antibiotics for acute otitis media (AOM) offer a modest benefit in reducing the duration of ear pain and decreasing the rate of clinical treatment failure, particularly in children under two years of age or those with severe symptoms, but these benefits must be weighed against a significant increase in adverse gastrointestinal events and the broader risk of antimicrobial resistance [1, 2, 3]. High-quality randomized controlled trials and individual patient data meta-analyses demonstrate that while antibiotics slightly accelerate symptom resolution compared to placebo or watchful waiting, the absolute benefit is small because the majority of AOM cases resolve spontaneously within 24 to 72 hours [4]. The primary harms include dose-dependent gastrointestinal side effects such as diarrhea and vomiting, as well as skin rashes, which occur significantly more often in antibiotic-treated groups [1, 2]. The strength of the current evidence lies in the large volume of randomized trials and robust individual patient data syntheses; however, limitations include historical inconsistency and imprecision due to heterogeneity in diagnostic criteria, with many older trials failing to strictly distinguish true AOM from otitis media with effusion or viral upper respiratory infections using pneumatic otoscopy [3, 4]. Furthermore, evidence remains limited regarding the long-term individual impacts on the gut microbiome and specific resistance patterns. Consequently, while the evidence strongly supports a selective or delayed prescribing approach for older children with non-severe symptoms, additional research employing strict, modern tympanometric or pneumatic otoscopic diagnostic criteria and long-term microbiome sequencing is needed to precisely quantify the risk-benefit ratio and resolve gaps in understanding the enduring ecological harms of early-life antibiotic exposure.]]]\n\nReferences:\n1. Hoberman A, Paradise JL, Rockette HE, et al. Treatment of acute otitis media in children under 2 years of age. N Engl J Med. 2011;364(2):105-115.\n2. Tahtinen PA, Laine MK, Huovinen P, et al. A placebo-controlled trial of antimicrobial treatment for acute otitis media. N Engl J Med. 2011;364(2):116-126.\n3. Lieberthal AS, Carroll AE, Chonmaitree T, et al. Clinical practice guideline for the diagnosis and management of acute otitis media. Pediatrics. 2013;131(3):e964-e999.\n4. Rovers MM, Glasziou P, Appelman CL, et al. Antibiotics for acute otitis media: a meta-analysis with individual patient data. Lancet. 2006;368(9545):1429-1435.",
+  "token_usage": {
+    "input_tokens": 14,
+    "output_tokens": 537,
+    "total_tokens": 551,
+    "iterations": 1,
+    "tool_call_count": 0,
+    "tool_usage": {},
+    "initial_message_tokens": 14,
+    "tool_def_tokens": 0,
+    "tool_result_tokens": 0,
+    "tool_call_tokens": 0
+  },
+  "model_parameters": {
+    "temperature": null,
+    "max_tokens": null,
+    "reasoning_effort": null,
+    "reasoning_max_tokens": 4096,
+    "reasoning_enabled": true,
+    "base_url": "https://openrouter.ai/api/v1"
+  },
+  "doi": null,
+  "publication_date": null,
+  "enable_tool_calling": false,
+  "enable_filtering": false
+}

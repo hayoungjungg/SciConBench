@@ -44,9 +44,20 @@ from typing import Any, Dict, List, Optional, Tuple
 from openai import OpenAI, AzureOpenAI
 from openai import BadRequestError
 from .base import LLMProvider, ContextLengthExceededError
+from .reasoning_discovery import (
+    candidate_openrouter_slugs,
+    discover_reasoning_config,
+    highest_supported_effort,
+)
 from ..prompts import RESEARCH_ASSISTANT_PROMPT
 
 logger = logging.getLogger(__name__)
+
+# Sentinel distinguishing "caller didn't pass reasoning_effort at all" (-> discover
+# the model's highest supported effort) from "caller explicitly passed
+# reasoning_effort=None" (-> send {"effort": None, ...}, letting the API use its
+# own default; some callers rely on this documented passthrough behavior).
+_UNSET = object()
 
 # ============================================================================
 # Helper Functions for Rate Limit Handling
@@ -203,7 +214,7 @@ class OpenAIProvider(LLMProvider):
         api_key: Optional[str] = None, 
         base_url: Optional[str] = None,
         api_version: Optional[str] = None,
-        reasoning_effort: str = "high",
+        reasoning_effort: Optional[str] = _UNSET,
         verbosity: str = "medium",
         reasoning_summary: str = "auto"
     ):
@@ -230,8 +241,29 @@ class OpenAIProvider(LLMProvider):
         # Note: is_gpt51 could be used for model-specific defaults in the future
         
         self.verbosity = verbosity 
-        self.reasoning_summary = reasoning_summary 
-        self.reasoning_effort = reasoning_effort 
+        self.reasoning_summary = reasoning_summary
+
+        if reasoning_effort is _UNSET:
+            # Max out reasoning: discover this model's actual highest supported
+            # effort via OpenRouter's GET /models catalog (same discovery
+            # mechanism OpenRouterProvider uses), which mirrors OpenAI's own
+            # native `reasoning.effort` values 1:1 for OpenAI models — no
+            # inference traffic goes through OpenRouter here, we only use its
+            # catalog as a reference. Falls back to "high" (previous hardcoded
+            # default) if discovery is unavailable or the model isn't listed.
+            slugs = candidate_openrouter_slugs(["openai"], model)
+            reasoning_cfg = discover_reasoning_config(slugs)
+            discovered_effort, supports_effort = highest_supported_effort(reasoning_cfg)
+            self.reasoning_effort = discovered_effort if supports_effort else "high"
+            logger.info(
+                "OpenAIProvider reasoning_effort auto-discovered for %s: %s "
+                "(reasoning_cfg=%s)",
+                model, self.reasoning_effort, reasoning_cfg,
+            )
+        else:
+            # Explicit override (including reasoning_effort=None, which is
+            # passed straight through to the API — see call_llm).
+            self.reasoning_effort = reasoning_effort
     
     def format_tools(self, tools: List[Any]) -> List[Dict[str, Any]]:
         """Format tools for OpenAI responses API function calling."""

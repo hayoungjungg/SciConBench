@@ -38,7 +38,7 @@ python -m sciconharness.cli_scripts.query_batch openai \
 
 ### Azure Foundry models (DeepSeek)
 
-Same procedure as above with `provider=azure`. Uses `AZURE_OPENAI_KEY` and `OPENAI_BASE_URL` in `.env` (same as Azure OpenAI).
+Same procedure as above with `provider=azure`. Uses `COCHRANE_DASHBOARD_OPENAI_KEY` and `COCHRANE_DASHBOARD_BASE_URL` in `.env` (DeepSeek-V4-Pro is deployed on its own Azure resource); falls back to `AZURE_OPENAI_KEY` / `OPENAI_BASE_URL` if those are unset.
 
 ```bash
 python -m sciconharness.cli_scripts.query_batch azure \
@@ -49,7 +49,7 @@ python -m sciconharness.cli_scripts.query_batch azure \
     --enable-tool-calling --enable-filtering
 ```
 
-### OpenRouter models (Kimi K3 / GLM-5.2 / Qwen3.5-9B)
+### OpenRouter models (Kimi K3 / GLM-5.2 / Qwen3.5-9B / Qwen3.7-max)
 
 Same procedure as above with `provider=openrouter`. Uses `OPENROUTER_API_KEY` in `.env`.
 
@@ -70,6 +70,13 @@ python -m sciconharness.cli_scripts.query_batch openrouter \
 
 python -m sciconharness.cli_scripts.query_batch openrouter \
     --model qwen/qwen3.5-9b \
+    --doi-questions data/doi_questions.json \
+    --doi-dates data/filter_data/doi_dates.json \
+    --cochrane-titles data/filter_data/cochrane_titles.json \
+    --enable-tool-calling --enable-filtering
+
+python -m sciconharness.cli_scripts.query_batch openrouter \
+    --model qwen/qwen3.7-max \
     --doi-questions data/doi_questions.json \
     --doi-dates data/filter_data/doi_dates.json \
     --cochrane-titles data/filter_data/cochrane_titles.json \

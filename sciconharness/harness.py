@@ -91,7 +91,8 @@ class SciConHarness:
         gemini→``gemini-3-pro-preview``, perplexity→``sonar-reasoning-pro``,
         azure→``DeepSeek-V4-Pro``, openrouter→``moonshotai/kimi-k3``.
         Other OpenRouter models used in this project: ``z-ai/glm-5.2``
-        (GLM-5.2), ``qwen/qwen3.5-9b`` (Qwen3.5-9B).
+        (GLM-5.2), ``qwen/qwen3.5-9b`` (Qwen3.5-9B), ``qwen/qwen3.7-max``
+        (Qwen3.7-max).
     api_key : str, optional
         Override the provider API key (otherwise read from env).
     base_url : str, optional

@@ -92,7 +92,7 @@ def create_provider(
             azure_kwargs["max_tokens"] = max_tokens
         return AzureChatCompletionsProvider(**azure_kwargs)
     elif provider_name == "openrouter":
-        # OpenRouter Chat Completions (Kimi K3, GLM-5.2, Qwen3.5-9B, etc.)
+        # OpenRouter Chat Completions (Kimi K3, GLM-5.2, Qwen3.5-9B, Qwen3.7-max, etc.)
         openrouter_kwargs = {
             "model": model,
             "api_key": api_key,
@@ -396,10 +396,12 @@ def extract_model_parameters(provider: Any) -> Dict[str, Any]:
         params["temperature"] = getattr(provider, 'temperature', None)
         params["max_tokens"] = getattr(provider, 'max_tokens', None)
         # reasoning_effort may be None even when reasoning is enabled, for
-        # models that don't expose effort selection (e.g. Qwen3.5-9B) — see
-        # reasoning_enabled for whether the "reasoning": {"enabled": True}
-        # payload was sent at all.
+        # models that don't expose effort selection (e.g. Qwen3.5-9B,
+        # Qwen3.7-max) — those instead get an explicit reasoning_max_tokens
+        # budget. See reasoning_enabled for whether the "reasoning":
+        # {"enabled": True} payload was sent at all.
         params["reasoning_effort"] = getattr(provider, 'reasoning_effort', None)
+        params["reasoning_max_tokens"] = getattr(provider, 'reasoning_max_tokens', None)
         params["reasoning_enabled"] = getattr(provider, '_reasoning_enabled', None)
         params["base_url"] = getattr(provider, 'base_url', None)
 

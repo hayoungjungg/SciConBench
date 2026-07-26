@@ -12,6 +12,12 @@ from google.genai import types
 
 from ..prompts import RESEARCH_ASSISTANT_PROMPT
 from .base import LLMProvider
+from .reasoning_discovery import (
+    candidate_openrouter_slugs,
+    discover_reasoning_config,
+    gemini_thinking_level_for_effort,
+    highest_supported_effort,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +78,30 @@ class GeminiProvider(LLMProvider):
         self.seed = seed
         self.max_output_tokens = max_output_tokens
         self.thinking_budget_tokens = thinking_budget_tokens
-        self.thinking_level = thinking_level or types.ThinkingLevel.HIGH
+
+        if thinking_level is None:
+            # Max out reasoning: discover this model's highest supported
+            # effort via OpenRouter's GET /models catalog (same mechanism
+            # OpenRouterProvider uses) and map it to Gemini's native
+            # `thinking_level` enum — no inference traffic goes through
+            # OpenRouter, we only use its catalog as a reference. Gemini has
+            # no tier above HIGH today (OpenRouter maps "xhigh"/"max" down to
+            # it too), so this mainly future-proofs against Google adding a
+            # higher tier later; falls back to the previous hardcoded HIGH
+            # default if discovery is unavailable or the model isn't listed.
+            slugs = candidate_openrouter_slugs(["google"], model)
+            reasoning_cfg = discover_reasoning_config(slugs)
+            discovered_effort, supports_effort = highest_supported_effort(reasoning_cfg)
+            mapped_level = (
+                gemini_thinking_level_for_effort(discovered_effort) if supports_effort else None
+            )
+            thinking_level = mapped_level or "HIGH"
+            logger.info(
+                "GeminiProvider thinking_level auto-discovered for %s: %s "
+                "(reasoning_cfg=%s)",
+                model, thinking_level, reasoning_cfg,
+            )
+        self.thinking_level = thinking_level
      
         # Try to get API key first (simpler option)
         api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")

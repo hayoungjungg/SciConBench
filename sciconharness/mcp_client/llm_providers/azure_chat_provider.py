@@ -36,11 +36,19 @@ Reasoning defaults (maxed; sampling left at API defaults)
 - ``temperature`` / ``top_p`` / penalties are ignored while thinking is on;
   we omit them unless the caller sets them explicitly.
 
-Credentials (same as Azure OpenAI / ``OpenAIProvider``)::
+Credentials
+-----------
+DeepSeek-V4-Pro is deployed on the dedicated ``cochrane-dashboard`` Azure
+resource (not the ``hj720-...`` resource used by ``OpenAIProvider`` /
+``ClaudeProvider``), so this provider prefers its own env vars and falls back
+to the shared Azure OpenAI ones only if those aren't set::
 
+    COCHRANE_DASHBOARD_OPENAI_KEY=...
+    COCHRANE_DASHBOARD_BASE_URL=https://cochrane-dashboard.cognitiveservices.azure.com/
+    # Fallback (shared with OpenAIProvider), if COCHRANE_DASHBOARD_* is unset:
     AZURE_OPENAI_KEY=...
-    OPENAI_BASE_URL=https://<resource>.services.ai.azure.com/openai/v1/
-    OPENAI_API_VERSION=2025-04-01-preview   # classic AzureOpenAI path only
+    OPENAI_BASE_URL=https://<resource>.cognitiveservices.azure.com/
+    OPENAI_API_VERSION=2025-04-01-preview
 
 **Foundry Models v1** (``.../openai/v1/``): OpenAI SDK pointed at the Azure URL.
 **Classic Azure OpenAI**: ``AzureOpenAI`` with ``azure_endpoint`` + ``api_version``.
@@ -99,22 +107,32 @@ class AzureChatCompletionsProvider(LLMProvider):
         # Pass deployment / catalog name through unchanged (must match Azure).
         super().__init__(model, api_key)
 
+        # DeepSeek-V4-Pro lives on the dedicated "cochrane-dashboard" Foundry
+        # resource — prefer its credentials, falling back to the shared Azure
+        # OpenAI ones (used by OpenAIProvider) for any future model that
+        # happens to be deployed on that resource instead.
         api_key = (
             api_key
+            or os.getenv("COCHRANE_DASHBOARD_OPENAI_KEY")
             or os.getenv("AZURE_OPENAI_KEY")
             or os.getenv("OPENAI_API_KEY")
         )
         if not api_key:
             raise ValueError(
-                "Azure API key required. Set AZURE_OPENAI_KEY "
-                "(or OPENAI_API_KEY)."
+                "Azure API key required. Set COCHRANE_DASHBOARD_OPENAI_KEY "
+                "(or AZURE_OPENAI_KEY / OPENAI_API_KEY)."
             )
 
-        base_url = base_url or os.getenv("OPENAI_BASE_URL")
+        base_url = (
+            base_url
+            or os.getenv("COCHRANE_DASHBOARD_BASE_URL")
+            or os.getenv("OPENAI_BASE_URL")
+        )
         if not base_url:
             raise ValueError(
-                "Azure base URL required. Set OPENAI_BASE_URL (e.g. "
-                "https://<resource>.services.ai.azure.com/openai/v1/) "
+                "Azure base URL required. Set COCHRANE_DASHBOARD_BASE_URL "
+                "(or OPENAI_BASE_URL), e.g. "
+                "https://cochrane-dashboard.cognitiveservices.azure.com/ "
                 "or pass --base-url."
             )
 

@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-07-26T02:10:01.789858",
+  "provider": "openrouter",
+  "model": "qwen/qwen3.5-9b",
+  "run_id": "10.1002/14651858.CD000004.pub2",
+  "query": "For pregnant women with hypertension or impaired fetal growth, what are the effects of antenatal abdominal decompression on perinatal outcomes?",
+  "response": "Based on my searches, I found no high-quality evidence (randomized controlled trials, systematic reviews) directly evaluating antenatal abdominal decompression as a treatment intervention for pregnant women with hypertension or impaired fetal growth.\n\nThe available literature indicates:\n\n1. **Intra-abdominal pressure in pregnancy** is rarely recognized or studied as a clinical concern. A 2012 review by Chun and Kirkpatrick noted \"there has been almost no recognition or appreciation of the potential presence, influence, and management of intra-abdominal pressure (IAP), IAH, and ACS in pregnancy\" (Chun & Kirkpatrick, 2012). Current IAP measurement guidelines were criticized for \"not taking into account the gravid uterus and its mechanical impact on intra-vesicular pressure.\"\n\n2. **Pregnancy hypertension and fetal growth restriction** have well-documented relationships. Studies show preeclampsia is associated with intrauterine growth restriction (IUGR) in approximately 50-55% of severe cases (Llanos Buelvas et al., 2011; Gezginc et al., 2014), and these conditions significantly increase risks of perinatal mortality (31% in one study of severe preeclampsia with preterm birth) and poor neonatal outcomes (Gezginc et al., 2014).\n\n3. **Abdominal decompression interventions** that appear in literature address postnatal conditions (abdominal compartment syndrome in critically ill children, or core decompression for bone necrosis in pregnant patients with hip pathologies), not antenatal interventions for hypertensive disorders of pregnancy.\n\n[[[The current evidence base regarding antenatal abdominal decompression for pregnant women with hypertension or impaired fetal growth is virtually nonexistent. No randomized controlled trials or systematic reviews have evaluated this intervention. Observational literature acknowledges that intra-abdominal hypertension (IAH) and abdominal compartment syndrome (ACS) have received \"almost no recognition or appreciation\" in pregnancy care (Chun & Kirkpatrick, 2012). While hypertension and fetal growth restriction are well-established to negatively impact perinatal outcomes with documented associations including up to 55% of severe preeclampsia cases involving IUGR and perinatal mortality rates as high as 31% in some settings (Gezginc et al., 2014; Llanos Buelvas et al., 2011), there is no published evidence to support or refute the use of antenatal abdominal decompression as a therapeutic intervention. The evidence quality is critically limited due to the complete absence of controlled studies on this intervention. Additional well-designed randomized controlled trials would be required to determine whether abdominal decompression has any effect on maternal or fetal outcomes in this population.]]]\n\n---\n\n**References (from search results):**\n\n1. Chun R, Kirkpatrick A. Intra-abdominal pressure, intra-abdominal hypertension, and pregnancy: a review. *Crit Care*. 2012;16(3):257.\n\n2. Gezginc K, Acar A, Peru H, et al. HOW TO MANAGE INTRAUTERINE GROWTH RESTRICTION ASSOCIATED WITH SEVERE PREECLAMPSIA AT 28-34 WEEKS OF GESTATION? *Eur J Gen Med*. 2014;8(2):12-8.\n\n3. Llanos Buelvas JS, Arias JL, Osorio E, et al. Preeclampsia severa: restricción del crecimiento intrauterino y desenlaces perinatales en gestaciones pretérmino. *Rev Méd Cir Paramas*. 2011;20(1):673-83.",
+  "token_usage": {
+    "input_tokens": 20352,
+    "output_tokens": 758,
+    "total_tokens": 21110,
+    "iterations": 3,
+    "tool_call_count": 4,
+    "tool_usage": {
+      "serper_google_webpage_search": 2,
+      "semantic_scholar_snippet_search": 2
+    },
+    "initial_message_tokens": 27,
+    "tool_def_tokens": 3075,
+    "tool_result_tokens": 16568,
+    "tool_call_tokens": 313
+  },
+  "model_parameters": {
+    "temperature": null,
+    "max_tokens": null,
+    "reasoning_effort": null,
+    "reasoning_enabled": true,
+    "base_url": "https://openrouter.ai/api/v1"
+  },
+  "doi": "10.1002/14651858.CD000004.pub2",
+  "publication_date": "13 June 2012",
+  "enable_tool_calling": true,
+  "enable_filtering": true
+}
