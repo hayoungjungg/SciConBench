@@ -84,16 +84,24 @@ class SciConHarness:
     Parameters
     ----------
     provider : str
-        LLM backend: ``"openai"`` | ``"claude"`` | ``"gemini"`` | ``"perplexity"``.
+        LLM backend: ``"openai"`` | ``"claude"`` | ``"gemini"`` | ``"perplexity"``
+        | ``"azure"`` | ``"openrouter"``.
     model : str, optional
         Model name.  Defaults: openai→``gpt-5.1``, claude→``claude-sonnet-4-5``,
-        gemini→``gemini-3-pro-preview``, perplexity→``sonar-reasoning-pro``.
+        gemini→``gemini-3-pro-preview``, perplexity→``sonar-reasoning-pro``,
+        azure→``DeepSeek-V4-Pro``, openrouter→``moonshotai/kimi-k3``.
+        Other OpenRouter models used in this project: ``z-ai/glm-5.2``
+        (GLM-5.2), ``qwen/qwen3.5-9b`` (Qwen3.5-9B).
     api_key : str, optional
         Override the provider API key (otherwise read from env).
     base_url : str, optional
-        Azure OpenAI / Foundry endpoint.  Activates Azure mode automatically.
+        Azure OpenAI / Foundry endpoint.  Required for ``provider="azure"``;
+        for ``provider="openai"`` / ``"claude"`` activates Azure mode when set.
+        Ignored for ``provider="openrouter"`` (always ``https://openrouter.ai/api/v1``
+        unless ``OPENROUTER_BASE_URL`` is set).
     api_version : str, optional
-        Azure API version (default ``2025-04-01-preview``).
+        Azure API version (default ``2025-04-01-preview``). Classic AzureOpenAI
+        path only; Foundry ``/openai/v1/`` endpoints do not need it.
 
     enable_tools : bool
         Enable MCP tool calling (search + browse).  Default ``True``.
@@ -185,6 +193,8 @@ class SciConHarness:
                 "claude": "claude-sonnet-4-5",
                 "gemini": "gemini-3-pro-preview",
                 "perplexity": "sonar-reasoning-pro",
+                "azure": "DeepSeek-V4-Pro",
+                "openrouter": "moonshotai/kimi-k3",
             }.get(self.provider_name, os.getenv("OPENAI_MODEL", "gpt-5.1"))
         self.model = model
 

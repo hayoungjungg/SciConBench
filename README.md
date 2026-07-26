@@ -149,6 +149,8 @@ For batch evaluation using the CLI, see [`sciconharness/cli_scripts/README.md`](
 | `claude` | `claude-sonnet-4-5`, `claude-haiku-4.5` |
 | `gemini` | `gemini-3-pro-preview` |
 | `perplexity` | `sonar-reasoning-pro`, `sonar-deep-research` |
+| `azure` | `DeepSeek-V4-Pro` |
+| `openrouter` | `moonshotai/kimi-k3`, `z-ai/glm-5.2`, `qwen/qwen3.5-9b` |
 
 See [`sciconharness/README.md`](sciconharness/README.md) for the full configuration reference, clean-room protocol details, model-specific behaviour, and extension guides (custom filters, new tools, new LLM providers & models). SciConHarness can be easily customized to support the evaluations of new frontier models and AI agents.
 

@@ -36,6 +36,46 @@ python -m sciconharness.cli_scripts.query_batch openai \
     --enable-tool-calling --enable-filtering
 ```
 
+### Azure Foundry models (DeepSeek)
+
+Same procedure as above with `provider=azure`. Uses `AZURE_OPENAI_KEY` and `OPENAI_BASE_URL` in `.env` (same as Azure OpenAI).
+
+```bash
+python -m sciconharness.cli_scripts.query_batch azure \
+    --model DeepSeek-V4-Pro \
+    --doi-questions data/doi_questions.json \
+    --doi-dates data/filter_data/doi_dates.json \
+    --cochrane-titles data/filter_data/cochrane_titles.json \
+    --enable-tool-calling --enable-filtering
+```
+
+### OpenRouter models (Kimi K3 / GLM-5.2 / Qwen3.5-9B)
+
+Same procedure as above with `provider=openrouter`. Uses `OPENROUTER_API_KEY` in `.env`.
+
+```bash
+python -m sciconharness.cli_scripts.query_batch openrouter \
+    --model moonshotai/kimi-k3 \
+    --doi-questions data/doi_questions.json \
+    --doi-dates data/filter_data/doi_dates.json \
+    --cochrane-titles data/filter_data/cochrane_titles.json \
+    --enable-tool-calling --enable-filtering
+
+python -m sciconharness.cli_scripts.query_batch openrouter \
+    --model z-ai/glm-5.2 \
+    --doi-questions data/doi_questions.json \
+    --doi-dates data/filter_data/doi_dates.json \
+    --cochrane-titles data/filter_data/cochrane_titles.json \
+    --enable-tool-calling --enable-filtering
+
+python -m sciconharness.cli_scripts.query_batch openrouter \
+    --model qwen/qwen3.5-9b \
+    --doi-questions data/doi_questions.json \
+    --doi-dates data/filter_data/doi_dates.json \
+    --cochrane-titles data/filter_data/cochrane_titles.json \
+    --enable-tool-calling --enable-filtering
+```
+
 ## Setup
 
 To use these CLIs with the clean-room evaluation filtering enabled, they accept JSON files derived from the HuggingFace dataset. Run this once to generate them all:

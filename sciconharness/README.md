@@ -27,7 +27,7 @@ Each subdirectory contains their own detailed README.md for users. We summarize 
 
 | Directory | What it does |
 |-----------|-------------|
-| [`mcp_client/`](mcp_client/README.md) | Runs the agentic loop: connects to an MCP server, sends tool-augmented queries to an LLM, applies `CochraneResultFilter` to each tool result, and iterates until the LLM produces a final answer. Also contains the `LLMProvider` abstract interface and all provider implementations (OpenAI, Claude, Gemini, Perplexity). |
+| [`mcp_client/`](mcp_client/README.md) | Runs the agentic loop: connects to an MCP server, sends tool-augmented queries to an LLM, applies `CochraneResultFilter` to each tool result, and iterates until the LLM produces a final answer. Also contains the `LLMProvider` abstract interface and all provider implementations (OpenAI, Claude, Gemini, Perplexity, Azure, OpenRouter). |
 | [`mcp_server/`](mcp_server/README.md) | A local [FastMCP](https://github.com/jlowin/fastmcp) server exposing three tools: `serper_google_webpage_search`, `semantic_scholar_snippet_search`, and `jina_fetch_webpage_content`. Spawned automatically by `MCPClient` via stdio; can also run standalone as an HTTP server for testing. |
 | [`remote_mcp_servers/`](remote_mcp_servers/README.md) | Two HTTP MCP servers (Serper+Jina on port 8001, Semantic Scholar+Jina on port 8002) that expose the same tools over the network. Required for OpenAI Deep Research models, which must access tools via public HTTP endpoints rather than a local subprocess. Filtering runs server-side because the OpenAI Deep Research client has no access to local Python code. |
 
@@ -49,10 +49,17 @@ OPENAI_API_KEY=...
 ANTHROPIC_API_KEY=...
 GOOGLE_API_KEY=...
 PERPLEXITY_API_KEY=...
+# Azure OpenAI / Foundry (also used by provider="azure")
+AZURE_OPENAI_KEY=...
+OPENAI_BASE_URL=https://<resource>.services.ai.azure.com/openai/v1/
+# OpenRouter (provider="openrouter")
+OPENROUTER_API_KEY=...
 SERPER_API_KEY=...
 S2_API_KEY=...
 JINA_API_KEY=...
 ```
+
+
 
 ### Python API
 
@@ -106,6 +113,8 @@ async def main():
 asyncio.run(main())
 ```
 
+
+
 ### CLI
 
 ```bash
@@ -129,12 +138,14 @@ python -m sciconharness.cli_scripts.query_batch openai \
 
 ---
 
+
+
 ## Configuration Reference (`SciConHarness`)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `provider` | str | `"openai"` | `"openai"` \| `"claude"` \| `"gemini"` \| `"perplexity"` |
-| `model` | str | provider default | Model name. Defaults: openai→`gpt-5.1`, claude→`claude-sonnet-4-5`, gemini→`gemini-3-pro-preview`, perplexity→`sonar-reasoning-pro` |
+| `provider` | str | `"openai"` | `"openai"` \| `"claude"` \| `"gemini"` \| `"perplexity"` \| `"azure"` \| `"openrouter"` |
+| `model` | str | provider default | Model name. Defaults: openai→`gpt-5.1`, claude→`claude-sonnet-4-5`, gemini→`gemini-3-pro-preview`, perplexity→`sonar-reasoning-pro`, azure→`DeepSeek-V4-Pro`, openrouter→`moonshotai/kimi-k3` |
 | `enable_tools` | bool | `True` | Enable MCP tool calling (web search + browse). Ignored for models that always use built-in search (see below). |
 | `enable_filtering` | bool | `True` | Apply `CochraneResultFilter` to suppress contaminated results. **Requires `cochrane_titles`, `publication_date`, and `doi_to_title` to function correctly.** |
 | `cochrane_titles` | `list[str]` or `Path` | `None` | Cochrane review titles for title-based source filtering. Pass a list or a path to a JSON file of title strings. |
@@ -147,9 +158,11 @@ python -m sciconharness.cli_scripts.query_batch openai \
 | `save_results` | bool | `True` | Save `result.json` to `sciconharness/logs/<model>/<doi>/`. |
 | `log_dir` | Path | `None` | Override the base log/output directory. |
 | `api_key` | str | env var | Override the provider API key. |
-| `base_url` | str | `None` | Azure OpenAI / Foundry endpoint. Activates Azure mode automatically. |
+| `base_url` | str | `None` | Azure OpenAI / Foundry endpoint. Required for `provider="azure"`; for openai/claude activates Azure mode automatically. Ignored for `provider="openrouter"` (defaults to `https://openrouter.ai/api/v1`; override via `OPENROUTER_BASE_URL`). |
 
 ---
+
+
 
 ## Clean Room Evaluation Protocol
 
@@ -157,7 +170,7 @@ The benchmark uses a **clean room protocol** to prevent data leakage: the agent 
 
 When `enable_filtering=True`, every tool result is passed through `CochraneResultFilter` before being returned to the LLM. To enable it fully, you must provide:
 
-**1. `cochrane_titles`** — all Cochrane review titles in the benchmark, used for title-based blocking. Generate once from the SciConBench dataset from HuggingFace:
+**1.** `cochrane_titles` — all Cochrane review titles in the benchmark, used for title-based blocking. Generate once from the SciConBench dataset from HuggingFace:
 
 ```python
 from datasets import load_dataset
@@ -193,6 +206,88 @@ doi_dates = {row["doi"]: row["date"] for row in ds}
 - `enable_tools` controls whether tool calling is active.
 - `enable_filtering` controls whether `CochraneResultFilter` is applied.
 
+### Azure Foundry Chat Completions (`provider="azure"`)
+
+Azure Foundry Chat Completions models (**DeepSeek-V4-Pro**) use the OpenAI-compatible **Chat Completions** API, not the OpenAI Responses API. Use `provider="azure"` so the harness routes through `AzureChatCompletionsProvider`.
+
+The wire format differs from `OpenAIProvider` (nested `function` schema, `role=tool` result messages, an injected `system` message instead of top-level `instructions`), but the functionality and end outcomes are identical: same `RESEARCH_ASSISTANT_PROMPT`, the same one-tool-result-per-message loop (`MCPClient` treats it exactly like OpenAI, since neither defines `format_multiple_tool_response_message`), and the same retry contract (rate-limit backoff, timeout retry, `ContextLengthExceededError` on context-window overflows).
+
+Uses the same Azure credentials as GPT via Azure OpenAI:
+
+```
+AZURE_OPENAI_KEY=...
+OPENAI_BASE_URL=https://<your-resource>.services.ai.azure.com/openai/v1/
+OPENAI_API_VERSION=2025-04-01-preview
+```
+
+```bash
+# Smoke test one DOI
+python -m sciconharness.cli_scripts.query_single azure \
+    --model DeepSeek-V4-Pro \
+    --query "What are the benefits and harms of oral antibiotics for otitis media?" \
+    --doi "10.1002/14651858.CD015254.pub2" \
+    --publication-date "23 October 2023" \
+    --cochrane-titles data/filter_data/cochrane_titles.json \
+    --enable-tool-calling --enable-filtering
+
+# Batch — same flags as other providers
+python -m sciconharness.cli_scripts.query_batch azure \
+    --model DeepSeek-V4-Pro \
+    --doi-questions data/doi_questions.json \
+    --doi-dates data/filter_data/doi_dates.json \
+    --cochrane-titles data/filter_data/cochrane_titles.json \
+    --enable-tool-calling --enable-filtering
+```
+
+Pass your Azure **deployment name** exactly as `--model` (`DeepSeek-V4-Pro`).
+
+### OpenRouter (`provider="openrouter"`)
+
+[OpenRouter](https://openrouter.ai) exposes the same OpenAI-compatible **Chat Completions** API as `AzureChatCompletionsProvider`, routed to a single OpenRouter API key. Use `provider="openrouter"` so the harness routes through `OpenRouterProvider`. Models onboarded so far:
+
+| Model | `--model` slug |
+|-------|----------------|
+| Kimi K3 | `moonshotai/kimi-k3` |
+| GLM-5.2 | `z-ai/glm-5.2` |
+| Qwen3.5-9B | `qwen/qwen3.5-9b` |
+
+`OpenRouterProvider` reuses the exact same message-preparation, tool-loop, and retry/error-handling logic as `AzureChatCompletionsProvider` — same `RESEARCH_ASSISTANT_PROMPT`, same one-tool-result-per-message loop, same `ContextLengthExceededError`/rate-limit/timeout contract.
+
+Reasoning is maxed out via OpenRouter's unified `reasoning` object, but instead of hardcoding `effort="max"`, the provider **systematically discovers** each model's actual supported effort levels from [`GET /models`](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#discovering-per-model-reasoning-options) at construction time (cached per model per process) and sends the true ceiling explicitly:
+
+| Model | Discovered `supported_efforts` | Effort sent |
+|-------|-------------------------------|-------------|
+| Kimi K3 | `["max", "high", "low"]` | `"max"` |
+| GLM-5.2 | `["xhigh", "high"]` (no `"max"`!) | `"xhigh"` |
+| Qwen3.5-9B | *(key omitted — no effort selection exposed)* | *(none — sends `{"enabled": True}` only)* |
+
+If discovery ever fails (network error, model delisted, etc.) the provider falls back to `effort="max"`, which OpenRouter clamps to whatever the model actually supports.
+
+Reasoning is also **preserved** across tool-calling turns per [OpenRouter's best practices](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#preserving-reasoning-blocks): the provider reads back both `message.reasoning_details` (the full structured block) and the plaintext `message.reasoning`/`reasoning_content` alias, and echoes `reasoning_details` verbatim on the next turn's assistant message whenever a model returns it (falling back to the plaintext alias otherwise), so tool-call round trips resume the model's reasoning state exactly rather than dropping it.
+
+```
+OPENROUTER_API_KEY=...
+```
+
+```bash
+# Smoke test one DOI
+python -m sciconharness.cli_scripts.query_single openrouter \
+    --model moonshotai/kimi-k3 \
+    --query "What are the benefits and harms of oral antibiotics for otitis media?" \
+    --doi "10.1002/14651858.CD015254.pub2" \
+    --publication-date "23 October 2023" \
+    --cochrane-titles data/filter_data/cochrane_titles.json \
+    --enable-tool-calling --enable-filtering
+
+# Batch — same flags as other providers; swap --model per model
+python -m sciconharness.cli_scripts.query_batch openrouter \
+    --model z-ai/glm-5.2 \
+    --doi-questions data/doi_questions.json \
+    --doi-dates data/filter_data/doi_dates.json \
+    --cochrane-titles data/filter_data/cochrane_titles.json \
+    --enable-tool-calling --enable-filtering
+```
+
 ### Perplexity (`sonar-pro`, `sonar-reasoning-pro`, etc.)
 
 Perplexity has **built-in web search** and cannot use an external MCP server. As such, tool calling is always disabled automatically when `provider="perplexity"` since it does not use our own MCP servers. Instead, filtering is applied via a **domain denylist** passed to the Perplexity API's `search_domain_filter` parameter.
@@ -221,8 +316,8 @@ The denylist is applied per DOI — each DOI gets the union of domains filtered 
 ### OpenAI's Deep Research Agents (`o3-deep-research`, `o4-mini-deep-research`)
 
 - **Tool calling is always on** regardless of `enable_tools`. These models manage their own search; the harness provides MCP servers for them to connect to.
-- **`enable_filtering`** is still respected: when `True`, the remote MCP servers are configured with the review's `source_title` and `publication_date` before the query runs, and filtering is applied server-side inside each tool call.
-- **Remote MCP servers must be running and publicly accessible** before querying these models. See [`remote_mcp_servers/README.md`](remote_mcp_servers/README.md) for server setup, nginx configuration, and ngrok tunneling.
+- `enable_filtering` is still respected: when `True`, the remote MCP servers are configured with the review's `source_title` and `publication_date` before the query runs, and filtering is applied server-side inside each tool call.
+- **Remote MCP servers must be running and publicly accessible** before querying these models. See `[remote_mcp_servers/README.md](remote_mcp_servers/README.md)` for server setup, nginx configuration, and ngrok tunneling.
 
 ```bash
 # Start remote MCP servers (machine with a public IP or ngrok tunnel)
@@ -239,7 +334,11 @@ python -m sciconharness.cli_scripts.query_batch openai \
 
 ---
 
+
+
 ## Extending the Harness
+
+
 
 ### Custom filters
 

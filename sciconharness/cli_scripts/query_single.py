@@ -5,14 +5,23 @@ Supports interactive (REPL) or non-interactive single-query processing.
 
 Usage:
     # Interactive mode:
-    python -m sciconharness.cli_scripts.query_single [openai|gemini|claude|perplexity] [--interactive]
+    python -m sciconharness.cli_scripts.query_single [openai|gemini|claude|perplexity|azure|openrouter] [--interactive]
 
     # Non-interactive mode:
-    python -m sciconharness.cli_scripts.query_single [openai|gemini|claude|perplexity]
+    python -m sciconharness.cli_scripts.query_single [openai|gemini|claude|perplexity|azure|openrouter]
         --query "your query" --model "gpt-4" --doi "10.1002/doi1"
         [--publication-date "date"]
         [--cochrane-titles path/to/titles.json]
         [--enable-tool-calling] [--enable-filtering] [--no-save-results]
+        [--base-url https://<resource>.services.ai.azure.com/openai/v1/]
+
+    Example (OpenRouter — Kimi K3):
+    python -m sciconharness.cli_scripts.query_single openrouter
+        --query "What are the benefits and harms of oral antibiotics for otitis media?"
+        --model 'moonshotai/kimi-k3' --doi '10.1002.14651858.CD015254.pub2'
+        --publication-date "23 October 2023"
+        --cochrane-titles "data/cochrane_titles.json"
+        --enable-tool-calling --enable-filtering
 
     Example (Claude):
     python -m sciconharness.cli_scripts.query_single claude
@@ -52,7 +61,7 @@ async def main() -> None:
         "provider",
         nargs="?",
         default="openai",
-        choices=["openai", "gemini", "claude", "perplexity"],
+        choices=["openai", "gemini", "claude", "perplexity", "azure", "openrouter"],
         help="LLM provider (default: openai)",
     )
     parser.add_argument("--model", type=str, help="Model name")
@@ -86,6 +95,12 @@ async def main() -> None:
                              "(Perplexity domain denylist source)")
     parser.add_argument("--max-tool-calls", type=int, default=30,
                         help="Max tool calls for deep-research models (default: 30)")
+    parser.add_argument("--api-key", type=str,
+                        help="API key (overrides environment variable)")
+    parser.add_argument("--base-url", type=str,
+                        help="Azure OpenAI / Foundry endpoint URL")
+    parser.add_argument("--api-version", type=str,
+                        help="Azure API version (classic AzureOpenAI path only)")
     args = parser.parse_args()
 
     # Perplexity uses built-in search; MCP tool calling must be off so domain
@@ -110,6 +125,9 @@ async def main() -> None:
     harness = SciConHarness(
         provider=args.provider,
         model=args.model,
+        api_key=args.api_key,
+        base_url=args.base_url,
+        api_version=args.api_version,
         enable_tools=args.enable_tool_calling,
         enable_filtering=args.enable_filtering,
         cochrane_titles=Path(args.cochrane_titles) if args.cochrane_titles else None,

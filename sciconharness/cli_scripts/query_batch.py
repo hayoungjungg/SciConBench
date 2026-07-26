@@ -6,7 +6,7 @@ its own directory for logs and results.  Already-processed DOIs are skipped
 automatically so interrupted runs can be resumed safely.
 
 Usage:
-    python -m sciconharness.cli_scripts.query_batch [openai|gemini|claude|perplexity] \\
+    python -m sciconharness.cli_scripts.query_batch [openai|gemini|claude|perplexity|azure|openrouter] \\
         --doi-questions path/to/doi_questions.json \\
         [--doi-dates path/to/doi_dates.json] \\
         --model "gpt-4" \\
@@ -16,7 +16,16 @@ Usage:
         [--no-save-results] \\
         [--temperature 0.2] \\
         [--max-tokens 8192] \\
+        [--base-url https://<resource>.services.ai.azure.com/openai/v1/] \\
         [--filtered-links-json path/to/top_18_filtered_links_from_logs.json]
+
+    Example (OpenRouter — GLM-5.2):
+    python -m sciconharness.cli_scripts.query_batch openrouter \\
+        --model z-ai/glm-5.2 \\
+        --doi-questions data/doi_questions.json \\
+        --doi-dates data/filter_data/doi_dates.json \\
+        --cochrane-titles data/filter_data/cochrane_titles.json \\
+        --enable-tool-calling --enable-filtering
 
     Note: Perplexity has built-in search, so tool calling is disabled automatically.
 
@@ -55,7 +64,7 @@ async def main() -> None:
         "provider",
         nargs="?",
         default="openai",
-        choices=["openai", "gemini", "claude", "perplexity"],
+        choices=["openai", "gemini", "claude", "perplexity", "azure", "openrouter"],
         help="LLM provider (default: openai)",
     )
     parser.add_argument("--model", type=str, required=True, help="Model name")

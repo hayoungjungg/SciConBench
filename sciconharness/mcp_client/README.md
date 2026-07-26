@@ -15,7 +15,9 @@ mcp_client/
 │   ├── base.py            # LLMProvider abstract interface
 │   ├── claude_provider.py # Anthropic Claude implementation
 │   ├── gemini_provider.py # Google Gemini implementation
-│   ├── openai_provider.py # OpenAI implementation
+│   ├── openai_provider.py # OpenAI Responses API implementation
+│   ├── azure_chat_provider.py # Azure Foundry Chat Completions (DeepSeek)
+│   ├── openrouter_provider.py # OpenRouter Chat Completions (Kimi K3, GLM-5.2, Qwen3.5-9B)
 │   ├── perplexity_provider.py # Perplexity implementation
 │   └── __init__.py
 ├── utils/

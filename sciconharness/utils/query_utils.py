@@ -18,9 +18,11 @@ from typing import Dict, Any, Optional, List
 from sciconharness.mcp_client import MCPClient
 from sciconharness.mcp_client.filters.base import BaseResultFilter
 from sciconharness.mcp_client.llm_providers import (
+    AzureChatCompletionsProvider,
     ClaudeProvider,
     GeminiProvider,
     OpenAIProvider,
+    OpenRouterProvider,
     PerplexityProvider,
 )
 from sciconharness.mcp_client.utils import setup_logging_for_run
@@ -41,7 +43,7 @@ def create_provider(
     Create and return an LLM provider instance.
     
     Args:
-        provider_name: Provider name ("openai", "gemini", "claude", or "perplexity")
+        provider_name: Provider name ("openai", "gemini", "claude", "perplexity", "azure", or "openrouter")
         model: Model name
         api_key: Optional API key (will try environment variables if not provided)
         base_url: Base URL for Azure OpenAI or Foundry (auto-detects Azure/Foundry mode when provided)
@@ -50,7 +52,8 @@ def create_provider(
         max_tokens: Maximum number of tokens to generate. If None, uses provider default. (Claude and Perplexity)
     
     Returns:
-        Provider instance (OpenAIProvider, GeminiProvider, ClaudeProvider, or PerplexityProvider)
+        Provider instance (OpenAIProvider, GeminiProvider, ClaudeProvider,
+        PerplexityProvider, AzureChatCompletionsProvider, or OpenRouterProvider)
     """
     provider_name = provider_name.lower()
     
@@ -75,6 +78,31 @@ def create_provider(
         
         
         return PerplexityProvider(**perplexity_kwargs)
+    elif provider_name == "azure":
+        # Azure Foundry Chat Completions (DeepSeek-V4-Pro, etc.)
+        azure_kwargs = {
+            "model": model,
+            "api_key": api_key,
+            "base_url": base_url,
+            "api_version": api_version,
+        }
+        if temperature is not None:
+            azure_kwargs["temperature"] = temperature
+        if max_tokens is not None:
+            azure_kwargs["max_tokens"] = max_tokens
+        return AzureChatCompletionsProvider(**azure_kwargs)
+    elif provider_name == "openrouter":
+        # OpenRouter Chat Completions (Kimi K3, GLM-5.2, Qwen3.5-9B, etc.)
+        openrouter_kwargs = {
+            "model": model,
+            "api_key": api_key,
+            "base_url": base_url,
+        }
+        if temperature is not None:
+            openrouter_kwargs["temperature"] = temperature
+        if max_tokens is not None:
+            openrouter_kwargs["max_tokens"] = max_tokens
+        return OpenRouterProvider(**openrouter_kwargs)
     elif provider_name == "claude":
         # Auto-detect Foundry if base_url is provided or AZURE_ANTHROPIC_API_KEY is set
         foundry_base_url = base_url or os.getenv("AZURE_ANTHROPIC_BASE_URL") or os.getenv("ANTHROPIC_FOUNDRY_BASE_URL")
@@ -355,6 +383,25 @@ def extract_model_parameters(provider: Any) -> Dict[str, Any]:
         params["temperature"] = getattr(provider, 'temperature', None)
         params["top_p"] = getattr(provider, 'top_p', None)
         params["top_k"] = getattr(provider, 'top_k', None)
+
+    # Azure Chat Completions parameters
+    if isinstance(provider, AzureChatCompletionsProvider):
+        params["temperature"] = getattr(provider, 'temperature', None)
+        params["max_tokens"] = getattr(provider, 'max_tokens', None)
+        params["reasoning_effort"] = getattr(provider, 'reasoning_effort', None)
+        params["base_url"] = getattr(provider, 'base_url', None)
+
+    # OpenRouter parameters
+    if isinstance(provider, OpenRouterProvider):
+        params["temperature"] = getattr(provider, 'temperature', None)
+        params["max_tokens"] = getattr(provider, 'max_tokens', None)
+        # reasoning_effort may be None even when reasoning is enabled, for
+        # models that don't expose effort selection (e.g. Qwen3.5-9B) — see
+        # reasoning_enabled for whether the "reasoning": {"enabled": True}
+        # payload was sent at all.
+        params["reasoning_effort"] = getattr(provider, 'reasoning_effort', None)
+        params["reasoning_enabled"] = getattr(provider, '_reasoning_enabled', None)
+        params["base_url"] = getattr(provider, 'base_url', None)
 
     return params
 

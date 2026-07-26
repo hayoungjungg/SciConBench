@@ -643,6 +643,15 @@ class MCPClient:
                 if hasattr(response, 'thinking_blocks') and response.thinking_blocks:
                     assistant_msg["thinking_blocks"] = response.thinking_blocks
                     logger.debug("Preserving %d thinking blocks in assistant message", len(response.thinking_blocks))
+                # Preserve Azure/DeepSeek reasoning_content for multi-turn tool use
+                if hasattr(response, 'reasoning_content') and response.reasoning_content:
+                    assistant_msg["reasoning_content"] = response.reasoning_content
+                # Preserve OpenRouter's full reasoning_details block (recommended over the
+                # plain-text reasoning field for exact reasoning-state continuity — see
+                # https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#preserving-reasoning-blocks)
+                if hasattr(response, 'reasoning_details') and response.reasoning_details:
+                    assistant_msg["reasoning_details"] = response.reasoning_details
+                    logger.debug("Preserving %d reasoning_details block(s) in assistant message", len(response.reasoning_details))
                 
                 messages.append(assistant_msg)
                 break
@@ -652,15 +661,24 @@ class MCPClient:
                 logger.info('Tool Calls: %s', tool_calls)
                 logger.info('Reasoning Summary: %s', reasoning_summary)
                 
-                # Count and append reasoning summary
+                # Count and append reasoning summary.
+                # Azure/OpenRouter Chat Completions providers attach reasoning on the
+                # same assistant turn via response.reasoning_content / .reasoning_details
+                # — avoid emitting a separate content-only assistant message that would
+                # break the API.
+                has_inline_reasoning = bool(
+                    getattr(response, "reasoning_content", None)
+                    or getattr(response, "reasoning_details", None)
+                )
                 if reasoning_summary:
                     reasoning_tokens = count_tokens(reasoning_summary)
                     input_tokens += reasoning_tokens
                     total_reasoning_tokens += reasoning_tokens
-                    messages.append({
-                        "role": "assistant",
-                        "content": reasoning_summary
-                    })
+                    if not has_inline_reasoning:
+                        messages.append({
+                            "role": "assistant",
+                            "content": reasoning_summary
+                        })
                     logger.debug("Reasoning summary tokens: %d", reasoning_tokens)
                 
                 # Count and append tool call information
@@ -673,9 +691,16 @@ class MCPClient:
                     "role": "assistant",
                     "tool_calls": tool_calls
                 }
+                if text_content:
+                    assistant_msg["content"] = text_content
                 if hasattr(response, 'thinking_blocks') and response.thinking_blocks:
                     assistant_msg["thinking_blocks"] = response.thinking_blocks
                     logger.debug("Preserving %d thinking blocks in assistant message with tool calls", len(response.thinking_blocks))
+                if hasattr(response, 'reasoning_content') and response.reasoning_content:
+                    assistant_msg["reasoning_content"] = response.reasoning_content
+                if hasattr(response, 'reasoning_details') and response.reasoning_details:
+                    assistant_msg["reasoning_details"] = response.reasoning_details
+                    logger.debug("Preserving %d reasoning_details block(s) in assistant message with tool calls", len(response.reasoning_details))
                 
                 messages.append(assistant_msg)
                 logger.debug("Tool call tokens: %d", tool_call_tokens)
