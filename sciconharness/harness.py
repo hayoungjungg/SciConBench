@@ -233,6 +233,8 @@ class SciConHarness:
             api_version=api_version,
             temperature=temperature,
             max_tokens=max_tokens,
+            enable_filtering=self.enable_filtering,
+            enable_tool_calling=self.enable_tools,
         )
 
         # ── build MCP client (not needed for deep-research) ──────────────────

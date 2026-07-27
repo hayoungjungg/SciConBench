@@ -38,6 +38,8 @@ def create_provider(
     api_version: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
+    enable_filtering: Optional[bool] = None,
+    enable_tool_calling: Optional[bool] = None,
 ) -> Any:
     """
     Create and return an LLM provider instance.
@@ -50,6 +52,18 @@ def create_provider(
         api_version: API version for Azure OpenAI (default: 2025-04-01-preview)
         temperature: Sampling temperature (0.0 to 1.0 for Claude, 0.0 to 2.0 for Perplexity). If None, uses model default.
         max_tokens: Maximum number of tokens to generate. If None, uses provider default. (Claude and Perplexity)
+        enable_filtering: Whether clean-room result filtering is enabled for this run.
+        enable_tool_calling: Whether MCP tool calling is enabled for this run.
+            For provider="openrouter" (only), `enable_filtering` + `enable_tool_calling` together
+            select which OpenRouter API key/account to bill the run to, so usage/cost is
+            attributable per run type on the OpenRouter dashboard:
+              - enable_filtering=True                       -> OPENROUTER_API_KEY_FILTERING
+              - enable_filtering=False, enable_tool_calling=False -> OPENROUTER_API_KEY_BASE_MODEL
+                (pure base-model run: no tools, no filtering)
+              - enable_filtering=False, enable_tool_calling=True  -> OPENROUTER_API_KEY (generic)
+                (tools on, filtering off)
+            Each falls back to the generic OPENROUTER_API_KEY if the specific one isn't set (or if
+            enable_filtering is left as None). Ignored if `api_key` is explicitly passed.
     
     Returns:
         Provider instance (OpenAIProvider, GeminiProvider, ClaudeProvider,
@@ -93,6 +107,18 @@ def create_provider(
         return AzureChatCompletionsProvider(**azure_kwargs)
     elif provider_name == "openrouter":
         # OpenRouter Chat Completions (Kimi K3, GLM-5.2, Qwen3.5-9B, Qwen3.7-max, etc.)
+        # Route filtered vs. base-model (unfiltered) runs to separate OpenRouter keys, if
+        # configured, so usage/cost is attributable per run type on the OpenRouter dashboard.
+        # An explicitly-passed api_key always wins over this auto-selection.
+        if api_key is None:
+            if enable_filtering is True:
+                api_key = os.getenv("OPENROUTER_API_KEY_FILTERING") or os.getenv("OPENROUTER_API_KEY")
+            elif enable_filtering is False and enable_tool_calling is False:
+                # Pure base-model run: no MCP tools, no filtering.
+                api_key = os.getenv("OPENROUTER_API_KEY_BASE_MODEL") or os.getenv("OPENROUTER_API_KEY")
+            # enable_filtering is False and enable_tool_calling is (True or None), or
+            # enable_filtering is None → leave api_key unset here; OpenRouterProvider
+            # falls back to the generic OPENROUTER_API_KEY.
         openrouter_kwargs = {
             "model": model,
             "api_key": api_key,

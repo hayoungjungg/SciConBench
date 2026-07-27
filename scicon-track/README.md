@@ -207,3 +207,39 @@ All behaviour is controlled by YAML files in `scicon-track/config/`.  No code ch
 | `config/llm_judge_config.yaml` | LLM judge for precision/recall labeling |
 | `config/query_batch_config.yaml` | Models/providers for harness queries |
 | `config/hugging_face_config.yaml` | Source + upload dataset on HuggingFace |
+
+### `query_batch_config.yaml` — models run every month
+
+`default_models` maps each provider to either a single model name or a
+**list** of model names — the list form lets one provider run several
+distinct models every run (used for OpenRouter, which hosts multiple
+models behind a single provider):
+
+```yaml
+default_models:
+  openai: gpt-5.1
+  claude: claude-sonnet-5
+  gemini: gemini-3.1-pro-preview
+  perplexity: sonar-reasoning-pro
+  azure: DeepSeek-V4-Pro          # Azure Foundry Chat Completions
+  openrouter:                     # one provider, several models
+    - moonshotai/kimi-k3          # Kimi K3
+    - z-ai/glm-5.2                # GLM-5.2
+    - qwen/qwen3.5-9b             # Qwen3.5-9B
+    - qwen/qwen3.7-max            # Qwen3.7-max
+```
+
+Every `(provider, model)` pair produced by `QueryBatchConfig.iter_models()`
+is queried in `task_run_queries` under all three `HARNESS_CONFIGS`
+(`no_tools`, `tools`, `tools_filter`) for every DOI, so adding a model here
+is enough to fully onboard it into the monthly pipeline — no other code
+changes required.
+
+`task_run_queries` never force-passes OpenAI/Azure OpenAI credentials to
+`SciConHarness`; it leaves `api_key`/`base_url`/`api_version` unset and lets
+each provider resolve its own credentials from `.env` (same resolution
+`create_provider()` in `sciconharness/utils/query_utils.py` uses for the
+CLI scripts) — DeepSeek-V4-Pro's dedicated `COCHRANE_DASHBOARD_*` resource,
+the `OPENROUTER_API_KEY*` variants, Gemini's Vertex AI fallback, and
+Claude's Foundry auto-detection all keep working correctly regardless of
+which providers/models are listed above.

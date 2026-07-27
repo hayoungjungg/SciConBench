@@ -292,14 +292,23 @@ async def task_run_queries(dois: list[str], run_month: str) -> None:
         m = re.search(r"\[\[\[(.*?)\]\]\]", text or "", re.DOTALL)
         return m.group(1).strip() if m else (text or "").strip()
 
-    for provider, model in query_cfg.default_models.items():
+    # NOTE: api_key / base_url / api_version are intentionally left unset here
+    # (None) for every provider rather than force-passing OpenAI/Azure OpenAI
+    # credentials (AZURE_OPENAI_KEY / OPENAI_BASE_URL). SciConHarness's
+    # create_provider() (sciconharness/utils/query_utils.py) already resolves
+    # the right credentials per-provider from env vars — e.g. DeepSeek-V4-Pro
+    # (provider="azure") uses its own dedicated COCHRANE_DASHBOARD_OPENAI_KEY /
+    # COCHRANE_DASHBOARD_BASE_URL, OpenRouter models (Kimi/GLM/Qwen) use
+    # OPENROUTER_API_KEY (or the filtering/base-model variants selected via
+    # enable_filtering/enable_tool_calling), Gemini falls back to Vertex AI,
+    # and Claude auto-detects Foundry — all of which would be silently
+    # bypassed if a non-None api_key/base_url were forced through for every
+    # provider in this loop (as previously done here for only OpenAI).
+    for provider, model in query_cfg.iter_models():
         for config_label, use_tools, use_filter in HARNESS_CONFIGS:
             harness = SciConHarness(
                 provider=provider,
                 model=model,
-                api_key=os.environ.get("AZURE_OPENAI_KEY") or os.environ.get("OPENAI_API_KEY"),
-                base_url=os.environ.get("OPENAI_BASE_URL"),
-                api_version=os.environ.get("OPENAI_API_VERSION", "2025-04-01-preview"),
                 enable_tools=use_tools,
                 enable_filtering=use_filter,
                 cochrane_titles=all_titles,

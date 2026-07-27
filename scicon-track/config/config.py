@@ -8,7 +8,7 @@ defined in ``data_preprocessing`` and ``data_labeling``.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel
 
@@ -31,13 +31,25 @@ class DataCollectionConfig(BaseModel):
 class QueryBatchConfig(BaseModel):
     """Models evaluated each monthly harness run.
 
-    All providers in ``default_models`` are queried every month.
-    Add or remove entries there to control which models are benchmarked.
+    All providers in ``default_models`` are queried every month. Add or
+    remove entries there to control which models are benchmarked. Each
+    provider maps to either a single model name (``str``) or a list of
+    model names (``list[str]``) — the latter lets a single provider (e.g.
+    ``openrouter``, which hosts Kimi K3, GLM-5.2, Qwen3.5-9B, Qwen3.7-max,
+    etc.) run several distinct models every run.
     """
 
     enable_tool_calling: bool = True
     enable_filtering: bool = True
-    default_models: dict[str, str]
+    default_models: dict[str, Union[str, list[str]]]
+
+    def iter_models(self) -> list[tuple[str, str]]:
+        """Flatten ``default_models`` into a ``(provider, model)`` pair list."""
+        pairs: list[tuple[str, str]] = []
+        for provider, models in self.default_models.items():
+            model_list = [models] if isinstance(models, str) else models
+            pairs.extend((provider, model) for model in model_list)
+        return pairs
 
 
 class HuggingFaceSourceConfig(BaseModel):
