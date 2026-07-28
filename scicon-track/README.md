@@ -217,9 +217,9 @@ models behind a single provider):
 
 ```yaml
 default_models:
-  openai: gpt-5.1
-  claude: claude-sonnet-5
-  gemini: gemini-3.1-pro-preview
+  openai: gpt-5.6-sol
+  claude: claude-opus-5
+  gemini: gemini-3.1-pro
   perplexity: sonar-reasoning-pro
   azure: DeepSeek-V4-Pro          # Azure Foundry Chat Completions
   openrouter:                     # one provider, several models

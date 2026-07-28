@@ -215,8 +215,9 @@ As additional examples, we provide useful, applied scripts using our pipeline in
 |--------|-------------|
 | `decompose_generated_conclusions.py` | Process model query-log result files (`result.json`) |
 | `decompose_cdsr_conclusions.py` | Batch-process CDSR review articles from `data.json` |
+| `run_bulk_atomic_facts.py` | Shardable, parallel-friendly version of the above for `sciconharness/logs/` |
 
-Both scripts accept `--help` for full argument documentation and can be run directly:
+Both `decompose_*` scripts accept `--help` for full argument documentation and can be run directly:
 
 ```bash
 # From scripts/data_preprocessing/atomic_fact_generation/example_scripts/
@@ -238,6 +239,40 @@ python decompose_cdsr_conclusions.py \
     --output-dir     output/ \
     --questions-path ../../../../data/preprocessed_qa/generated_questions.json
 ```
+
+#### Bulk, sharded, parallel runs (`run_bulk_atomic_facts.py`)
+
+For processing one `sciconharness/logs/<model>/` directory at scale, `run_bulk_atomic_facts.py`
+splits the DOIs into shards that can be run as **separate parallel processes** (optionally against
+different API keys/endpoints per shard), and writes a resumable JSONL file per shard:
+
+```bash
+# From scripts/data_preprocessing/atomic_fact_generation/example_scripts/
+
+# See which model directories are available
+python run_bulk_atomic_facts.py --logs-dir ../../../../sciconharness/logs --list-models
+
+# Launch shards 0..3 in parallel (each can use a distinct key/endpoint)
+for i in 0 1 2 3; do
+    python run_bulk_atomic_facts.py \
+        --logs-dir  ../../../../sciconharness/logs \
+        --model     qwen_qwen3.5-9b_tools_filter \
+        --api-key   "$AZURE_OPENAI_KEY" --base-url "$OPENAI_BASE_URL" \
+        --shard-id  "$i" --num-shards 4 \
+        --output-dir output/ &
+done
+wait
+
+# Merge all 4 shards into the single dict-format qwen_qwen3.5-9b_tools_filter_atomic_facts.json
+python run_bulk_atomic_facts.py \
+    --model qwen_qwen3.5-9b_tools_filter \
+    --num-shards 4 \
+    --output-dir output/ \
+    --merge
+```
+
+Re-running a shard with the same `--output-dir`/`--model`/`--shard-id`/`--num-shards` resumes
+(skips DOIs already present in that shard's JSONL).
 
 ---
 

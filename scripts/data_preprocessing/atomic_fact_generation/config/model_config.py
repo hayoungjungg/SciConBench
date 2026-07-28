@@ -56,6 +56,13 @@ class ModelConfig(BaseModel):
         verbosity: Responses-API verbosity: ``'low'``, ``'medium'``, ``'high'``.
         reasoning_summary: Responses-API summary mode:
             ``'auto'``, ``'none'``, ``'brief'``, ``'detailed'``.
+        api_key: Explicit API key override. Falls back to ``AZURE_OPENAI_KEY`` /
+            ``OPENAI_API_KEY`` env vars when unset. Useful for running many
+            parallel workers/shards against different keys without mutating
+            process-wide environment variables.
+        base_url: Explicit endpoint override (Azure resource endpoint, or an
+            OpenAI-compatible base URL). Falls back to ``OPENAI_BASE_URL`` env
+            var (Azure) or the public OpenAI endpoint.
     """
 
     model: str
@@ -64,6 +71,8 @@ class ModelConfig(BaseModel):
     reasoning_effort: Optional[str] = "low"
     verbosity: Optional[str] = "low"
     reasoning_summary: Optional[str] = "auto"
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
 
     def is_responses_api_model(self) -> bool:
         """Return True if this model uses the Responses API (GPT-5 family, excluding gpt-5-chat)."""
@@ -82,25 +91,25 @@ class UnifiedLLMClient:
     def __init__(self, config: ModelConfig):
         self.config = config
         self.provider = config.provider
-        self.client = self._setup_client(config.provider)
+        self.client = self._setup_client(config)
 
     @staticmethod
-    def _setup_client(provider: str):
-        match provider.lower():
+    def _setup_client(config: ModelConfig):
+        match config.provider.lower():
             case "azure":
                 return AzureOpenAI(
                     api_version=os.getenv("OPENAI_API_VERSION"),
-                    azure_endpoint=os.getenv("OPENAI_BASE_URL"),
-                    api_key=os.getenv("AZURE_OPENAI_KEY"),
+                    azure_endpoint=config.base_url or os.getenv("OPENAI_BASE_URL"),
+                    api_key=config.api_key or os.getenv("AZURE_OPENAI_KEY"),
                 )
             case "openai":
                 return OpenAI(
-                    api_key=os.getenv("OPENAI_API_KEY"),
-                    base_url="https://api.openai.com/v1",
+                    api_key=config.api_key or os.getenv("OPENAI_API_KEY"),
+                    base_url=config.base_url or "https://api.openai.com/v1",
                 )
             case _:
                 raise ValueError(
-                    f"Unsupported provider '{provider}'. Must be 'azure' or 'openai'."
+                    f"Unsupported provider '{config.provider}'. Must be 'azure' or 'openai'."
                 )
 
     def _messages_to_input_list(self, messages: list) -> list:

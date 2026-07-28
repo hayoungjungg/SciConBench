@@ -34,6 +34,11 @@ from ..prompts import RESEARCH_ASSISTANT_PROMPT
 
 logger = logging.getLogger(__name__)
 
+# Sentinel distinguishing "caller didn't pass adaptive_effort at all" (-> discover
+# the model's highest supported effort, same mechanism used for thinking_budget_tokens
+# below) from "caller explicitly passed a specific adaptive_effort" (-> respect it as-is).
+_UNSET = object()
+
 
 def _get_tool_attr(tool: Any, attr: str, default: Any = None) -> Any:
     """Get attribute from tool (handles both object and dict)."""
@@ -64,7 +69,7 @@ class ClaudeProvider(LLMProvider):
         # - "adaptive": dynamic budget/usage (effort)
         # - "disabled": no extended thinking; temperature (if provided) is used normally
         thinking_mode: str = "enabled",
-        adaptive_effort: str = "high",
+        adaptive_effort: str = _UNSET,
     ):
         """
         Initialize Claude provider.
@@ -85,7 +90,8 @@ class ClaudeProvider(LLMProvider):
                 the final answer + tool calls); falls back to a flat 4096 if no data is found for
                 the model (this is the case for claude-sonnet-4-5 today).
             thinking_mode: Extended thinking mode: "enabled" (fixed budget), "adaptive" (dynamic), or "disabled".
-            adaptive_effort: Adaptive thinking effort: "low", "medium", or "high".
+            adaptive_effort: Adaptive thinking effort sent via the Messages API's
+                ``output_config.effort`` field — one of "low", "medium", "high"
         """
         super().__init__(model, api_key)
         
@@ -100,32 +106,38 @@ class ClaudeProvider(LLMProvider):
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.thinking_mode = thinking_mode
-        self.adaptive_effort = adaptive_effort
         
         # Validate thinking configuration.
         self.thinking_mode = str(self.thinking_mode or "enabled").lower()
         if self.thinking_mode not in {"enabled", "adaptive", "disabled"}:
             raise ValueError('thinking_mode must be one of {"enabled","adaptive","disabled"}')
-        self.adaptive_effort = str(self.adaptive_effort or "high").lower()
-        if self.adaptive_effort not in {"low", "medium", "high"}:
-            raise ValueError('adaptive_effort must be one of {"low","medium","high"}')
+
+        # Discover this model's highest supported reasoning effort once via
+        # OpenRouter's GET /models catalog (same mechanism OpenRouterProvider
+        # uses) — reused below both to pick a maxed-out `adaptive_effort` for
+        # adaptive thinking (native `output_config.effort`) and, when
+        # `thinking_budget_tokens` isn't explicitly passed, to size the fixed
+        # thinking budget for "enabled" mode. No inference traffic goes
+        # through OpenRouter, we only use its catalog as a reference.
+        slugs = candidate_openrouter_slugs(["anthropic"], model)
+        reasoning_cfg = discover_reasoning_config(slugs)
+        discovered_effort, supports_effort = highest_supported_effort(reasoning_cfg)
+
+        if adaptive_effort is _UNSET:
+            self.adaptive_effort = discovered_effort if supports_effort else "high"
+            logger.info(
+                "ClaudeProvider adaptive_effort auto-discovered for %s: %s "
+                "(reasoning_cfg=%s)",
+                model, self.adaptive_effort, reasoning_cfg,
+            )
+        else:
+            self.adaptive_effort = str(adaptive_effort or "high").lower()
+        if self.adaptive_effort not in {"low", "medium", "high", "xhigh", "max"}:
+            raise ValueError(
+                'adaptive_effort must be one of {"low","medium","high","xhigh","max"}'
+            )
 
         if thinking_budget_tokens is None:
-            # Max out reasoning: discover this model's highest supported effort
-            # via OpenRouter's GET /models catalog (same mechanism
-            # OpenRouterProvider uses) and translate it into a thinking budget
-            # using OpenRouter's own documented Anthropic conversion formula
-            # (budget_tokens = max_tokens * effort_ratio) — no inference
-            # traffic goes through OpenRouter, we only use its catalog as a
-            # reference. Anthropic's native Messages API has no "effort"
-            # parameter at all (only fixed budget_tokens, or a model-driven
-            # "adaptive" mode with no effort knob), so this is the closest
-            # native equivalent to "maxing effort" for Claude. Capped at 80%
-            # of max_tokens (rather than the full ~95% "max"/"xhigh" ratio) to
-            # leave headroom for the final answer + tool calls.
-            slugs = candidate_openrouter_slugs(["anthropic"], model)
-            reasoning_cfg = discover_reasoning_config(slugs)
-            discovered_effort, supports_effort = highest_supported_effort(reasoning_cfg)
             if supports_effort:
                 ratio = min(anthropic_effort_ratio(discovered_effort), 0.8)
                 thinking_budget_tokens = max(1024, int(max_tokens * ratio))
@@ -645,8 +657,9 @@ class ClaudeProvider(LLMProvider):
                 "budget_tokens": thinking_budget,
             }
         elif self.thinking_mode == "adaptive":
-            # Adaptive thinking: model decides when/how much to think. API does not accept "effort" (extra inputs not permitted).
+            # Adaptive thinking: model decides when/how much to think. 
             kwargs["thinking"] = {"type": "adaptive"}
+            kwargs["output_config"] = {"effort": self.adaptive_effort}
         else:
             # thinking_mode == "disabled": do not set kwargs["thinking"].
             pass
@@ -692,6 +705,24 @@ class ClaudeProvider(LLMProvider):
                 )
                 kwargs_retry = dict(kwargs)
                 kwargs_retry["thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
+                kwargs_retry.pop("output_config", None)  # only valid alongside adaptive thinking
+                response = await loop.run_in_executor(None, lambda: self.client.messages.create(**kwargs_retry))
+            elif (
+                self.thinking_mode == "enabled"
+                and '"thinking.type.enabled" is not supported' in err_msg
+            ):
+                # Newer models (e.g. claude-opus-5) only support adaptive
+                # thinking — fixed budget_tokens is rejected outright. Retry
+                # once with adaptive so callers don't have to special-case by
+                # model; mirrors the opposite fallback above.
+                logger.warning(
+                    "Fixed-budget thinking not supported for model %s; retrying with "
+                    "thinking_mode='adaptive' (output_config.effort=%s).",
+                    self.model, self.adaptive_effort,
+                )
+                kwargs_retry = dict(kwargs)
+                kwargs_retry["thinking"] = {"type": "adaptive"}
+                kwargs_retry["output_config"] = {"effort": self.adaptive_effort}
                 response = await loop.run_in_executor(None, lambda: self.client.messages.create(**kwargs_retry))
             else:
                 # Handle context length errors

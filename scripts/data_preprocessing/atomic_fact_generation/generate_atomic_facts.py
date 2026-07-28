@@ -82,6 +82,12 @@ class AtomicFactGenerator:
             Missing components fall back to defaults from ``config/model_config.yaml``.
             Component names: ``decomposition``, ``decontextualization``,
             ``incomplete_detection``, ``irrelevant_filtering``, ``redundant_filtering``.
+        api_key: Optional API key applied to every component (overrides each
+            config's own ``api_key`` and the ``AZURE_OPENAI_KEY`` / ``OPENAI_API_KEY``
+            env vars). Useful when running multiple parallel workers/shards that
+            each need a distinct key.
+        base_url: Optional endpoint applied to every component (overrides each
+            config's own ``base_url`` and the ``OPENAI_BASE_URL`` env var).
 
     Example::
 
@@ -95,10 +101,17 @@ class AtomicFactGenerator:
         )
     """
 
-    def __init__(self, model_configs: dict = None):
+    def __init__(self, model_configs: dict = None, api_key: str = None, base_url: str = None):
         self.model_configs = create_default_configs()
         if model_configs:
             self.model_configs.update(model_configs)
+
+        if api_key or base_url:
+            for config in self.model_configs.values():
+                if api_key:
+                    config.api_key = api_key
+                if base_url:
+                    config.base_url = base_url
 
         self.clients = {
             component: UnifiedLLMClient(config)
@@ -594,6 +607,16 @@ def main():
     parser.add_argument("--disable-incomplete-detection", action="store_true")
     parser.add_argument("--disable-irrelevant-filtering", action="store_true")
     parser.add_argument("--disable-redundant-filtering", action="store_true")
+    parser.add_argument(
+        "--api-key",
+        default=None,
+        help="API key applied to all pipeline components (overrides env vars).",
+    )
+    parser.add_argument(
+        "--base-url",
+        default=None,
+        help="Endpoint applied to all pipeline components (overrides env vars).",
+    )
 
     args = parser.parse_args()
 
@@ -618,7 +641,7 @@ def main():
                 for comp, cfg in config_dict.items()
             }
 
-    generator = AtomicFactGenerator(model_configs=model_configs)
+    generator = AtomicFactGenerator(model_configs=model_configs, api_key=args.api_key, base_url=args.base_url)
     final_facts, para_breaks, metadata = generator.run(
         args.text,
         args.question,
