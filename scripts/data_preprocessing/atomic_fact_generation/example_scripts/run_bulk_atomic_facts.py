@@ -229,6 +229,63 @@ def shard_output_path(output_dir: Path, model_safe: str, shard_id: int, num_shar
     return output_dir / f"{model_safe}_shard{shard_id}of{num_shards}_atomic_facts.jsonl"
 
 
+def _prune_errored_dois(output_path: Path, error_log_path: Path) -> int:
+    """Remove DOIs recorded in *error_log_path* from *output_path* so they get
+    reprocessed instead of being treated as already-done.
+
+    Only DOIs that appear in the ``.errors.jsonl`` sidecar are pruned — this
+    intentionally excludes rows that were skipped for having no parseable
+    ``[[[...]]]`` conclusion or no query/question field, since those aren't
+    transient failures (e.g. rate limits) and retrying won't change the
+    outcome. The errors file itself is cleared; any DOI that fails again this
+    run will get a fresh entry.
+
+    Returns the number of DOIs pruned (and thus queued for retry).
+    """
+    if not error_log_path.is_file():
+        return 0
+
+    errored_dois: set[str] = set()
+    with error_log_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            doi = row.get("doi")
+            if doi:
+                errored_dois.add(str(doi))
+
+    if not errored_dois:
+        return 0
+
+    if output_path.is_file():
+        kept_lines = []
+        with output_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    row = json.loads(stripped)
+                except json.JSONDecodeError:
+                    kept_lines.append(line if line.endswith("\n") else line + "\n")
+                    continue
+                if str(row.get("doi")) in errored_dois:
+                    continue
+                kept_lines.append(line if line.endswith("\n") else line + "\n")
+        with output_path.open("w", encoding="utf-8") as f:
+            f.writelines(kept_lines)
+
+    # Clear the errors file; DOIs that fail again this run will be re-appended.
+    error_log_path.write_text("", encoding="utf-8")
+
+    return len(errored_dois)
+
+
 # ---------------------------------------------------------------------------
 # Merge shards -> single dict-format {model}_atomic_facts.json
 # ---------------------------------------------------------------------------
@@ -322,6 +379,18 @@ def main() -> None:
     )
     p.add_argument("--doi", type=str, default=None, help="If set, process only this DOI.")
     p.add_argument("--limit", type=int, default=None, help="Cap items after sharding (debug).")
+    p.add_argument(
+        "--retry-errors",
+        action="store_true",
+        help=(
+            "Before processing, drop any DOIs recorded in this shard's "
+            "'<output>.errors.jsonl' from the resumable output file (and clear "
+            "that errors file), so they are re-attempted this run instead of "
+            "being treated as already-done. Only rows that hit a real error "
+            "(e.g. rate limits, exceptions) are retried — DOIs skipped for "
+            "having no parseable conclusion/query are left alone."
+        ),
+    )
 
     p.add_argument(
         "--api-key",
@@ -345,6 +414,18 @@ def main() -> None:
         type=Path,
         default=None,
         help="Path to a YAML or JSON model-config file (default: config/model_config.yaml).",
+    )
+    p.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Retries per LLM call when the response can't be parsed, before falling back (default: 3).",
+    )
+    p.add_argument(
+        "--retry-delay",
+        type=float,
+        default=1.0,
+        help="Seconds to sleep between retry attempts (default: 1.0).",
     )
     p.add_argument("--disable-incomplete-detection", action="store_true")
     p.add_argument("--disable-irrelevant-filtering", action="store_true")
@@ -391,6 +472,8 @@ def main() -> None:
         model_configs=model_configs,
         api_key=args.api_key,
         base_url=args.base_url,
+        max_retries=args.max_retries,
+        retry_delay=args.retry_delay,
     )
 
     # ------------------------------------------------------------------
@@ -409,12 +492,18 @@ def main() -> None:
 
     output_path = shard_output_path(args.output_dir, model_safe, args.shard_id, args.num_shards)
     error_log_path = output_path.with_suffix(output_path.suffix + ".errors.jsonl")
+
+    n_retry_pruned = 0
+    if args.retry_errors:
+        n_retry_pruned = _prune_errored_dois(output_path, error_log_path)
+
     done = _resume_dois_jsonl(output_path)
 
     print(
         f"Model '{args.model}': {len(result_files)} total DOIs, "
         f"{len(jobs)} in shard {args.shard_id}/{args.num_shards} "
         f"({len(done)} already done, resuming)."
+        + (f" Retrying {n_retry_pruned} previously-errored DOI(s)." if args.retry_errors else "")
     )
 
     from tqdm import tqdm  # type: ignore[import-not-found]

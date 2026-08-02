@@ -22,6 +22,7 @@ import os
 import re
 import string
 import sys
+import time
 import warnings
 from pathlib import Path
 
@@ -88,6 +89,12 @@ class AtomicFactGenerator:
             each need a distinct key.
         base_url: Optional endpoint applied to every component (overrides each
             config's own ``base_url`` and the ``OPENAI_BASE_URL`` env var).
+        max_retries: Number of times to retry a component's LLM call when its
+            response can't be parsed (e.g. malformed/truncated JSON), before
+            falling back to that stage's default behavior (e.g. keep the
+            original fact, or drop it, depending on the stage). ``0`` disables
+            retries (single attempt, matching the previous behavior).
+        retry_delay: Seconds to sleep between retry attempts.
 
     Example::
 
@@ -101,7 +108,14 @@ class AtomicFactGenerator:
         )
     """
 
-    def __init__(self, model_configs: dict = None, api_key: str = None, base_url: str = None):
+    def __init__(
+        self,
+        model_configs: dict = None,
+        api_key: str = None,
+        base_url: str = None,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+    ):
         self.model_configs = create_default_configs()
         if model_configs:
             self.model_configs.update(model_configs)
@@ -112,6 +126,9 @@ class AtomicFactGenerator:
                     config.api_key = api_key
                 if base_url:
                     config.base_url = base_url
+
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
 
         self.clients = {
             component: UnifiedLLMClient(config)
@@ -130,6 +147,48 @@ class AtomicFactGenerator:
 
     def _extract_token_usage(self, response, component: str) -> dict:
         return self._get_client(component).extract_token_usage(response)
+
+    def _call_with_retry(self, client, messages, component: str, is_failure):
+        """Call ``client.create_completion`` and retry on unparseable responses.
+
+        Args:
+            client: The :class:`UnifiedLLMClient` for this component.
+            messages: Chat messages to send.
+            component: Component name (for logging/token-usage bookkeeping).
+            is_failure: Callable taking the normalized response and returning
+                ``True`` if it couldn't be parsed (e.g. malformed JSON), in
+                which case the call is retried (up to ``self.max_retries``
+                times) instead of immediately falling back.
+
+        Returns:
+            Tuple of ``(normalized_response, token_usage, exhausted)``, where
+            ``exhausted`` is ``True`` only if every attempt (including
+            retries) still failed to parse.
+        """
+        token_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+        for attempt in range(self.max_retries + 1):
+            response = client.create_completion(messages=messages)
+            normalized = client.normalize_response(response)
+
+            usage = self._extract_token_usage(response, component)
+            for k in ("prompt_tokens", "completion_tokens", "total_tokens"):
+                token_usage[k] += usage[k]
+
+            if not is_failure(normalized):
+                return normalized, token_usage, False
+
+            if attempt < self.max_retries:
+                print(
+                    f"Warning: {component} returned an unparseable response "
+                    f"(attempt {attempt + 1}/{self.max_retries + 1}); retrying..."
+                )
+                if self.retry_delay:
+                    time.sleep(self.retry_delay)
+
+        if self.max_retries > 0:
+            print(f"Warning: {component} still unparseable after {self.max_retries} retries; using fallback.")
+        return normalized, token_usage, True
 
     def _accumulate_token_usage(self, token_usage: dict, step_name: str, step_usage: dict):
         token_usage[step_name] = step_usage
@@ -372,10 +431,10 @@ class AtomicFactGenerator:
                     {"role": "system", "content": decontextualization_persona_description},
                     {"role": "user", "content": content},
                 ]
-                response = client.create_completion(messages=prompt)
-                normalized = client.normalize_response(response)
-
-                usage = self._extract_token_usage(response, "decontextualization")
+                normalized, usage, _ = self._call_with_retry(
+                    client, prompt, "decontextualization",
+                    is_failure=lambda r: parse_decontextualization_response(r)[0] is None,
+                )
                 for k in ("prompt_tokens", "completion_tokens", "total_tokens"):
                     token_usage[k] += usage[k]
 
@@ -416,10 +475,10 @@ class AtomicFactGenerator:
                     .replace("[CONTEXT]", original_paragraph)
                     .replace("[CLAIM]", fact)
                 )
-                response = client.create_completion(messages=[{"role": "user", "content": content}])
-                normalized = client.normalize_response(response)
-
-                usage = self._extract_token_usage(response, "incomplete_detection")
+                normalized, usage, _ = self._call_with_retry(
+                    client, [{"role": "user", "content": content}], "incomplete_detection",
+                    is_failure=lambda r: parse_incomplete_fact_response(r)["classification"] is None,
+                )
                 for k in ("prompt_tokens", "completion_tokens", "total_tokens"):
                     token_usage[k] += usage[k]
 
@@ -472,10 +531,10 @@ class AtomicFactGenerator:
                     .replace("[RESPONSE]", original_paragraph)
                     .replace("[INDIVIDUAL FACT]", fact)
                 )
-                response = client.create_completion(messages=[{"role": "user", "content": content}])
-                normalized = client.normalize_response(response)
-
-                usage = self._extract_token_usage(response, "irrelevant_filtering")
+                normalized, usage, _ = self._call_with_retry(
+                    client, [{"role": "user", "content": content}], "irrelevant_filtering",
+                    is_failure=lambda r: parse_filter_irrelevant_facts_response(r)["classification"] is None,
+                )
                 for k in ("prompt_tokens", "completion_tokens", "total_tokens"):
                     token_usage[k] += usage[k]
 
@@ -521,10 +580,10 @@ class AtomicFactGenerator:
                 .replace("[RESPONSE]", original_paragraph)
                 .replace("[ALL_FACTS]", facts_list)
             )
-            response = client.create_completion(messages=[{"role": "user", "content": content}])
-            normalized = client.normalize_response(response)
-
-            usage = self._extract_token_usage(response, "redundant_filtering")
+            normalized, usage, _ = self._call_with_retry(
+                client, [{"role": "user", "content": content}], "redundant_filtering",
+                is_failure=lambda r: parse_filter_redundant_facts_batch_response(r)["reasoning"] is None,
+            )
             for k in ("prompt_tokens", "completion_tokens", "total_tokens"):
                 token_usage[k] += usage[k]
 
@@ -617,6 +676,18 @@ def main():
         default=None,
         help="Endpoint applied to all pipeline components (overrides env vars).",
     )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Retries per LLM call when the response can't be parsed, before falling back (default: 3).",
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=1.0,
+        help="Seconds to sleep between retry attempts (default: 1.0).",
+    )
 
     args = parser.parse_args()
 
@@ -641,7 +712,13 @@ def main():
                 for comp, cfg in config_dict.items()
             }
 
-    generator = AtomicFactGenerator(model_configs=model_configs, api_key=args.api_key, base_url=args.base_url)
+    generator = AtomicFactGenerator(
+        model_configs=model_configs,
+        api_key=args.api_key,
+        base_url=args.base_url,
+        max_retries=args.max_retries,
+        retry_delay=args.retry_delay,
+    )
     final_facts, para_breaks, metadata = generator.run(
         args.text,
         args.question,
