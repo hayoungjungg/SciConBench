@@ -163,11 +163,20 @@ class SciConBenchUploader:
                 logger.warning("Stale DOI %s superseded by %s — removing.", old, new)
             self._log_stale(stale)
 
+        # Also drop DOIs previously logged as superseded/withdrawn (e.g. a
+        # core/rolling prune that hasn't produced a replacement row yet).
+        logged_stale: dict = {}
+        if _STALE_LOG.exists():
+            try:
+                logged_stale = json.loads(_STALE_LOG.read_text())
+            except Exception:
+                logged_stale = {}
+
         new_by_doi = {r["doi"]: r for r in new_rows}
         kept: list[dict] = []
         for row in existing:
-            if row["doi"] in stale:
-                continue   # drop stale
+            if row["doi"] in stale or row["doi"] in logged_stale:
+                continue   # drop stale / withdrawn
             if row["doi"] in new_by_doi:
                 continue   # will be replaced by the incoming version
             kept.append(row)

@@ -21,4 +21,17 @@ data_collection:
   retry_backoff_secs: 30.0
   # Contact email for Crossref polite pool — override via CROSSREF_MAILTO env var
   crossref_mailto: null
+  # One-time core-set sample (see `scicon-track init-core-set`). Closed window.
+  # Drawn from the curated HuggingFace SciConBench dataset (protocols already
+  # filtered), NOT raw Crossref. Up to core_per_month reviews per calendar
+  # month in the window. The recurring pipeline never resamples or backfills.
+  # If a newer .pubN of a tracked review appears, the old DOI is removed (the
+  # core set shrinks) and the successor is added to that month's rolling panel,
+  # not back into core. Rolling months find *new* reviews not already on
+  # HuggingFace, TDM-download PDFs, preprocess questions/facts, and merge them
+  # into HuggingFace.
+  core_window_start: 2025-07-01
+  core_window_end: 2026-06-30
+  core_per_month: 10
+  core_sample_seed: 42
 

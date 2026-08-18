@@ -1,13 +1,13 @@
 # HuggingFace dataset configuration.
 
 source:
-  # Existing static benchmark dataset (provides core set DOIs, questions, atomic facts)
+  # Live SciConBench dataset (config `benchmark`, split `test`)
   repo_id: hayoungjung/SciConBench
   config: benchmark
   split: test
 
 upload:
-  # Upload target — same repo as the source so new monthly examples are appended in-place
+  # Same repo/config/split — monthly core+rolling rows are merged in-place
   repo_id: hayoungjung/SciConBench
   # Local Parquet file written before upload
   output: data_track/sciconbench_track.parquet

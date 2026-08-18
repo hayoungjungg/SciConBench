@@ -61,10 +61,13 @@ cp .env.example .env   # then fill in .env
 # 3. Initialize the database
 scicon-track init-db
 
-# 4. Smoke-test the full pipeline with 5 DOIs
-scicon-track workflow --once --max-dois 5
+# 4. Draw the one-time core set (up to 10 reviews/month, Jul 2025–Jun 2026, ~120)
+scicon-track init-core-set
 
-# 5. Full monthly run
+# 5. Smoke-test the full pipeline with 5 DOIs
+scicon-track workflow --once --max-dois 5 --rolling-month 2026-07
+
+# 6. Full run: ingest all new reviews; evaluate core + closed rolling months
 scicon-track workflow --once
 ```
 
@@ -74,35 +77,64 @@ scicon-track workflow --once
 
 ### `scicon-track workflow`
 
-Runs the full monthly pipeline.  Pass `--once` to execute a single run and exit;  
-omit it to start a Prefect scheduler that re-triggers every 30 days.
+Runs the full monthly pipeline.  Pass `--once` to execute a single run and exit;
+omit it to start a Prefect scheduler that fires on the 1st of each calendar
+month (`cron 0 0 1 * *`, America/New_York). Requires a core set created once
+via `scicon-track init-core-set`.
 
 ```
 Usage: scicon-track workflow [OPTIONS]
 
 Options:
-  --once            Run once immediately instead of starting the scheduler.
-  --max-dois N      Limit to N DOIs per run (smoke-testing).
-  --batch-size INT  Atomic-fact batch size.  [default: 500]
-  --help            Show this message and exit.
+  --once                  Run once immediately instead of starting the scheduler.
+  --max-dois N            Limit to N DOIs per run (smoke-testing).
+  --batch-size INT        Atomic-fact batch size.  [default: 500]
+  --rolling-month YYYY-MM Latest closed month for evals (default: previous calendar month).
+  --interval [monthly|bimonthly]
+                          Scheduler cadence (ignored with --once).
+  --help                  Show this message and exit.
 ```
 
-**One-shot run:**
+**One-shot run (ingest new reviews; evaluate through the previous calendar month):**
 
 ```bash
 scicon-track workflow --once
 ```
 
-**Smoke-test with 5 DOIs:**
+**Hold evals at July 2026 (August-published rolling reviews are ingested but not queried):**
 
 ```bash
-scicon-track workflow --once --max-dois 5
+scicon-track workflow --once --rolling-month 2026-07
 ```
 
-**Start the 30-day scheduler:**
+**Start the calendar-month scheduler:**
 
 ```bash
 scicon-track workflow
+```
+
+---
+
+### `scicon-track init-core-set`
+
+Draw the one-time core set from the **curated HuggingFace dataset**
+(`hayoungjung/SciConBench`, config `benchmark`, split `test`) — not raw
+Crossref, which also lists protocols. Up to 10 already-curated reviews from
+each calendar month between 2025-07-01 and 2026-06-30 (window / per-month
+cap / seed are in `config/config.yaml`). Questions and Cochrane facts are
+copied from HuggingFace, so these DOIs start at `FACTS_GENERATED`.
+
+The sample is written to the DB **and** locked in `data_track/core_set.json`
+only after every month has been drawn. The monthly pipeline refuses to start
+until that lock file exists. Re-running `init-core-set` is a no-op once the
+lock is in place. Pass `--force` to drop the CORE panel and redraw from
+HuggingFace. `scicon-track init-db --force` also refuses to drop the DB
+while the lock exists, unless you also pass `--force-drop-core-set` (the
+lock file itself is still not deleted).
+
+```bash
+scicon-track init-core-set
+scicon-track init-core-set --force   # redraw from HuggingFace
 ```
 
 ---
@@ -120,11 +152,11 @@ scicon-track init-db --force    # drop and recreate all tables
 
 ### `scicon-track discover`
 
-Fetch new Cochrane reviews from Crossref and register them as rolling reviews.
+Fetch new Cochrane reviews that are not already on HuggingFace, and prune stale core/rolling DOIs. Rolling `cohort_month` is assigned later from each review's publication date.
 
 ```bash
 scicon-track discover
-scicon-track discover --cohort-month 2026-07 --limit 20
+scicon-track discover --limit 20
 ```
 
 ---
@@ -151,7 +183,8 @@ scicon-track extract-text
 
 ### `scicon-track upload`
 
-Upload the current benchmark state to HuggingFace as a Parquet dataset.
+Upload the current benchmark state to HuggingFace
+(`hayoungjung/SciConBench`, config `benchmark`, split `test`).
 
 ```bash
 scicon-track upload
@@ -166,19 +199,20 @@ The `workflow` command executes these Prefect tasks in order:
 | # | Task | Description |
 |---|------|-------------|
 | 1 | `task_init_db` | Create/verify SQLite schema |
-| 2 | `task_register_core_set` | Load N=200 core DOIs from the HuggingFace benchmark |
-| 3 | `task_discover_rolling` | Find 15–20 new CDSR reviews via Crossref |
-| 4 | `task_download_pdfs` | Download PDFs via Wiley TDM API |
-| 5 | `task_extract_text` | Extract reference text with pdfplumber |
-| 6 | `task_generate_questions` | Generate clinical questions for rolling reviews |
+| 2 | `task_load_core_set` | Read the finalized core set from `data_track/core_set.json` (fails if `init-core-set` has not finished) |
+| 3 | `task_discover_and_prune` | Discover new CDSR reviews not already on HuggingFace or in the DB; if a newer `.pubN` of a tracked review appears, drop the old DOI and add the successor as rolling (never back into core). `cohort_month` is the publication month, set after text extraction. |
+| 4 | `task_download_pdfs` | Download PDFs via Wiley TDM API. A 404 is retried on later runs; after 5 distinct calendar months of 404s the DOI is skipped. |
+| 5 | `task_extract_text` | Extract reference text with pdfplumber and assign each rolling DOI to its publication-month panel |
+| 6 | `task_generate_questions` | Generate clinical questions |
 | 7 | `task_generate_cochrane_facts_batch` | Atomic-fact decomposition of Cochrane conclusions |
-| 8 | `task_upload_to_hf` | Merge + publish updated dataset to HuggingFace; also refreshes `sciconharness`'s local Cochrane-filter caches (titles / doi→title / doi→publication_date) from the same merged rows — see `huggingface/uploader.py::refresh_filter_caches()` |
-| 9 | `task_run_queries` | Query all model configs with SciConHarness (picks up the just-refreshed filter caches from stage 8) |
-| 10 | `task_generate_response_facts_batch` | Atomic-fact decomposition of model responses |
+| 8 | `task_upload_to_hf` | Merge + publish to `hayoungjung/SciConBench` (benchmark/test); also refreshes `sciconharness`'s local Cochrane-filter caches |
+| 9 | `task_run_queries` | Query models with SciConHarness. Open-weight models (`evaluate_once` in `query_batch_config.yaml`) are queried once per DOI; proprietary models are re-queried against core + all **closed** rolling panels every run. Rolling reviews published in the still-open calendar month are ingested but not queried until that month ends. A newly added model has zero rows and automatically backfills the (closed) universe. Only DOIs at `FACTS_GENERATED` in that universe are queried. Each pair is retried per-item, then leftover pairs are re-queried in whole-stage rounds; leftover pending DOI/model pairs fail the task. |
+| 10 | `task_generate_response_facts_by_model` | Atomic-fact decomposition of model responses |
 | 11 | `task_run_precision` | LLM-judge precision analysis |
 | 12 | `task_run_recall` | LLM-judge recall analysis |
 
-Stages 6–12 retry up to 3 times with exponential backoff.  
+Stages 4–12 retry each incomplete item (`ITEM_RETRY_ATTEMPTS`, default 3) and then re-scan remaining work (`STAGE_ROUNDS`, default 3). Atomic-fact stages use a higher per-item budget (`FACTS_ITEM_RETRY_ATTEMPTS`, default 4) before those whole-stage rounds. Queries work the same way: try each pending DOI/model pair a few times, then re-query whatever still has no well-formed `[[[...]]]` conclusion. A stage **raises** if anything is still missing or malformed after that — it does not skip bad output. Prefect then retries the task. Wiley TDM 404s are retried on later runs and do not fail the download stage; they become `SKIPPED` only after 5 distinct calendar months of 404s.
+
 Email notifications are sent on pipeline start, success, and failure.
 
 ---
@@ -189,11 +223,11 @@ Every DOI in the database belongs to one of two panels:
 
 | Panel | Description |
 |-------|-------------|
-| `core` | The stable set of N=200 reviews from the original SciConBench benchmark.  Re-evaluated every month to track model drift. |
-| `rolling` | 15–20 newly published Cochrane reviews added each month.  Prevents benchmark overfitting and extends coverage. |
+| `core` | A **fixed** sample of up to 10 *already-curated* HuggingFace SciConBench reviews per calendar month from 1 Jul 2025 – 30 Jun 2026, drawn once via `scicon-track init-core-set`. Never resampled or backfilled. Proprietary models are re-queried against it every month (drift); open-weight models are queried once. If a newer `.pubN` of a tracked review appears, the old DOI is removed (the set shrinks) and the successor is added to the **rolling** panel (tagged with the successor's publication month), not back into core. |
+| `rolling` | New CDSR reviews not already on HuggingFace. Each review is tagged with the calendar month it was **published** (`cohort_month`). A run on any day finds all new reviews, downloads/extracts them, and buckets them by publication month — so July-published reviews are the July panel even if they were found in August, and August-published reviews found on Aug 18 wait to be evaluated until September. Wiley TDM → extract → questions/facts → merge into `hayoungjung/SciConBench`. Open-weight models are queried once per rolling DOI; proprietary models are re-queried against **all closed** rolling panels every run. A newer `.pubN` of a rolling DOI is handled the same way as core. |
 
-Each rolling review is tagged with its `cohort_month` (e.g. `"2026-07"`) to enable  
-stratified temporal analysis.
+Each rolling review is tagged with its `cohort_month` (e.g. `"2026-07"`), which is the publication month, not the run date.
+Panel membership is mirrored to `data_track/doi_panels.json` for inspection.
 
 ---
 
@@ -220,26 +254,139 @@ default_models:
   openai: gpt-5.6-sol
   claude: claude-opus-5
   gemini: gemini-3.1-pro
-  perplexity: sonar-reasoning-pro
-  azure: DeepSeek-V4-Pro          # Azure Foundry Chat Completions
+  azure:
+    - DeepSeek-V4-Pro              # Azure Foundry Chat Completions
+    - DeepSeek-V3.2
   openrouter:                     # one provider, several models
     - moonshotai/kimi-k3          # Kimi K3
     - z-ai/glm-5.2                # GLM-5.2
-    - qwen/qwen3.5-9b             # Qwen3.5-9B
     - qwen/qwen3.7-max            # Qwen3.7-max
+
+evaluate_once:                    # open-weight: query each DOI once, ever
+  - DeepSeek-V4-Pro
+  - DeepSeek-V3.2
+  - moonshotai/kimi-k3
+  - z-ai/glm-5.2
 ```
 
 Every `(provider, model)` pair produced by `QueryBatchConfig.iter_models()`
-is queried in `task_run_queries` under all three `HARNESS_CONFIGS`
-(`no_tools`, `tools`, `tools_filter`) for every DOI, so adding a model here
-is enough to fully onboard it into the monthly pipeline — no other code
-changes required.
+is queried in `task_run_queries` under a single **clean-room** configuration
+(`tools_filter`). Open-weight models listed in `evaluate_once` skip any DOI
+they have already answered; everything else (proprietary) is re-queried
+against core + all **closed** rolling panels every run. Adding a new model
+to `default_models` is enough — the next cron run sees zero response rows
+for it and backfills that closed universe. No need to pause the scheduler.
+
+### Pipeline concurrency
+
+The pipeline does not run every model/item strictly one at a time, but it's
+deliberately conservative about *where* it adds concurrency — grouping by
+credential so nothing contends with itself for a rate limit — rather than
+maximizing parallelism everywhere.
+
+**Query stage (`task_run_queries` / `_run_provider_lane`, step 9).**
+`(provider, model)` pairs are grouped into **lanes** (`QUERY_LANES`), and
+lanes run concurrently against each other via `asyncio.gather`; *within* a
+lane, models — and DOIs within a model — are queried strictly sequentially:
+
+- `openrouter` lane: Kimi K3, GLM-5.2, Qwen3.7-max — sequential, since all
+  three currently share one OpenRouter key (`OPENROUTER_API_KEY_FILTERING`
+  under the clean-room-only config).
+- `azure_anthropic` lane: the two Azure `DeepSeek-*` models, Claude
+  (Azure-Foundry-hosted), and OpenAI (which currently also resolves to the
+  Azure OpenAI credential — see below) — sequential.
+- `gemini` lane: just `gemini-3.1-pro`.
+
+The two Azure resources available to `provider="azure"` models
+(`AZURE_CREDENTIAL_SETS`: **Cochrane Dashboard** and **Azure OpenAI**, each
+with its own independent rate limit) are pinned per-model via
+`AZURE_MODEL_CREDENTIAL_LABEL` (`DeepSeek-V4-Pro` → Cochrane Dashboard,
+`DeepSeek-V3.2` → Azure OpenAI). Any additional Azure model added later
+without an entry there round-robins across the two resources instead
+(sharing one with whichever model is already assigned to it) and prints a
+warning — add it to the map for a dedicated resource. Note `provider="openai"`
+(`gpt-5.6-sol`) currently falls back to the same `AZURE_OPENAI_KEY`/
+`OPENAI_BASE_URL` resource as `DeepSeek-V3.2` (`OPENAI_API_KEY` is unset in
+`.env`) — harmless today since the `azure_anthropic` lane is sequential, but
+worth revisiting if `OPENAI_API_KEY` is ever set to a real, independent key.
+
+A single `SciConHarness` instance is never called concurrently (it mutates
+per-instance state, e.g. the OpenRouter sticky-routing `session_id`, right
+before each query) — see `_run_provider_lane` in `run_workflow.py`.
 
 `task_run_queries` never force-passes OpenAI/Azure OpenAI credentials to
-`SciConHarness`; it leaves `api_key`/`base_url`/`api_version` unset and lets
-each provider resolve its own credentials from `.env` (same resolution
-`create_provider()` in `sciconharness/utils/query_utils.py` uses for the
-CLI scripts) — DeepSeek-V4-Pro's dedicated `COCHRANE_DASHBOARD_*` resource,
-the `OPENROUTER_API_KEY*` variants, Gemini's Vertex AI fallback, and
-Claude's Foundry auto-detection all keep working correctly regardless of
-which providers/models are listed above.
+`SciConHarness` for non-Azure providers; it leaves `api_key`/`base_url`/
+`api_version` unset and lets each provider resolve its own credentials from
+`.env` (same resolution `create_provider()` in
+`sciconharness/utils/query_utils.py` uses for the CLI scripts) — the
+`OPENROUTER_API_KEY*` variants, Gemini's Vertex AI fallback, and Claude's
+Foundry auto-detection all keep working regardless of which providers/models
+are listed above.
+
+**Post-query stages (atomic facts, precision, recall — steps 10-11,
+`_run_grouped_sharded`).** These three stages run strictly one after
+another (facts → precision → recall), and only start once `task_run_queries`
+has fully finished — so they're free to reuse the same two Azure credentials
+(`FACTS_JUDGE_API_KEYS`: Azure OpenAI + Cochrane Dashboard) without any
+cross-stage contention:
+
+- **Atomic facts** (`task_generate_response_facts_by_model`): pending
+  model-response items are grouped by generating model, then processed
+  **two models at a time** (one dedicated API key per model), each model's
+  items further split into `FACTS_SHARD_CONCURRENCY` (4) concurrent shards
+  — up to 2 × 4 = 8 concurrent `AtomicFactGenerator` calls at once — repeating
+  in batches of two until every model has been processed.
+- **Precision** (`task_run_precision`), then **recall**
+  (`task_run_recall`) once precision is fully done: since these aren't
+  grouped by model, the full pending-item queue is instead split into two
+  halves up front, one per API key, each further 4-way sharded (again up to
+  8 concurrent judge calls).
+
+Because `ThreadPoolExecutor` worker threads run genuinely concurrently
+(unlike the query stage's cooperative `asyncio` scheduling), each of these
+stages wraps its `populate_*` DB write in `_DB_WRITE_LOCK` — SQLite only
+allows one writer at a time — so only the brief write is serialized, not the
+slow LLM call before it.
+
+### Per-DOI result files (human-browsable mirror of the DB)
+
+The SQLite DB (`data_track/sciconbench_track.db`) is the source of truth,
+but every DOI/model/run_month triple also gets a plain JSON file at:
+
+```
+data_track/results/<run_month>/<model>_tools_filter/<doi_safe>/result.json
+```
+
+The `<run_month>` partition matters because the pipeline runs monthly (or
+bimonthly) against a fixed "core" sample plus a rolling panel: the same
+DOI/model pair can legitimately get queried again in a later month, and
+without partitioning by month that re-run would silently overwrite the
+earlier month's file even though the DB keeps them as distinct rows (unique
+on `doi, model, provider, config_label, run_month`). Within one
+`results/<run_month>/` directory, the layout is exactly the
+`<model_dir>/<doi_safe>/result.json` layout `sciconharness/logs/` uses for
+the static benchmark, so `scripts/check_conclusions.py
+--logs-dir data_track/results/<run_month>` works against it unmodified (it
+just checks each file's `"response"` field for a well-formed `[[[...]]]`
+block).
+
+Each pipeline stage merges its own top-level key into the file as that
+DOI/model reaches it (see `_update_result_file` / `_results_file_path` in
+`run_workflow.py`):
+
+- `task_run_queries` writes `doi`, `model`, `provider`, `config_label`,
+  `run_month`, `query`, `response`, `token_usage`.
+- `task_generate_response_facts_by_model` adds `atomic_facts_pairs` and
+  `total_atomic_facts`.
+- `task_run_precision` adds `precision` (the full judge result dict:
+  `factual_precision`, supported/contradicted/not-supported facts, etc.).
+- `task_run_recall` adds `recall` (`factual_recall`, coverage details, etc.).
+
+Since each stage only adds/overwrites its own key, a file that's missing
+`atomic_facts_pairs` means fact generation hasn't run for that DOI/model
+yet, one missing `precision`/`recall` means grading hasn't run, and a
+`response` without a well-formed `[[[...]]]` block means generation itself
+needs a retry — all inspectable directly from the file on disk (or via a
+`check_conclusions.py`-style scan) without touching the DB, which also
+makes it straightforward to identify and re-run just the DOIs that are
+missing or malformed at any given stage.

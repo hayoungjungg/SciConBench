@@ -93,6 +93,250 @@ def update_doi_status(doi: str, status: ProcessingStatus, pdf_path: str | None =
             record.pdf_path = pdf_path
 
 
+def update_doi_cohort_month(doi: str, cohort_month: str) -> None:
+    """Set ``cohort_month`` on a rolling DOI (no-op for core)."""
+    with _session().begin() as session:
+        record = session.get(DOIInfo, doi)
+        if record is None:
+            raise ValueError(f"DOI not found in database: {doi!r}")
+        if record.panel_type != PanelType.ROLLING:
+            return
+        record.cohort_month = cohort_month
+
+
+def remove_doi(doi: str) -> bool:
+    """Delete a DOIInfo row (cascades to review/questions/facts/responses/scores).
+
+    Returns True if a row was deleted.
+    """
+    with _session().begin() as session:
+        record = session.get(DOIInfo, doi)
+        if record is None:
+            return False
+        session.delete(record)
+        logger.info("Removed DOI %s from the database (cascade delete).", doi)
+        return True
+
+
+def get_doi_info_rows() -> list[dict[str, Any]]:
+    """Return every DOIInfo row as a plain dict (panel membership snapshot)."""
+    with _session()() as session:
+        return [
+            {
+                "doi": row.doi,
+                "panel_type": row.panel_type.value,
+                "cohort_month": row.cohort_month,
+                "processing_status": row.processing_status.value,
+            }
+            for row in session.query(DOIInfo).all()
+        ]
+
+
+def append_stale_log(entries: dict[str, str | None]) -> None:
+    """Merge *entries* into ``data_track/stale_dois.json``.
+
+    Keys are removed DOIs. Values are the superseding DOI, or ``None`` if
+    the DOI was withdrawn with no replacement.
+    """
+    if not entries:
+        return
+    from config import path_cfg
+    import json
+
+    path = path_cfg.data_dir / "stale_dois.json"
+    existing: dict[str, Any] = {}
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text())
+        except Exception:
+            existing = {}
+    existing.update(entries)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(existing, indent=2, ensure_ascii=False))
+    logger.info("Stale DOI log updated (%d new): %s", len(entries), path)
+
+
+TDM_404_SKIP_AFTER = 5
+TDM_404_LOG_NAME = "tdm_404.json"
+
+
+def _tdm_404_path():
+    from config import path_cfg
+    return path_cfg.data_dir / TDM_404_LOG_NAME
+
+
+def _read_tdm_404() -> dict[str, Any]:
+    import json
+    path = _tdm_404_path()
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text())
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_tdm_404(data: dict[str, Any]) -> None:
+    import json
+    path = _tdm_404_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def record_tdm_404(doi: str, calendar_month: str) -> int:
+    """Count a Wiley TDM 404 once per calendar month. Return the updated count."""
+    data = _read_tdm_404()
+    rec = data.get(doi) or {}
+    if isinstance(rec, int):
+        rec = {"count": rec, "last_month": None}
+    if rec.get("last_month") == calendar_month:
+        return int(rec.get("count") or 0)
+    count = int(rec.get("count") or 0) + 1
+    data[doi] = {"count": count, "last_month": calendar_month}
+    _write_tdm_404(data)
+    return count
+
+
+def clear_tdm_404(doi: str) -> None:
+    """Drop the 404 counter after a successful TDM download."""
+    data = _read_tdm_404()
+    if doi not in data:
+        return
+    del data[doi]
+    _write_tdm_404(data)
+
+
+def write_doi_panels(history_events: list[dict[str, Any]] | None = None) -> None:
+    """Write ``data_track/doi_panels.json`` mirroring current panel membership."""
+    import json
+    from config import dc_cfg, path_cfg
+
+    path = path_cfg.data_dir / "doi_panels.json"
+    existing_history: list = []
+    if path.exists():
+        try:
+            existing_history = json.loads(path.read_text()).get("history") or []
+        except Exception:
+            existing_history = []
+    if history_events:
+        existing_history.extend(history_events)
+
+    rows = get_doi_info_rows()
+    core = sorted(r["doi"] for r in rows if r["panel_type"] == PanelType.CORE.value)
+    rolling: dict[str, list[str]] = {}
+    for r in rows:
+        if r["panel_type"] != PanelType.ROLLING.value:
+            continue
+        month = r["cohort_month"] or "unknown"
+        rolling.setdefault(month, []).append(r["doi"])
+    for month in rolling:
+        rolling[month] = sorted(rolling[month])
+
+    payload = {
+        "core": core,
+        "rolling": dict(sorted(rolling.items())),
+        "core_window": [
+            dc_cfg.core_window_start.isoformat(),
+            dc_cfg.core_window_end.isoformat(),
+        ],
+        "core_per_month": dc_cfg.core_per_month,
+        "core_sample_seed": dc_cfg.core_sample_seed,
+        "history": existing_history,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    logger.info(
+        "Wrote panel snapshot: %d core, %d rolling months → %s",
+        len(core), len(rolling), path,
+    )
+
+
+CORE_SET_LOCK_NAME = "core_set.json"
+
+
+def _core_set_lock_path():
+    from config import path_cfg
+    return path_cfg.data_dir / CORE_SET_LOCK_NAME
+
+
+def read_core_set_lock() -> dict[str, Any] | None:
+    """Return the finalized core-set lock file, or None if it does not exist."""
+    import json
+    path = _core_set_lock_path()
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        raise RuntimeError(
+            f"Core-set lock file {path} exists but is unreadable: {exc}. "
+            "Refusing to treat the core set as initialized."
+        ) from exc
+    if not data.get("finalized"):
+        return None
+    return data
+
+
+def delete_core_set_lock() -> None:
+    """Remove ``data_track/core_set.json`` so a forced redraw can rewrite it."""
+    path = _core_set_lock_path()
+    if path.is_file():
+        path.unlink()
+        logger.info("Deleted core-set lock: %s", path)
+
+
+def write_core_set_lock(
+    *,
+    dois: list[str],
+    counts_by_month: dict[str, int],
+    per_month: int,
+    source: str = "huggingface",
+) -> None:
+    """Write the finalized core-set lock. Call only after sampling has finished."""
+    import json
+    from datetime import datetime, timezone
+    from config import dc_cfg
+
+    path = _core_set_lock_path()
+    if path.is_file():
+        raise RuntimeError(
+            f"Core-set lock already exists at {path}. Refusing to overwrite."
+        )
+    payload = {
+        "finalized": True,
+        "finalized_at": datetime.now(timezone.utc).isoformat(),
+        "source": source,
+        "core_window": [
+            dc_cfg.core_window_start.isoformat(),
+            dc_cfg.core_window_end.isoformat(),
+        ],
+        "core_per_month": per_month,
+        "core_sample_seed": dc_cfg.core_sample_seed,
+        "n_dois": len(dois),
+        "counts_by_month": counts_by_month,
+        "dois": sorted(dois),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    tmp.replace(path)
+    logger.info("Finalized core-set lock: %d DOI(s) → %s", len(dois), path)
+
+
+def require_core_set_finalized() -> list[str]:
+    """Return locked core DOIs, or raise if init-core-set has not finished."""
+    lock = read_core_set_lock()
+    if lock is None:
+        raise RuntimeError(
+            "Core set is not finalized. Run `scicon-track init-core-set` and "
+            "wait for it to finish (it writes data_track/core_set.json only "
+            "after the full sample is complete). The monthly pipeline will "
+            "not start until that lock exists."
+        )
+    return list(lock.get("dois") or [])
+
+
 # ── DOI queries ────────────────────────────────────────────────────────────────
 
 
@@ -124,29 +368,79 @@ def get_dois_by_status(status: ProcessingStatus) -> set[str]:
         }
 
 
-def get_dois_needing_pdf() -> list[str]:
-    """Return rolling DOIs that have been registered but not yet PDF-downloaded."""
+def get_eval_dois(closed_month: str) -> tuple[list[str], list[str]]:
+    """Return ``(eval_dois, held_back_rolling)`` for a pipeline run.
+
+    Evals cover core plus rolling reviews whose ``cohort_month`` is on or
+    before *closed_month* (the last finished calendar month). Rolling DOIs
+    with no cohort yet, or published in a still-open month, are held back
+    so a mid-month run does not score an incomplete panel.
+    """
+    ready = get_dois_by_status(ProcessingStatus.FACTS_GENERATED)
+    eval_dois: list[str] = []
+    held_back: list[str] = []
     with _session()() as session:
-        return [
-            row.doi
-            for row in session.query(DOIInfo.doi)
+        rows = session.query(DOIInfo).all()
+    for row in rows:
+        if row.panel_type == PanelType.CORE:
+            if row.doi in ready:
+                eval_dois.append(row.doi)
+            continue
+        if row.panel_type != PanelType.ROLLING:
+            continue
+        cohort = row.cohort_month
+        if cohort and cohort <= closed_month:
+            if row.doi in ready:
+                eval_dois.append(row.doi)
+        else:
+            held_back.append(row.doi)
+    return sorted(eval_dois), sorted(held_back)
+
+
+def get_dois_needing_pdf() -> list[str]:
+    """Return DOIs that still need a PDF (REGISTERED, or FAILED with no file)."""
+    with _session()() as session:
+        rows = (
+            session.query(DOIInfo)
             .filter(
-                DOIInfo.panel_type == PanelType.ROLLING,
-                DOIInfo.processing_status == ProcessingStatus.REGISTERED,
+                DOIInfo.processing_status.in_(
+                    [ProcessingStatus.REGISTERED, ProcessingStatus.FAILED]
+                )
             )
             .all()
-        ]
+        )
+        out: list[str] = []
+        for row in rows:
+            if row.processing_status == ProcessingStatus.REGISTERED:
+                out.append(row.doi)
+            elif not row.pdf_path:
+                out.append(row.doi)
+        return out
 
 
 def get_dois_needing_text_extraction() -> list[str]:
-    """Return DOIs with a PDF but no extracted reference text yet."""
+    """Return DOIs with a PDF but no extracted reference text yet.
+
+    Includes ``FAILED`` rows that already have a ``pdf_path`` so a transient
+    extraction error is retried instead of stuck forever.
+    """
     with _session()() as session:
-        return [
-            row.doi
-            for row in session.query(DOIInfo.doi)
-            .filter(DOIInfo.processing_status == ProcessingStatus.PDF_DOWNLOADED)
+        rows = (
+            session.query(DOIInfo)
+            .filter(
+                DOIInfo.processing_status.in_(
+                    [ProcessingStatus.PDF_DOWNLOADED, ProcessingStatus.FAILED]
+                )
+            )
             .all()
-        ]
+        )
+        out: list[str] = []
+        for row in rows:
+            if row.processing_status == ProcessingStatus.PDF_DOWNLOADED:
+                out.append(row.doi)
+            elif row.pdf_path:
+                out.append(row.doi)
+        return out
 
 
 def get_dois_needing_question() -> list[str]:
@@ -158,6 +452,38 @@ def get_dois_needing_question() -> list[str]:
             .filter(DOIInfo.processing_status == ProcessingStatus.TEXT_EXTRACTED)
             .all()
         ]
+
+
+def get_dois_needing_cochrane_facts() -> list[str]:
+    """Return DOIs that have a question but no Cochrane atomic facts yet."""
+    with _session()() as session:
+        fact_dois = {
+            row.doi
+            for row in session.query(AtomicFacts.doi)
+            .filter(AtomicFacts.source == AtomicFactSource.COCHRANE)
+            .all()
+        }
+        return [
+            row.doi
+            for row in session.query(DOIInfo.doi)
+            .filter(DOIInfo.processing_status == ProcessingStatus.QUESTION_GENERATED)
+            .all()
+            if row.doi not in fact_dois
+        ]
+
+
+def get_graded_response_ids(*, precision: bool) -> set[int]:
+    """Return ModelResponse ids that already have a precision or recall row."""
+    with _session()() as session:
+        if precision:
+            return {
+                row.model_response_id
+                for row in session.query(FactualPrecisionResult.model_response_id).all()
+            }
+        return {
+            row.model_response_id
+            for row in session.query(FactualRecallResult.model_response_id).all()
+        }
 
 
 # ── Review metadata ────────────────────────────────────────────────────────────
@@ -250,15 +576,54 @@ def get_questions() -> dict[str, str]:
 # ── Atomic facts ───────────────────────────────────────────────────────────────
 
 
+def _all_facts_from_pairs(pairs: list) -> list:
+    """Flatten decontextualized facts from either tuple or dict pair format."""
+    all_facts: list = []
+    for p in pairs or []:
+        if isinstance(p, dict):
+            all_facts.extend(p.get("atomic_facts") or [])
+        elif isinstance(p, (list, tuple)) and len(p) >= 2:
+            all_facts.extend(p[1] or [])
+    return all_facts
+
+
 def populate_atomic_facts(
     doi: str,
     source: str,
     atomic_facts_pairs: list,
     overwrite: bool = False,
+    record_id: int | None = None,
 ) -> None:
-    """Insert an AtomicFacts record; skip (or overwrite) if one already exists."""
+    """Insert an AtomicFacts record; skip (or overwrite) if one already exists.
+
+    For ``source="cochrane"`` the row is unique per DOI. For
+    ``source="model_response"`` *record_id* must be the originating
+    ``ModelResponse.id`` — one facts row per model response, so re-queries
+    in a later month (and different models in the same month) don't clobber
+    each other.
+    """
     source_enum = AtomicFactSource(source)
     with _session().begin() as session:
+        if source_enum == AtomicFactSource.MODEL_RESPONSE:
+            if record_id is None:
+                raise ValueError(
+                    "record_id (ModelResponse.id) is required for source='model_response'"
+                )
+            existing = (
+                session.query(AtomicFacts)
+                .filter(AtomicFacts.id == record_id, AtomicFacts.source == source_enum)
+                .first()
+            )
+            if existing is not None:
+                if not overwrite:
+                    return
+                session.delete(existing)
+                session.flush()
+            session.add(AtomicFacts(
+                id=record_id, doi=doi, source=source_enum, atomic_facts_pairs=atomic_facts_pairs,
+            ))
+            return
+
         existing = (
             session.query(AtomicFacts)
             .filter(AtomicFacts.doi == doi, AtomicFacts.source == source_enum)
@@ -267,7 +632,6 @@ def populate_atomic_facts(
         if existing is not None:
             if not overwrite:
                 return
-            # Re-use the existing id when overwriting to avoid gaps
             existing_id = existing.id
             session.delete(existing)
             session.flush()
@@ -275,7 +639,6 @@ def populate_atomic_facts(
                 id=existing_id, doi=doi, source=source_enum, atomic_facts_pairs=atomic_facts_pairs
             ))
         else:
-            # Derive a stable id: hash(doi + source) truncated to a positive int
             import hashlib
             stable_id = int(hashlib.md5(f"{doi}:{source}".encode()).hexdigest(), 16) % (2**31)
             session.add(AtomicFacts(
@@ -284,7 +647,12 @@ def populate_atomic_facts(
 
 
 def get_atomic_facts(source: str) -> dict[str, dict[str, Any]]:
-    """Return atomic facts for a given source ("cochrane" or "model_response")."""
+    """Return atomic facts for a given source ("cochrane" or "model_response").
+
+    Keyed by DOI. For ``source="model_response"`` prefer
+    :func:`get_model_response_atomic_facts` when you need per-response facts
+    (multiple models / run months share a DOI).
+    """
     source_enum = AtomicFactSource(source)
     with _session()() as session:
         records = (
@@ -296,11 +664,32 @@ def get_atomic_facts(source: str) -> dict[str, dict[str, Any]]:
         result = {}
         for row in records:
             pairs = row.atomic_facts_pairs or []
-            all_facts = [fact for _, decontextualized in pairs for fact in decontextualized]
+            all_facts = _all_facts_from_pairs(pairs)
             result[row.doi] = {
                 "atomic_facts_pairs": pairs,
                 "all_facts": all_facts,
                 "question": questions.get(row.doi, ""),
+                "total_atomic_facts": len(all_facts),
+            }
+        return result
+
+
+def get_model_response_atomic_facts() -> dict[int, dict[str, Any]]:
+    """Return model-response atomic facts keyed by ``ModelResponse.id``."""
+    with _session()() as session:
+        records = (
+            session.query(AtomicFacts)
+            .filter(AtomicFacts.source == AtomicFactSource.MODEL_RESPONSE)
+            .all()
+        )
+        result: dict[int, dict[str, Any]] = {}
+        for row in records:
+            pairs = row.atomic_facts_pairs or []
+            all_facts = _all_facts_from_pairs(pairs)
+            result[row.id] = {
+                "doi": row.doi,
+                "atomic_facts_pairs": pairs,
+                "all_facts": all_facts,
                 "total_atomic_facts": len(all_facts),
             }
         return result
@@ -372,6 +761,30 @@ def populate_model_response(
         session.add(record)
         session.flush()
         return record.id
+
+
+def get_dois_with_response(
+    *,
+    model: str,
+    provider: str,
+    config_label: str = "tools_filter",
+    run_month: str | None = None,
+) -> set[str]:
+    """Return DOIs that already have a ModelResponse for this model/config.
+
+    If *run_month* is given, only rows from that month count (used for
+    proprietary re-eval). If omitted, any prior month counts (used for
+    open-weight evaluate-once).
+    """
+    with _session()() as session:
+        q = session.query(ModelResponse.doi).filter(
+            ModelResponse.model == model,
+            ModelResponse.provider == provider,
+            ModelResponse.config_label == config_label,
+        )
+        if run_month is not None:
+            q = q.filter(ModelResponse.run_month == run_month)
+        return {row.doi for row in q.all()}
 
 
 def get_all_model_responses(run_month: str | None = None) -> dict[int, Any]:
@@ -518,7 +931,7 @@ def get_sciconbench_rows() -> list[dict[str, Any]]:
             if not question or not fact:
                 continue
             pairs = fact.atomic_facts_pairs or []
-            all_facts = [f for _, decontextualized in pairs for f in decontextualized]
+            all_facts = _all_facts_from_pairs(pairs)
             # Format publication_date as "D Month YYYY" (no leading zero on day)
             # to match the canonical HuggingFace dataset format.
             if review.publication_date:

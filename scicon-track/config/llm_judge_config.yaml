@@ -10,11 +10,11 @@ llm_judge:
 factual_precision_analyzer:
   temperature: 0.2
   prompt_mode: "few-shot"     # "zero-shot" | "few-shot"
-  max_attempts: 3
+  max_attempts: 4
   delay: 10                   # seconds between retries
 
 factual_recall_analyzer:
   temperature: 1.0
   prompt_mode: "zero-shot"
-  max_attempts: 3
+  max_attempts: 4
   delay: 10

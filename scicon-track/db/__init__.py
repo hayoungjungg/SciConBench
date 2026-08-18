@@ -41,7 +41,7 @@ def _setup(db_path: Path | None = None) -> None:
     logger.debug("DB engine configured: %s", db_path)
 
 
-def init_db(db_path: Path | None = None, force: bool = False) -> None:
+def init_db(db_path: Path | None = None, force: bool = False, force_drop_core_set: bool = False) -> None:
     """Create all tables that do not yet exist (or drop-and-recreate if *force*).
 
     When *db_path* is given, the module-level engine and Session are updated to
@@ -49,6 +49,10 @@ def init_db(db_path: Path | None = None, force: bool = False) -> None:
 
     Safe to call multiple times — subsequent calls with ``force=False`` are no-ops
     if the tables already exist.
+
+    ``force=True`` will not drop a finalized core set unless
+    ``force_drop_core_set=True`` is also passed. The core-set lock file
+    (``data_track/core_set.json``) is never deleted by this function.
     """
     _setup(db_path)
 
@@ -56,6 +60,19 @@ def init_db(db_path: Path | None = None, force: bool = False) -> None:
     import db.db  # noqa: F401
 
     if force:
+        if not force_drop_core_set:
+            try:
+                from db.utils import read_core_set_lock
+                lock = read_core_set_lock()
+            except Exception:
+                lock = None
+            if lock is not None:
+                raise RuntimeError(
+                    "Refusing to drop the database: a finalized core set exists "
+                    f"({lock.get('n_dois', '?')} DOIs in data_track/core_set.json). "
+                    "Pass force_drop_core_set=True / --force-drop-core-set if you "
+                    "really intend to destroy it. The lock file itself is not deleted."
+                )
         Base.metadata.drop_all(engine)
         logger.warning("Dropped all tables (force=True).")
 

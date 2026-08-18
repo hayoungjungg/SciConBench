@@ -1,23 +1,45 @@
-# Models evaluated each monthly run.
+# Models evaluated each run.
 # Add or remove providers/models here to control which models are benchmarked.
 #
 # Each key is a provider name; the value is either a single model name or a
-# list of model names. List values let one provider (e.g. openrouter) run
-# several distinct models every month.
+# list of model names. List values let one provider (e.g. openrouter, azure)
+# run several distinct models every run.
 
 enable_tool_calling: true
 enable_filtering: true
+
+# Response quality-check retry: SciConHarness.query() re-queries a DOI up to
+# this many times if the response is missing a well-formed [[[...]]]
+# conclusion of at least min_conclusion_length characters.
+max_format_retries: 4
+min_conclusion_length: 20
 
 default_models:
   openai: gpt-5.6-sol
   claude: claude-opus-5
   gemini: gemini-3.1-pro
-  perplexity: sonar-reasoning-pro
-  # DeepSeek-V4-Pro — Azure Foundry Chat Completions (COCHRANE_DASHBOARD_* creds).
-  azure: DeepSeek-V4-Pro
-  # OpenRouter-hosted models — Kimi K3, GLM-5.2, Qwen3.5-9B, Qwen3.7-max.
+  # Azure Foundry Chat Completions (COCHRANE_DASHBOARD_* creds).
+  # NOTE: DeepSeek-V3.2 is not deployed on the Azure resource yet (confirmed
+  # via live smoke test -> 404 DeploymentNotFound as of 2026-08-02). Deploy
+  # it under that name on the cochrane-dashboard resource before running the
+  # pipeline for real, or queries for it will fail (retried, then skipped/
+  # logged per-DOI without blocking the other models).
+  azure:
+    - DeepSeek-V4-Pro
+    - DeepSeek-V3.2
+  # OpenRouter-hosted models — Kimi K3, GLM-5.2, Qwen3.7-max.
   openrouter:
     - moonshotai/kimi-k3
     - z-ai/glm-5.2
-    - qwen/qwen3.5-9b
     - qwen/qwen3.7-max
+
+# Open-weight models: evaluate each DOI once, then skip on later runs.
+# Everything else in default_models is proprietary and is re-queried
+# against core + all accumulated rolling panels every monthly run.
+# Adding a new model to default_models is enough — the next cron run
+# sees zero response rows for it and backfills the full universe.
+evaluate_once:
+  - DeepSeek-V4-Pro
+  - DeepSeek-V3.2
+  - moonshotai/kimi-k3
+  - z-ai/glm-5.2
