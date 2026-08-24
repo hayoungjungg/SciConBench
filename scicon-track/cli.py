@@ -11,6 +11,10 @@ for _p in (_track_dir, _scripts_dir):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+# Prefect's SQLite must not live on NFS — configure before importing Prefect.
+from prefect_env import configure_prefect_home  # noqa: E402
+configure_prefect_home()
+
 import click
 
 
@@ -71,7 +75,11 @@ def workflow(once, max_dois, batch_size, rolling_month, trial, providers, interv
     )
 
     if once:
-        sciconbench_track_pipeline(
+        # Bypass Prefect's ephemeral API server (often times out on this
+        # cluster under the default 20s startup budget). Nested @task calls
+        # use .fn() via _run_task when no flow-run context is active.
+        print("Running pipeline once (Prefect ephemeral server bypassed).")
+        sciconbench_track_pipeline.fn(
             batch_size=batch_size,
             max_dois=max_dois,
             rolling_month=rolling_month,

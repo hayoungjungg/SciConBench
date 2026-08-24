@@ -174,9 +174,22 @@ def create_provider(
         
         return ClaudeProvider(**claude_kwargs)
     else:
-        # OpenAI/GPT provider
-        api_key = api_key or os.getenv("OPENAI_API_KEY") or os.getenv("AZURE_OPENAI_KEY")
-        openai_base_url = base_url or os.getenv("OPENAI_BASE_URL")
+        # OpenAI/GPT provider. On this project GPT is hosted on the Cochrane
+        # Dashboard Azure resource; prefer those creds over the shared
+        # AZURE_OPENAI_* / OPENAI_BASE_URL pair when no explicit override is
+        # passed. Standard OpenAI (api.openai.com) is used only when no
+        # Azure base URL is available.
+        api_key = (
+            api_key
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("COCHRANE_DASHBOARD_OPENAI_KEY")
+            or os.getenv("AZURE_OPENAI_KEY")
+        )
+        openai_base_url = (
+            base_url
+            or os.getenv("COCHRANE_DASHBOARD_BASE_URL")
+            or os.getenv("OPENAI_BASE_URL")
+        )
         
         # Deep research models (o4-mini-deep-research, o3-deep-research) are only available on regular OpenAI API, not Azure
         # Always use regular OpenAI for these models, ignore base_url
@@ -225,7 +238,7 @@ def load_doi_to_title_mapping(review_articles_file: Optional[Path] = None) -> Di
     Load DOI-to-title mapping.
 
     Args:
-        review_articles_file: Optional explicit path to a legacy scraped
+        review_articles_file: Optional explicit path to a legacy 
             ``review_articles/data.json`` file (list of ``{"doi", "name"}``
             objects). If None (the common case), falls back to the
             HuggingFace-backed cache built from the live SciConBench dataset

@@ -213,7 +213,44 @@ The `workflow` command executes these Prefect tasks in order:
 
 Stages 4–12 retry each incomplete item (`ITEM_RETRY_ATTEMPTS`, default 3) and then re-scan remaining work (`STAGE_ROUNDS`, default 3). Atomic-fact stages use a higher per-item budget (`FACTS_ITEM_RETRY_ATTEMPTS`, default 4) before those whole-stage rounds. Queries work the same way: try each pending DOI/model pair a few times, then re-query whatever still has no well-formed `[[[...]]]` conclusion. A stage **raises** if anything is still missing or malformed after that — it does not skip bad output. Prefect then retries the task. Wiley TDM 404s are retried on later runs and do not fail the download stage; they become `SKIPPED` only after 5 distinct calendar months of 404s.
 
-Email notifications are sent on pipeline start, success, and failure.
+Email notifications are sent on pipeline start, success, and failure. Success
+and failure emails include a stage-by-stage log, discovery counts, sample
+review/question/atomic-fact content, model-response excerpts, qualitative
+precision/recall labels (contradicted / not supported / missed facts), and
+macro P/R/F1 by model. Set ``EMAIL_SENDER``, ``EMAIL_APP_PASSWORD``, and
+``EMAIL_RECIPIENT`` in ``.env`` (Gmail App Password). Missing credentials
+skip the email; the pipeline continues.
+
+### Workflow progress log
+
+Every run (trial or production) also writes a stage-level log to
+``data_track/logs/workflow-{mode}-{YYYYMM}-{timestamp}.log``. It records
+run config, each stage begin/end with counts processed, lane-level query
+summaries, warnings for exhausted item retries, and full tracebacks on
+failure. It does **not** dump per-DOI model responses (those live under
+``data_track/results/``). The path is printed at start/end and included in
+the email digest.
+
+
+### Prefect on NFS (`database is locked`) / ephemeral timeout
+
+Prefect keeps a local SQLite DB under ``$PREFECT_HOME`` (default
+``~/.prefect/prefect.db``). On NFS home directories this often fails at
+startup with ``OperationalError: database is locked`` while inserting
+``TELEMETRY_SESSION``. ``scicon-track`` auto-redirects ``PREFECT_HOME`` to
+``/tmp/$USER-prefect`` when the default would land on NFS. Override
+explicitly if you prefer:
+
+```bash
+export PREFECT_HOME=/tmp/$USER-prefect
+```
+
+``--once`` (including ``--trial``) also **bypasses Prefect's ephemeral API
+server** via ``flow.fn()`` + plain ``task.fn()`` calls. That avoids
+``Timed out while attempting to connect to ephemeral Prefect API server``
+on slow cluster cold starts. Scheduled ``.serve()`` runs still use Prefect
+normally, with a raised ephemeral startup timeout (120s).
+
 
 ---
 
@@ -285,50 +322,37 @@ credential so nothing contends with itself for a rate limit — rather than
 maximizing parallelism everywhere.
 
 **Query stage (`task_run_queries` / `_run_provider_lane`, step 9).**
-`(provider, model)` pairs are grouped into **lanes** (`QUERY_LANES`), and
+`(provider, model)` pairs are grouped into **four lanes** (`QUERY_LANES`), and
 lanes run concurrently against each other via `asyncio.gather`; *within* a
 lane, models — and DOIs within a model — are queried strictly sequentially:
 
-- `openrouter` lane: Kimi K3, GLM-5.2, Qwen3.7-max — sequential, since all
-  three currently share one OpenRouter key (`OPENROUTER_API_KEY_FILTERING`
-  under the clean-room-only config).
-- `azure_anthropic` lane: the two Azure `DeepSeek-*` models, Claude
-  (Azure-Foundry-hosted), and OpenAI (which currently also resolves to the
-  Azure OpenAI credential — see below) — sequential.
-- `gemini` lane: just `gemini-3.1-pro`.
-
-The two Azure resources available to `provider="azure"` models
-(`AZURE_CREDENTIAL_SETS`: **Cochrane Dashboard** and **Azure OpenAI**, each
-with its own independent rate limit) are pinned per-model via
-`AZURE_MODEL_CREDENTIAL_LABEL` (`DeepSeek-V4-Pro` → Cochrane Dashboard,
-`DeepSeek-V3.2` → Azure OpenAI). Any additional Azure model added later
-without an entry there round-robins across the two resources instead
-(sharing one with whichever model is already assigned to it) and prints a
-warning — add it to the map for a dedicated resource. Note `provider="openai"`
-(`gpt-5.6-sol`) currently falls back to the same `AZURE_OPENAI_KEY`/
-`OPENAI_BASE_URL` resource as `DeepSeek-V3.2` (`OPENAI_API_KEY` is unset in
-`.env`) — harmless today since the `azure_anthropic` lane is sequential, but
-worth revisiting if `OPENAI_API_KEY` is ever set to a real, independent key.
+- `openrouter` — Kimi K3, GLM-5.2, Qwen3.7-max (`OPENROUTER_API_KEY*` /
+  filtering variant under the clean-room config).
+- `azure_openai` — OpenAI GPT (`gpt-5.6-sol`) **then** DeepSeek-V4-Pro /
+  DeepSeek-V3.2, all on **`COCHRANE_DASHBOARD_OPENAI_KEY`** +
+  **`COCHRANE_DASHBOARD_BASE_URL`** (falls back to `AZURE_OPENAI_KEY` /
+  `OPENAI_BASE_URL` if unset). GPT always runs before DeepSeek so they
+  never share the Cochrane Dashboard quota concurrently.
+- `azure_anthropic` — Claude on Azure Foundry
+  (`AZURE_ANTHROPIC_API_KEY`, `AZURE_ANTHROPIC_BASE_URL`,
+  `AZURE_ANTHROPIC_RESOURCE_NAME`).
+- `gemini` — `gemini-3.1-pro` (Vertex AI / Google env vars).
 
 A single `SciConHarness` instance is never called concurrently (it mutates
 per-instance state, e.g. the OpenRouter sticky-routing `session_id`, right
 before each query) — see `_run_provider_lane` in `run_workflow.py`.
 
-`task_run_queries` never force-passes OpenAI/Azure OpenAI credentials to
-`SciConHarness` for non-Azure providers; it leaves `api_key`/`base_url`/
-`api_version` unset and lets each provider resolve its own credentials from
-`.env` (same resolution `create_provider()` in
-`sciconharness/utils/query_utils.py` uses for the CLI scripts) — the
-`OPENROUTER_API_KEY*` variants, Gemini's Vertex AI fallback, and Claude's
-Foundry auto-detection all keep working regardless of which providers/models
-are listed above.
+The track force-passes Cochrane Dashboard credentials for `openai`/`azure`
+and Azure Anthropic credentials for `claude`. OpenRouter and Gemini leave
+`api_key`/`base_url` unset so `create_provider()` resolves their env vars
+normally.
 
 **Post-query stages (atomic facts, precision, recall — steps 10-11,
 `_run_grouped_sharded`).** These three stages run strictly one after
 another (facts → precision → recall), and only start once `task_run_queries`
 has fully finished — so they're free to reuse the same two Azure credentials
-(`FACTS_JUDGE_API_KEYS`: Azure OpenAI + Cochrane Dashboard) without any
-cross-stage contention:
+(`FACTS_JUDGE_API_KEYS`: `AZURE_OPENAI_KEY` + `COCHRANE_DASHBOARD_OPENAI_KEY`)
+without any cross-stage contention:
 
 - **Atomic facts** (`task_generate_response_facts_by_model`): pending
   model-response items are grouped by generating model, then processed

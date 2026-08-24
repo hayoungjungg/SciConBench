@@ -29,23 +29,26 @@ for _p in (_track_dir, _scripts_dir):
 import asyncio
 import json
 import os
-import smtplib
 import threading
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
-from email.mime.text import MIMEText
 from itertools import islice
 from pathlib import Path
 from typing import Callable, List, Tuple, TypeVar
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from prefect import flow, task
-from prefect.tasks import exponential_backoff
 
 load_dotenv()
+
+# Prefect's SQLite must not live on NFS — configure *before* importing Prefect.
+from prefect_env import configure_prefect_home  # noqa: E402
+configure_prefect_home()
+
+from prefect import flow, task  # noqa: E402
+from prefect.tasks import exponential_backoff  # noqa: E402
 
 import logging as _logging
 _logging.basicConfig(
@@ -174,8 +177,46 @@ def _retry_item(fn: Callable[[], _T], *, label: str,
                 time.sleep(backoff_secs)
             else:
                 print(f"{label} failed after {attempts} attempts: {exc}")
+                try:
+                    from workflow_log import get_workflow_log
+                    wlog = get_workflow_log()
+                    if wlog is not None:
+                        wlog.warn(f"{label} failed after {attempts} attempts: {exc}")
+                except Exception:
+                    pass
     assert last_exc is not None
     raise last_exc
+
+
+def _workflow_warn(msg: str) -> None:
+    """Append a WARN line to the active workflow log (if any)."""
+    try:
+        from workflow_log import get_workflow_log
+        wlog = get_workflow_log()
+        if wlog is not None:
+            wlog.warn(msg)
+    except Exception:
+        pass
+
+
+def _workflow_error(msg: str) -> None:
+    try:
+        from workflow_log import get_workflow_log
+        wlog = get_workflow_log()
+        if wlog is not None:
+            wlog.error(msg)
+    except Exception:
+        pass
+
+
+def _workflow_info(msg: str) -> None:
+    try:
+        from workflow_log import get_workflow_log
+        wlog = get_workflow_log()
+        if wlog is not None:
+            wlog.info(msg)
+    except Exception:
+        pass
 
 
 def _require(condition: bool, message: str) -> None:
@@ -202,10 +243,12 @@ def _fact_count(pairs) -> int:
 
 def _stage_leftover_error(label: str, leftover) -> RuntimeError:
     sample = list(leftover)[:8]
-    return RuntimeError(
+    msg = (
         f"{label}: {len(leftover)} item(s) still incomplete after "
         f"{STAGE_ROUNDS} rounds: {sample}"
     )
+    _workflow_error(msg)
+    return RuntimeError(msg)
 
 
 def _grade_result_ok(result: dict, *, n_facts: int, kind: str) -> None:
@@ -247,53 +290,59 @@ def _grade_result_ok(result: dict, *, n_facts: int, kind: str) -> None:
 
 
 # ── Notification helpers ───────────────────────────────────────────────────────
+# Rich stage digests live in notifications.py (PipelineReport). Emails are
+# best-effort and never abort the pipeline.
 
 
 def _now() -> str:
     return datetime.now(ZoneInfo("America/New_York")).strftime("%a, %d %b %Y %H:%M:%S EST")
 
 
-def _send_email(subject: str, body: str) -> None:
+def _in_flow_run() -> bool:
+    """True when executing inside an active Prefect flow-run context."""
     try:
-        sender = os.environ["EMAIL_SENDER"]
-        password = os.environ["EMAIL_APP_PASSWORD"]
-        recipient = os.environ["EMAIL_RECIPIENT"]
-        msg = MIMEText(body)
-        msg["Subject"] = subject
-        msg["From"] = sender
-        msg["To"] = recipient
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(sender, password)
-            server.sendmail(sender, recipient, msg.as_string())
-        print(f"Email sent: {subject}")
-    except Exception as exc:
-        print(f"Email notification failed (pipeline continues): {exc}")
+        from prefect.context import FlowRunContext
+        return FlowRunContext.get() is not None
+    except Exception:
+        return False
+
+
+def _run_task(task, *args, **kwargs):
+    """Run a Prefect ``@task`` — via the engine in a flow run, else ``.fn()``.
+
+    ``--once`` calls ``sciconbench_track_pipeline.fn(...)`` so we never spin
+    up Prefect's ephemeral API server (which often times out on this cluster
+    under the default 20s budget). Nested ``@task`` calls must also use
+    ``.fn()`` in that mode, otherwise they re-trigger the ephemeral server.
+    """
+    if _in_flow_run():
+        return task(*args, **kwargs)
+    return task.fn(*args, **kwargs)
+
+
+async def _run_task_async(task, *args, **kwargs):
+    """Async variant of :func:`_run_task` for ``async def`` tasks."""
+    if _in_flow_run():
+        return await task(*args, **kwargs)
+    return await task.fn(*args, **kwargs)
 
 
 @task(name="Notify: pipeline started")
-def task_notify_start(started_at: str) -> None:
-    _send_email(
-        subject=f"[SciConBench-Track] Started — {started_at}",
-        body=f"Monthly pipeline started at {started_at}.",
-    )
+def task_notify_start(report) -> None:
+    from notifications import notify_start
+    notify_start(report)
 
 
 @task(name="Notify: pipeline succeeded")
-def task_notify_success(started_at: str, ended_at: str) -> None:
-    _send_email(
-        subject=f"[SciConBench-Track] Completed — {ended_at}",
-        body=f"Pipeline completed successfully.\n\nStarted:  {started_at}\nFinished: {ended_at}",
-    )
+def task_notify_success(report) -> None:
+    from notifications import notify_success
+    notify_success(report)
 
 
 @task(name="Notify: pipeline failed")
-def task_notify_error(started_at: str, error: str) -> None:
-    _send_email(
-        subject=f"[SciConBench-Track] FAILED — {started_at}",
-        body=f"Pipeline failed.\n\nStarted: {started_at}\n\n--- Error ---\n{error}",
-    )
+def task_notify_error(report, error: str) -> None:
+    from notifications import notify_failure
+    notify_failure(report, error)
 
 
 # ── Pipeline tasks ─────────────────────────────────────────────────────────────
@@ -531,65 +580,63 @@ def task_generate_cochrane_facts_batch(batch: dict, questions: dict) -> None:
             )
 
 
-# ── Query-stage concurrency (provider lanes + Azure credential assignment) ─────
-
+# ── Query-stage concurrency (provider lanes + credential assignment) ─────────
+#
 # (provider, model) pairs are grouped into "lanes"; every lane runs
 # concurrently against every other lane (via asyncio.gather), but *within* a
 # lane, models are queried strictly sequentially, one full DOI pass at a
-# time. OpenRouter models get their own lane (kimi-k3, glm-5.2, qwen3.7-max
-# share OPENROUTER_API_KEY_FILTERING under the clean-room-only config, so
-# keeping them sequential avoids piling concurrent load on one key); Azure +
-# Anthropic-on-Foundry models share a lane (each already resolves to its own
-# dedicated credential -- see AZURE_MODEL_CREDENTIAL_LABEL below -- but stay
-# sequential within the lane as the simple/safe default); Gemini gets its
-# own single-model lane. Any provider not listed falls into "other".
+# time. Four lanes, each with its own credential / rate-limit domain:
+#
+#   openrouter       — Kimi / GLM / Qwen (OPENROUTER_API_KEY*)
+#   azure_openai     — OpenAI GPT then DeepSeek (COCHRANE_DASHBOARD_*)
+#   azure_anthropic  — Claude on Azure (AZURE_ANTHROPIC_*)
+#   gemini           — Gemini (Vertex / GOOGLE_*)
+#
+# Within azure_openai, openai GPT always runs before azure DeepSeek models
+# so the shared Cochrane Dashboard quota is not contended by two models at
+# once. A single SciConHarness instance is never called concurrently (it
+# mutates per-instance state, e.g. the OpenRouter sticky-routing session_id).
 QUERY_LANES: dict[str, tuple[str, ...]] = {
     "openrouter": ("openrouter",),
-    "azure_anthropic": ("azure", "claude", "openai"),
+    "azure_openai": ("openai", "azure"),
+    "azure_anthropic": ("claude",),
     "gemini": ("gemini",),
 }
 
-# The two Azure resources available for provider="azure" models (DeepSeek-*),
-# each with its own independent rate limit/quota.
-AZURE_CREDENTIAL_SETS: dict[str, tuple[str, str, str | None]] = {
-    "cochrane-dashboard": ("COCHRANE_DASHBOARD_OPENAI_KEY", "COCHRANE_DASHBOARD_BASE_URL", None),
-    "azure-openai": ("AZURE_OPENAI_KEY", "OPENAI_BASE_URL", "OPENAI_API_VERSION"),
-}
-
-# Explicit per-model assignment so known Azure models never share a resource
-# (and therefore never contend for the same rate limit). Any azure model
-# *not* listed here round-robins across AZURE_CREDENTIAL_SETS instead, with
-# a warning, since that means sharing a resource with whichever assigned
-# model already uses it. NOTE: provider="openai" (gpt-5.6-sol) currently
-# falls back to AZURE_OPENAI_KEY/OPENAI_BASE_URL too (OPENAI_API_KEY is
-# unset in .env) -- i.e. it already shares the "azure-openai" resource with
-# DeepSeek-V3.2. That's fine here because the azure_anthropic lane processes
-# its models sequentially, so the two never actually query concurrently;
-# revisit if OPENAI_API_KEY is ever set to a real, independent key.
-AZURE_MODEL_CREDENTIAL_LABEL: dict[str, str] = {
-    "DeepSeek-V4-Pro": "cochrane-dashboard",
-    "DeepSeek-V3.2": "azure-openai",
-}
+# Within the azure_openai lane, force GPT before DeepSeek regardless of
+# YAML key order in query_batch_config.yaml.
+_AZURE_OPENAI_LANE_ORDER: dict[str, int] = {"openai": 0, "azure": 1}
 
 
-def _resolve_azure_credentials(model: str) -> tuple[str | None, str | None, str | None]:
-    """Return (api_key, base_url, api_version) for an Azure-hosted model."""
-    labels = list(AZURE_CREDENTIAL_SETS)
-    label = AZURE_MODEL_CREDENTIAL_LABEL.get(model)
-    if label is None:
-        label = labels[hash(model) % len(labels)]
-        print(
-            f"NOTE: Azure model '{model}' has no explicit entry in "
-            f"AZURE_MODEL_CREDENTIAL_LABEL -- sharing the '{label}' resource "
-            f"with whichever model is already assigned to it. Add an entry "
-            f"there to give it a dedicated resource/rate limit."
+def _resolve_query_credentials(
+    provider: str, model: str,
+) -> tuple[str | None, str | None, str | None]:
+    """Return (api_key, base_url, api_version) for a query-stage provider.
+
+    - ``openai`` / ``azure`` (DeepSeek): Cochrane Dashboard Azure OpenAI
+      (``COCHRANE_DASHBOARD_*``), falling back to ``AZURE_OPENAI_KEY`` /
+      ``OPENAI_BASE_URL`` if the dashboard vars are unset.
+    - ``claude``: Azure Anthropic Foundry (``AZURE_ANTHROPIC_*``).
+      ``AZURE_ANTHROPIC_RESOURCE_NAME`` is still read from the env inside
+      ``create_provider()`` / ``ClaudeProvider``.
+    - Everything else: leave unset so ``create_provider()`` resolves from env.
+    """
+    del model  # reserved for future per-model overrides
+    if provider in ("openai", "azure"):
+        return (
+            os.environ.get("COCHRANE_DASHBOARD_OPENAI_KEY")
+            or os.environ.get("AZURE_OPENAI_KEY"),
+            os.environ.get("COCHRANE_DASHBOARD_BASE_URL")
+            or os.environ.get("OPENAI_BASE_URL"),
+            os.environ.get("OPENAI_API_VERSION"),
         )
-    api_key_env, base_url_env, api_version_env = AZURE_CREDENTIAL_SETS[label]
-    return (
-        os.environ.get(api_key_env),
-        os.environ.get(base_url_env),
-        os.environ.get(api_version_env) if api_version_env else None,
-    )
+    if provider == "claude":
+        return (
+            os.environ.get("AZURE_ANTHROPIC_API_KEY"),
+            os.environ.get("AZURE_ANTHROPIC_BASE_URL"),
+            None,
+        )
+    return None, None, None
 
 
 def _round_robin_shards(items: list, n: int) -> list[list]:
@@ -667,23 +714,20 @@ async def _run_provider_lane(
             f"[{lane_name}] {provider}/{model}: {len(dois)} pending of "
             f"{len(eval_dois)} eval DOI(s) (policy={query_cfg.reeval_policy(model)})..."
         )
+        _workflow_info(
+            f"[{lane_name}] {provider}/{model}: {len(dois)} pending of "
+            f"{len(eval_dois)} (policy={query_cfg.reeval_policy(model)})"
+        )
         if not dois:
             continue
 
-        api_key = base_url = api_version = None
-        if provider == "azure":
-            api_key, base_url, api_version = _resolve_azure_credentials(model)
+        api_key, base_url, api_version = _resolve_query_credentials(provider, model)
 
-        # NOTE: api_key/base_url/api_version are left unset (None) for every
-        # provider except azure, rather than force-passing OpenAI/Azure
-        # OpenAI credentials. SciConHarness's create_provider() already
-        # resolves the right credentials per-provider from env vars for
-        # everything else -- OpenRouter models (Kimi/GLM/Qwen) use
-        # OPENROUTER_API_KEY (or the filtering/base-model variants selected
-        # via enable_filtering/enable_tool_calling), Gemini falls back to
-        # Vertex AI, and Claude auto-detects Foundry -- all of which would
-        # be silently bypassed if a non-None api_key/base_url were forced
-        # through for every provider.
+        # OpenRouter / Gemini leave api_key/base_url unset so create_provider()
+        # resolves OPENROUTER_API_KEY* / Vertex AI from env. Azure OpenAI
+        # (openai + DeepSeek) and Azure Anthropic (claude) get credentials
+        # forced here so the track never silently falls back to the wrong
+        # Azure resource.
         harness = SciConHarness(
             provider=provider,
             model=model,
@@ -768,10 +812,12 @@ async def _run_provider_lane(
                         if attempt < ITEM_RETRY_ATTEMPTS:
                             await asyncio.sleep(ITEM_RETRY_BACKOFF_SECS)
                 if not saved:
-                    print(
+                    msg = (
                         f"Query still incomplete for doi={doi} {provider}/{model} "
                         f"after {ITEM_RETRY_ATTEMPTS} attempts: {last_err}"
                     )
+                    print(msg)
+                    _workflow_warn(msg)
 
 
 def _leftover_queries(
@@ -812,8 +858,9 @@ async def task_run_queries(
 
     (provider, model) pairs are grouped into lanes (QUERY_LANES) that run
     concurrently against each other; within a lane, models are queried
-    strictly sequentially (see _run_provider_lane). Azure-hosted models are
-    pinned to distinct Azure resources (AZURE_MODEL_CREDENTIAL_LABEL).
+    strictly sequentially (see _run_provider_lane). Four lanes:
+    openrouter, azure_openai (GPT then DeepSeek on COCHRANE_DASHBOARD_*),
+    azure_anthropic (Claude on AZURE_ANTHROPIC_*), gemini.
     """
     from config import query_cfg
     from db.utils import get_questions, get_reviews_from_db
@@ -867,6 +914,7 @@ async def task_run_queries(
     # Bucket (provider, model) pairs into lanes; anything not covered by
     # QUERY_LANES falls into its own "other" lane so nothing is silently
     # dropped if a new provider is added later without updating the map.
+    # azure_openai is sorted so openai GPT always precedes azure DeepSeek.
     lane_of_provider: dict[str, str] = {
         provider: lane_name
         for lane_name, lane_providers in QUERY_LANES.items()
@@ -876,6 +924,12 @@ async def task_run_queries(
     for provider, model in models:
         lane_name = lane_of_provider.get(provider, "other")
         lanes.setdefault(lane_name, []).append((provider, model))
+    if "azure_openai" in lanes:
+        # Stable sort: openai GPT before azure DeepSeek; keep YAML order
+        # among DeepSeek models.
+        lanes["azure_openai"].sort(
+            key=lambda pm: _AZURE_OPENAI_LANE_ORDER.get(pm[0], 99),
+        )
 
     print(
         f"Running {len(lanes)} query lane(s) concurrently "
@@ -889,6 +943,10 @@ async def task_run_queries(
         print(
             f"Query round {round_i}/{STAGE_ROUNDS}: "
             f"{len(leftover)} pending DOI/model pair(s)..."
+        )
+        _workflow_info(
+            f"Query round {round_i}/{STAGE_ROUNDS}: "
+            f"{len(leftover)} pending DOI/model pair(s)"
         )
         await asyncio.gather(*(
             _run_provider_lane(
@@ -1384,11 +1442,16 @@ def sciconbench_track_pipeline(
     from db.utils import (
         get_dois_by_panel,
         get_dois_needing_cochrane_facts,
+        get_dois_needing_pdf,
+        get_dois_needing_question,
+        get_dois_needing_text_extraction,
         get_eval_dois,
         get_questions,
         get_reviews_from_db,
     )
     from db.db import PanelType
+    from notifications import PipelineReport
+    from workflow_log import create_workflow_log
 
     if trial and providers is None:
         providers = ["openai"]
@@ -1398,45 +1461,111 @@ def sciconbench_track_pipeline(
         target_month = current_year_month()
     else:
         target_month = rolling_month or previous_year_month()
-    started_at = _now()
-    task_notify_start(started_at)
+
+    wlog = create_workflow_log(trial=trial, target_month=target_month)
+    report = PipelineReport(
+        trial=trial,
+        target_month=target_month,
+        max_dois=max_dois,
+        providers=list(providers) if providers else None,
+        started_at=_now(),
+        workflow_log=wlog,
+    )
+    wlog.open_run(
+        mode="trial" if trial else "production",
+        target_month=target_month,
+        max_dois=max_dois if max_dois is not None else "none",
+        providers=", ".join(providers) if providers else "all",
+        started_at=report.started_at,
+    )
+    print(f"Workflow log: {wlog.path}")
+    _run_task(task_notify_start, report)
     if trial:
         print(
             "TRIAL MODE: HuggingFace upload goes to config 'trial' "
             "(production benchmark/test will NOT be overwritten); "
             f"query providers={providers}."
         )
+        wlog.info(
+            f"TRIAL MODE — HF upload → config 'trial'; providers={providers}"
+        )
     print(f"Pipeline closed-month for evals: {target_month}")
 
+    run_status = "failed"
     try:
         # 1. Init DB
-        task_init_db()
+        report.begin("1. Initialize database")
+        _run_task(task_init_db)
+        report.finish("schema ready")
 
         # 2. Core set (read-only — created once via init-core-set)
-        task_load_core_set()
+        report.begin("2. Load core set")
+        core_dois = _run_task(task_load_core_set)
+        report.n_core = len(core_dois)
+        report.finish(f"{len(core_dois)} DOI(s)")
 
         # 3. Discover new reviews + prune stale core/rolling
-        new_dois = task_discover_and_prune(
+        report.begin("3. Discover + prune")
+        new_dois = _run_task(
+            task_discover_and_prune,
             target_month=target_month, max_dois=max_dois,
         )
+        report.new_dois = list(new_dois)
+        report.n_rolling = len(get_dois_by_panel(PanelType.ROLLING))
+        report.finish(
+            f"{len(new_dois)} new rolling DOI(s); "
+            f"{report.n_rolling} rolling total"
+        )
+        if new_dois:
+            wlog.info(
+                "New DOIs: " + ", ".join(new_dois[:20])
+                + (f" … (+{len(new_dois) - 20} more)" if len(new_dois) > 20 else "")
+            )
 
         # 4. Download PDFs for anything still REGISTERED (new rolling reviews)
-        task_download_pdfs()
+        report.begin("4. Download PDFs")
+        pending_pdf = get_dois_needing_pdf()
+        paths = _run_task(task_download_pdfs)
+        report.finish(
+            f"{len(paths)} downloaded/existing; "
+            f"{len(pending_pdf)} were pending at stage start"
+        )
 
         # 5. Extract text
-        task_extract_text()
+        report.begin("5. Extract reference text")
+        pending_text = get_dois_needing_text_extraction()
+        n_extracted = _run_task(task_extract_text)
+        report.finish(
+            f"{n_extracted} extracted; "
+            f"{len(pending_text)} were pending at stage start"
+        )
 
         # 6. Generate questions for reviews without one
-        task_generate_questions()
+        report.begin("6. Generate clinical questions")
+        pending_q = get_dois_needing_question()
+        _run_task(task_generate_questions)
+        still_q = get_dois_needing_question()
+        report.finish(
+            f"{len(pending_q) - len(still_q)} generated "
+            f"({len(pending_q)} pending at start)"
+        )
 
         # 7. Cochrane atomic facts — re-scan remaining DOIs until none are left
+        report.begin("7. Cochrane atomic facts")
+        n_facts_rounds = 0
+        n_facts_start = len(get_dois_needing_cochrane_facts())
         for round_i in range(1, STAGE_ROUNDS + 1):
             needing_facts = get_dois_needing_cochrane_facts()
             if not needing_facts:
                 break
+            n_facts_rounds += 1
             print(
                 f"Cochrane atomic facts round {round_i}/{STAGE_ROUNDS}: "
                 f"{len(needing_facts)} DOI(s)..."
+            )
+            wlog.info(
+                f"Cochrane facts round {round_i}/{STAGE_ROUNDS}: "
+                f"{len(needing_facts)} DOI(s) remaining"
             )
             reviews = get_reviews_from_db()
             questions_map = get_questions()
@@ -1447,21 +1576,30 @@ def sciconbench_track_pipeline(
                 break
             for start, end in _batches(to_process, batch_size):
                 batch = dict(islice(to_process.items(), start, end))
-                task_generate_cochrane_facts_batch(batch, questions_map)
+                _run_task(task_generate_cochrane_facts_batch, batch, questions_map)
         leftover_facts = get_dois_needing_cochrane_facts()
         if leftover_facts:
             raise _stage_leftover_error("Cochrane atomic facts", leftover_facts)
+        report.finish(
+            f"{n_facts_start} pending at start; complete after "
+            f"{n_facts_rounds} round(s)"
+        )
 
         # 8. Upload to HuggingFace
+        report.begin("8. Upload to HuggingFace")
         upload_dois = list(new_dois) if trial else None
-        task_upload_to_hf(trial=trial, include_dois=upload_dois)
+        _run_task(task_upload_to_hf, trial=trial, include_dois=upload_dois)
+        if trial:
+            report.upload_note = (
+                f"trial track only ({len(upload_dois or [])} DOI filter(s)); "
+                "production benchmark/test NOT overwritten"
+            )
+        else:
+            report.upload_note = "production benchmark/test merged + uploaded"
+        report.finish(report.upload_note)
 
         # 9. Query models against core + every *closed* rolling panel.
-        #    Rolling DOIs published in a still-open month (e.g. August
-        #    reviews found on Aug 18) are ingested but held out of evals
-        #    until that month ends. Per-model pending-DOI lists are computed
-        #    inside task_run_queries (open-weight: once-ever; proprietary:
-        #    every run_month).
+        report.begin("9. Query models")
         eval_dois, held_back = get_eval_dois(target_month)
         if trial:
             new_set = set(new_dois)
@@ -1472,31 +1610,81 @@ def sciconbench_track_pipeline(
             )
         elif max_dois is not None:
             eval_dois = eval_dois[:max_dois]
+        report.eval_dois = list(eval_dois)
+        report.held_back = list(held_back)
+        report.n_rolling = len(get_dois_by_panel(PanelType.ROLLING))
         print(
             f"Eval universe: {len(eval_dois)} DOI(s) with questions+facts "
             f"(core + rolling cohort_month <= {target_month}; "
             f"{len(get_dois_by_panel(PanelType.CORE))} core, "
-            f"{len(get_dois_by_panel(PanelType.ROLLING))} rolling total; "
+            f"{report.n_rolling} rolling total; "
             f"{len(held_back)} rolling held back as still-open)."
         )
+        wlog.info(
+            f"Eval universe: {len(eval_dois)} DOI(s); "
+            f"held back={len(held_back)}; providers={providers or 'all'}"
+        )
 
-        asyncio.run(task_run_queries(
+        asyncio.run(_run_task_async(
+            task_run_queries,
             eval_dois, run_month=target_month, providers=providers,
         ))
+        report.finish(
+            f"{len(eval_dois)} DOI(s); providers="
+            f"{providers or 'all'}"
+        )
 
         # 10. Model-response atomic facts
-        task_generate_response_facts_by_model(run_month=target_month)
+        report.begin("10. Response atomic facts")
+        from db.utils import get_unprocessed_model_responses
+        n_resp_pending = len(get_unprocessed_model_responses(run_month=target_month))
+        wlog.info(f"Response atomic facts pending at start: {n_resp_pending}")
+        _run_task(task_generate_response_facts_by_model, run_month=target_month)
+        n_resp_left = len(get_unprocessed_model_responses(run_month=target_month))
+        report.finish(
+            f"{n_resp_pending} pending at start; {n_resp_left} remaining"
+        )
 
         # 11. Precision, then recall
-        task_run_precision(run_month=target_month)
-        task_run_recall(run_month=target_month)
-        task_print_eval_metrics(run_month=target_month, dois=eval_dois)
+        report.begin("11. Precision analysis")
+        from db.utils import get_all_model_responses, get_graded_response_ids
+        n_prec_pending = sum(
+            1 for rid in get_all_model_responses(run_month=target_month)
+            if rid not in get_graded_response_ids(precision=True)
+        )
+        wlog.info(f"Precision pending at start: {n_prec_pending}")
+        _run_task(task_run_precision, run_month=target_month)
+        report.finish(f"{n_prec_pending} pending at start; complete")
 
-        task_notify_success(started_at, _now())
+        report.begin("12. Recall analysis")
+        n_rec_pending = sum(
+            1 for rid in get_all_model_responses(run_month=target_month)
+            if rid not in get_graded_response_ids(precision=False)
+        )
+        wlog.info(f"Recall pending at start: {n_rec_pending}")
+        _run_task(task_run_recall, run_month=target_month)
+        report.finish(f"{n_rec_pending} pending at start; complete")
+
+        _run_task(task_print_eval_metrics, run_month=target_month, dois=eval_dois)
+
+        report.ended_at = _now()
+        run_status = "success"
+        _run_task(task_notify_success, report)
 
     except Exception:
-        task_notify_error(started_at, traceback.format_exc())
+        err = traceback.format_exc()
+        if report.current_stage:
+            report.fail_stage(summary="raised", detail=err.splitlines()[-1] if err else "")
+        wlog.exception(err)
+        report.ended_at = _now()
+        _run_task(task_notify_error, report, err)
         raise
+    finally:
+        try:
+            wlog.close_run(status=run_status, ended_at=report.ended_at or _now())
+            print(f"Workflow log written: {wlog.path}")
+        except Exception as exc:
+            print(f"Failed to close workflow log: {exc}")
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -1538,7 +1726,8 @@ if __name__ == "__main__":
     )
 
     if args.once:
-        sciconbench_track_pipeline(
+        print("Running pipeline once (Prefect ephemeral server bypassed).")
+        sciconbench_track_pipeline.fn(
             batch_size=args.batch_size,
             max_dois=args.max_dois,
             rolling_month=args.rolling_month,

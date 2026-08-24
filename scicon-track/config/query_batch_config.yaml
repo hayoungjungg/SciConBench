@@ -18,7 +18,9 @@ default_models:
   openai: gpt-5.6-sol
   claude: claude-opus-5
   gemini: gemini-3.1-pro
-  # Azure Foundry Chat Completions (COCHRANE_DASHBOARD_* creds).
+  # Azure Foundry Chat Completions on the Cochrane Dashboard resource
+  # (same COCHRANE_DASHBOARD_* creds as openai GPT). Queried in the
+  # azure_openai lane *after* openai GPT finishes.
   # NOTE: DeepSeek-V3.2 is not deployed on the Azure resource yet (confirmed
   # via live smoke test -> 404 DeploymentNotFound as of 2026-08-02). Deploy
   # it under that name on the cochrane-dashboard resource before running the
