@@ -13,3 +13,11 @@ upload:
   output: data_track/sciconbench_track.parquet
   # Destination path inside the HF repo — matches the benchmark/test parquet shard
   path_in_repo: data/benchmark/test-00000-of-00001.parquet
+
+# Practice-run track. ``scicon-track workflow --trial`` writes here and
+# never overwrites ``data/benchmark/``. Query/eval still use the live
+# ``benchmark`` source so Cochrane-filter caches stay complete.
+trial:
+  config: trial
+  output: data_track/sciconbench_track_trial.parquet
+  path_in_repo: data/trial/test-00000-of-00001.parquet

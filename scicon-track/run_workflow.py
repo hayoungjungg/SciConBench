@@ -47,6 +47,12 @@ from prefect.tasks import exponential_backoff
 
 load_dotenv()
 
+import logging as _logging
+_logging.basicConfig(
+    level=_logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
+)
+
 # SQLite (scicon-track/db) only allows one writer at a time process-wide, and
 # the ThreadPoolExecutor-based sharding below (atomic facts, precision,
 # recall) runs several worker *threads* truly concurrently -- unlike the
@@ -792,7 +798,11 @@ def _leftover_queries(
     retries=2,
     retry_delay_seconds=exponential_backoff(backoff_factor=15),
 )
-async def task_run_queries(dois: list[str], run_month: str) -> None:
+async def task_run_queries(
+    dois: list[str],
+    run_month: str,
+    providers: list[str] | None = None,
+) -> None:
     """Query all configured model configs for the given DOIs.
 
     Each DOI/model pair is retried ``ITEM_RETRY_ATTEMPTS`` times. After a
@@ -841,14 +851,26 @@ async def task_run_queries(dois: list[str], run_month: str) -> None:
     config_label, use_tools, use_filter = "tools_filter", True, True
 
     models = query_cfg.iter_models()
+    if providers:
+        want = {p.strip().lower() for p in providers if p.strip()}
+        models = [(p, m) for p, m in models if p.lower() in want]
+        print(
+            f"Query providers restricted to {sorted(want)}: "
+            f"{len(models)} model(s) {models}"
+        )
+        if not models:
+            raise ValueError(
+                f"No configured models match providers={sorted(want)}. "
+                f"Available: {query_cfg.iter_models()}"
+            )
 
     # Bucket (provider, model) pairs into lanes; anything not covered by
     # QUERY_LANES falls into its own "other" lane so nothing is silently
     # dropped if a new provider is added later without updating the map.
     lane_of_provider: dict[str, str] = {
         provider: lane_name
-        for lane_name, providers in QUERY_LANES.items()
-        for provider in providers
+        for lane_name, lane_providers in QUERY_LANES.items()
+        for provider in lane_providers
     }
     lanes: dict[str, list[tuple[str, str]]] = {}
     for provider, model in models:
@@ -1224,16 +1246,95 @@ def task_run_recall(run_month: str | None = None) -> None:
         raise _stage_leftover_error("Factual recall", [rid for rid, _ in leftover])
 
 
+@task(name="Print eval metrics")
+def task_print_eval_metrics(
+    run_month: str,
+    dois: list[str] | None = None,
+) -> None:
+    from db.utils import get_eval_metrics
+
+    rows = get_eval_metrics(run_month=run_month, dois=dois)
+    if not rows:
+        print("Eval metrics: no scored responses.")
+        return
+    print(
+        f"{'doi':<44} {'model':<18} {'P':>6} {'R':>6} {'F1':>6}"
+    )
+    print("-" * 86)
+    f1s, ps, rs = [], [], []
+    for row in rows:
+        p, r, f1 = row["precision"], row["recall"], row["f1"]
+        if p is not None:
+            ps.append(p)
+        if r is not None:
+            rs.append(r)
+        if f1 is not None:
+            f1s.append(f1)
+        print(
+            f"{row['doi']:<44} {row['model']:<18} "
+            f"{p if p is not None else float('nan'):6.3f} "
+            f"{r if r is not None else float('nan'):6.3f} "
+            f"{f1 if f1 is not None else float('nan'):6.3f}"
+        )
+    if ps or rs or f1s:
+        def _mean(xs: list[float]) -> float:
+            return sum(xs) / len(xs) if xs else float("nan")
+        print("-" * 86)
+        print(
+            f"{'macro-average':<44} {'':<18} "
+            f"{_mean(ps):6.3f} {_mean(rs):6.3f} {_mean(f1s):6.3f}"
+        )
+
+
 @task(name="Upload to HuggingFace")
-def task_upload_to_hf() -> None:
+def task_upload_to_hf(
+    trial: bool = False,
+    include_dois: list[str] | None = None,
+) -> None:
+    from config import hf_cfg
     from huggingface.uploader import SciConBenchUploader
-    uploader = SciConBenchUploader()
-    uploader.save_to_parquet()
-    # Regenerate sciconharness's local title/DOI-mapping filter caches from
-    # the same merged rows before publishing, so they never lag the dataset
-    # we're about to push (see sciconharness/utils/hf_benchmark_cache.py).
-    uploader.refresh_filter_caches()
-    uploader.upload()
+
+    # Always rebuild the local Cochrane-filter cache from the full
+    # production merge (live benchmark + every FACTS_GENERATED DB row).
+    # Trial mode still needs that complete title list; it just must not
+    # push the merged parquet onto the live ``benchmark`` shard.
+    cache_uploader = SciConBenchUploader()
+    cache_uploader.save_to_parquet()
+    cache_uploader.refresh_filter_caches()
+
+    if trial:
+        trial_cfg = hf_cfg.trial
+        if trial_cfg is None:
+            raise RuntimeError(
+                "Trial HuggingFace config is missing from "
+                "hugging_face_config.yaml (expected a `trial:` block)."
+            )
+        uploader = SciConBenchUploader(
+            output=trial_cfg.output,
+            path_in_repo=trial_cfg.path_in_repo,
+            source_config=trial_cfg.config,
+            allow_missing_source=True,
+            include_dois=include_dois,
+        )
+        uploader.save_to_parquet()
+        url = uploader.upload(
+            commit_message="Trial track: append new Cochrane reviews (practice run)",
+        )
+        try:
+            uploader.ensure_hub_config()
+        except Exception as exc:
+            print(
+                f"Trial parquet uploaded but HuggingFace README config "
+                f"update failed (file is still at {trial_cfg.path_in_repo}): {exc}"
+            )
+        print(
+            f"Trial upload: {url} "
+            f"({len(include_dois or [])} DOI filter(s); "
+            f"production benchmark parquet was NOT overwritten)."
+        )
+        return
+
+    cache_uploader.upload()
 
 
 # ── Batch helpers ──────────────────────────────────────────────────────────────
@@ -1253,6 +1354,8 @@ def sciconbench_track_pipeline(
     batch_size: int = 500,
     max_dois: int | None = None,
     rolling_month: str | None = None,
+    trial: bool = False,
+    providers: list[str] | None = None,
 ) -> None:
     """End-to-end monthly pipeline.
 
@@ -1267,7 +1370,9 @@ def sciconbench_track_pipeline(
       5.  Extract reference text from PDFs
       6.  Generate clinical questions
       7.  Generate Cochrane atomic facts
-      8.  Upload to HuggingFace (hayoungjung/SciConBench, benchmark/test)
+      8.  Upload to HuggingFace (hayoungjung/SciConBench, benchmark/test;
+          ``--trial`` writes config ``trial`` instead and never overwrites
+          the live benchmark shard)
       9.  Query models against core + rolling panels whose publication month
           is on or before the last closed calendar month (open-month reviews
           are ingested but not evaluated until that month ends).
@@ -1275,7 +1380,7 @@ def sciconbench_track_pipeline(
       10. Generate model-response atomic facts
       11. Run precision & recall analysis
     """
-    from data_collection.utils import previous_year_month
+    from data_collection.utils import current_year_month, previous_year_month
     from db.utils import (
         get_dois_by_panel,
         get_dois_needing_cochrane_facts,
@@ -1285,9 +1390,22 @@ def sciconbench_track_pipeline(
     )
     from db.db import PanelType
 
-    target_month = rolling_month or previous_year_month()
+    if trial and providers is None:
+        providers = ["openai"]
+    # Practice runs need to score the samples just found this month, so
+    # default the closed-month cutoff to the current calendar month.
+    if trial and rolling_month is None:
+        target_month = current_year_month()
+    else:
+        target_month = rolling_month or previous_year_month()
     started_at = _now()
     task_notify_start(started_at)
+    if trial:
+        print(
+            "TRIAL MODE: HuggingFace upload goes to config 'trial' "
+            "(production benchmark/test will NOT be overwritten); "
+            f"query providers={providers}."
+        )
     print(f"Pipeline closed-month for evals: {target_month}")
 
     try:
@@ -1298,7 +1416,9 @@ def sciconbench_track_pipeline(
         task_load_core_set()
 
         # 3. Discover new reviews + prune stale core/rolling
-        task_discover_and_prune(target_month=target_month, max_dois=max_dois)
+        new_dois = task_discover_and_prune(
+            target_month=target_month, max_dois=max_dois,
+        )
 
         # 4. Download PDFs for anything still REGISTERED (new rolling reviews)
         task_download_pdfs()
@@ -1332,8 +1452,9 @@ def sciconbench_track_pipeline(
         if leftover_facts:
             raise _stage_leftover_error("Cochrane atomic facts", leftover_facts)
 
-        # 8. Upload to HuggingFace (benchmark/test split of hayoungjung/SciConBench)
-        task_upload_to_hf()
+        # 8. Upload to HuggingFace
+        upload_dois = list(new_dois) if trial else None
+        task_upload_to_hf(trial=trial, include_dois=upload_dois)
 
         # 9. Query models against core + every *closed* rolling panel.
         #    Rolling DOIs published in a still-open month (e.g. August
@@ -1342,7 +1463,14 @@ def sciconbench_track_pipeline(
         #    inside task_run_queries (open-weight: once-ever; proprietary:
         #    every run_month).
         eval_dois, held_back = get_eval_dois(target_month)
-        if max_dois is not None:
+        if trial:
+            new_set = set(new_dois)
+            eval_dois = [d for d in eval_dois if d in new_set]
+            print(
+                f"Trial eval: {len(eval_dois)} of {len(new_dois)} newly "
+                f"discovered DOI(s) are ready (cohort_month <= {target_month})."
+            )
+        elif max_dois is not None:
             eval_dois = eval_dois[:max_dois]
         print(
             f"Eval universe: {len(eval_dois)} DOI(s) with questions+facts "
@@ -1352,7 +1480,9 @@ def sciconbench_track_pipeline(
             f"{len(held_back)} rolling held back as still-open)."
         )
 
-        asyncio.run(task_run_queries(eval_dois, run_month=target_month))
+        asyncio.run(task_run_queries(
+            eval_dois, run_month=target_month, providers=providers,
+        ))
 
         # 10. Model-response atomic facts
         task_generate_response_facts_by_model(run_month=target_month)
@@ -1360,6 +1490,7 @@ def sciconbench_track_pipeline(
         # 11. Precision, then recall
         task_run_precision(run_month=target_month)
         task_run_recall(run_month=target_month)
+        task_print_eval_metrics(run_month=target_month, dois=eval_dois)
 
         task_notify_success(started_at, _now())
 
@@ -1383,20 +1514,36 @@ if __name__ == "__main__":
                         help="Atomic-fact batch size.")
     parser.add_argument("--rolling-month", default=None, metavar="YYYY-MM",
                         help="Latest closed month for evals (default: previous "
-                             "calendar month). New reviews from any month are "
-                             "still ingested; rolling DOIs published after this "
-                             "month are not queried until that month has ended.")
+                             "calendar month; current month with --trial). New "
+                             "reviews from any month are still ingested; rolling "
+                             "DOIs published after this month are not queried "
+                             "until that month has ended.")
+    parser.add_argument("--trial", action="store_true",
+                        help="Practice run: upload to HuggingFace config 'trial' "
+                             "(never overwrites production benchmark/test), "
+                             "query OpenAI only, and evaluate only newly "
+                             "discovered rolling DOIs.")
+    parser.add_argument("--providers", default=None, metavar="LIST",
+                        help="Comma-separated providers to query (default: all, "
+                             "or openai-only with --trial).")
     parser.add_argument("--interval", choices=["monthly", "bimonthly"], default="monthly",
                         help="Recurring-schedule cadence (ignored with --once): "
                              "'monthly' (1st of each month) or 'bimonthly' "
                              "(1st of odd months). Calendar-aligned, not a rolling interval.")
     args = parser.parse_args()
 
+    providers = (
+        [p.strip() for p in args.providers.split(",") if p.strip()]
+        if args.providers else None
+    )
+
     if args.once:
         sciconbench_track_pipeline(
             batch_size=args.batch_size,
             max_dois=args.max_dois,
             rolling_month=args.rolling_month,
+            trial=args.trial,
+            providers=providers,
         )
     else:
         from prefect.schedules import Cron

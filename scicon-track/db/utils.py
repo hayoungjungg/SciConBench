@@ -959,3 +959,50 @@ def get_sciconbench_rows() -> list[dict[str, Any]]:
                 "cohort_month": doi_info.cohort_month if doi_info else None,
             })
         return rows
+
+
+def get_eval_metrics(
+    run_month: str | None = None,
+    dois: list[str] | None = None,
+    model: str | None = None,
+) -> list[dict[str, Any]]:
+    """Join model responses with precision/recall scores for a summary table.
+
+    Returns one dict per matching response. Missing grades are left as
+    ``None`` so a partial run is still printable.
+    """
+    wanted = set(dois) if dois is not None else None
+    with _session()() as session:
+        q = session.query(ModelResponse)
+        if run_month is not None:
+            q = q.filter(ModelResponse.run_month == run_month)
+        if model is not None:
+            q = q.filter(ModelResponse.model == model)
+        rows: list[dict[str, Any]] = []
+        for resp in q.all():
+            if wanted is not None and resp.doi not in wanted:
+                continue
+            prec = resp.precision_result
+            rec = resp.recall_result
+            p = prec.factual_precision if prec is not None else None
+            r = rec.factual_recall if rec is not None else None
+            if p is not None and r is not None and (p + r) > 0:
+                f1 = (2.0 * p * r) / (p + r)
+            elif p is not None and r is not None:
+                f1 = 0.0
+            else:
+                f1 = None
+            rows.append({
+                "doi": resp.doi,
+                "model": resp.model,
+                "provider": resp.provider,
+                "run_month": resp.run_month,
+                "precision": p,
+                "recall": r,
+                "f1": f1,
+                "supported_llm_facts": prec.supported_facts if prec is not None else None,
+                "total_llm_facts": prec.total_llm_facts if prec is not None else None,
+                "supported_article_facts": rec.supported_facts if rec is not None else None,
+                "total_article_facts": rec.total_article_facts if rec is not None else None,
+            })
+        return rows

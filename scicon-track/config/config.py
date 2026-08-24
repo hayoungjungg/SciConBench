@@ -88,7 +88,16 @@ class HuggingFaceUploadConfig(BaseModel):
     path_in_repo: str
 
 
+class HuggingFaceTrialConfig(BaseModel):
+    """Practice-run upload target. Never overwrites the live ``benchmark`` shard."""
+
+    config: str = "trial"
+    output: Path
+    path_in_repo: str
+
+
 class HuggingFaceConfig(BaseModel):
     source: HuggingFaceSourceConfig
     upload: HuggingFaceUploadConfig
+    trial: HuggingFaceTrialConfig | None = None
 

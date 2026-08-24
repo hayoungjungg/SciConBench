@@ -74,16 +74,21 @@ class SciConBenchUploader:
         repo_id: str | None = None,
         output: Path | None = None,
         path_in_repo: str | None = None,
+        source_config: str | None = None,
+        allow_missing_source: bool = False,
+        include_dois: list[str] | None = None,
     ) -> None:
         upload = hf_cfg.upload
         self.repo_id = repo_id or upload.repo_id
         self.output = Path(output or upload.output)
         self.path_in_repo = path_in_repo or upload.path_in_repo
         self.token = os.getenv("HF_TOKEN")
+        self.allow_missing_source = allow_missing_source
+        self.include_dois = set(include_dois) if include_dois is not None else None
 
         src = hf_cfg.source
         self._src_repo_id = src.repo_id
-        self._src_config = src.config
+        self._src_config = source_config or src.config
         self._src_split = src.split
 
         # Populated by save_to_parquet(); reused by refresh_filter_caches()
@@ -94,19 +99,31 @@ class SciConBenchUploader:
 
     def _load_existing_hf_rows(self) -> list[dict]:
         """Download the current live dataset from HuggingFace as a list of dicts."""
-        logger.info("Loading existing dataset from %s …", self._src_repo_id)
-        ds = load_dataset(
-            self._src_repo_id,
-            self._src_config,
-            split=self._src_split,
-            token=self.token,
-            # Appended rows change the Parquet shard's actual size without
-            # updating the dataset card's recorded split sizes (by design —
-            # we intentionally leave the README untouched), so HF's cached
-            # metadata is stale immediately after every monthly push. Skip
-            # that check rather than failing to load valid data.
-            verification_mode="no_checks",
+        logger.info(
+            "Loading existing dataset from %s (%s/%s) …",
+            self._src_repo_id, self._src_config, self._src_split,
         )
+        try:
+            ds = load_dataset(
+                self._src_repo_id,
+                self._src_config,
+                split=self._src_split,
+                token=self.token,
+                # Appended rows change the Parquet shard's actual size without
+                # updating the dataset card's recorded split sizes (by design —
+                # we intentionally leave the README untouched), so HF's cached
+                # metadata is stale immediately after every monthly push. Skip
+                # that check rather than failing to load valid data.
+                verification_mode="no_checks",
+            )
+        except Exception as exc:
+            if self.allow_missing_source:
+                logger.warning(
+                    "No existing HuggingFace config %s/%s — starting empty (%s).",
+                    self._src_repo_id, self._src_config, exc,
+                )
+                return []
+            raise
         return [dict(row) for row in ds]
 
     def _find_stale(
@@ -200,6 +217,9 @@ class SciConBenchUploader:
         # Normalise DB rows to match DATASET_COLUMN_ORDER.
         # Internal fields (objectives, authors_conclusions) are used for
         # preprocessing only and are intentionally excluded from the upload.
+        if self.include_dois is not None:
+            db_rows = [r for r in db_rows if r.get("doi") in self.include_dois]
+
         packed_db = [
             {
                 "doi":                r["doi"],
@@ -254,10 +274,52 @@ class SciConBenchUploader:
         logger.info("Refreshed sciconharness filter caches: %s", paths)
         return paths
 
-    def upload(self) -> str:
+    def ensure_hub_config(self) -> None:
+        """Add this uploader's dataset config to the Hub README if missing.
+
+        Production monthly uploads leave the README untouched. Practice-run
+        configs (e.g. ``trial``) need an entry so
+        ``load_dataset(repo, "trial")`` works after the first parquet push.
+        """
+        from huggingface_hub import DatasetCard
+
+        if not self.token:
+            raise RuntimeError(
+                "HF_TOKEN environment variable is not set. "
+                "Get a write token from https://huggingface.co/settings/tokens"
+            )
+
+        card = DatasetCard.load(self.repo_id, repo_type="dataset", token=self.token)
+        configs = list(card.data.configs or [])
+        already = {
+            (c.get("config_name") if isinstance(c, dict) else getattr(c, "config_name", None))
+            for c in configs
+        }
+        if self._src_config in already:
+            logger.info("HuggingFace README already has config %s.", self._src_config)
+            return
+
+        glob_path = str(Path(self.path_in_repo).parent / "test-*")
+        configs.append({
+            "config_name": self._src_config,
+            "data_files": [{"split": self._src_split, "path": glob_path}],
+        })
+        card.data.configs = configs
+        card.push_to_hub(
+            self.repo_id,
+            repo_type="dataset",
+            token=self.token,
+            commit_message=f"Add HuggingFace config {self._src_config}",
+        )
+        logger.info(
+            "Added HuggingFace config %s → %s", self._src_config, glob_path,
+        )
+
+    def upload(self, commit_message: str | None = None) -> str:
         """Push the merged local Parquet back to HuggingFace.
 
-        The dataset README is intentionally left untouched.
+        The dataset README is intentionally left untouched unless
+        :meth:`ensure_hub_config` is called first (trial track).
         Returns the URL of the uploaded Parquet file.
         """
         if not self.token:
@@ -273,7 +335,7 @@ class SciConBenchUploader:
             path_in_repo=self.path_in_repo,
             repo_id=self.repo_id,
             repo_type="dataset",
-            commit_message="Monthly update: append new Cochrane reviews",
+            commit_message=commit_message or "Monthly update: append new Cochrane reviews",
             token=self.token,
         )
         logger.info("Uploaded: %s → %s/%s", self.output, self.repo_id, self.path_in_repo)

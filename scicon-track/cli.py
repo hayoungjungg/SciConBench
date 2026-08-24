@@ -27,14 +27,22 @@ def main():
 @click.option("--batch-size", type=int, default=500, show_default=True,
               help="Atomic-fact batch size.")
 @click.option("--rolling-month", default=None, metavar="YYYY-MM",
-              help="Latest closed month for evals (default: previous calendar month). "
+              help="Latest closed month for evals (default: previous calendar month; "
+                   "current month with --trial). "
                    "New reviews from any month are still ingested; rolling DOIs "
                    "published after this month are not queried until that month ends.")
+@click.option("--trial", is_flag=True,
+              help="Practice run: upload to HuggingFace config 'trial' "
+                   "(never overwrites production benchmark/test), query OpenAI "
+                   "only, and evaluate only newly discovered rolling DOIs.")
+@click.option("--providers", default=None, metavar="LIST",
+              help="Comma-separated providers to query (default: all, or "
+                   "openai-only with --trial).")
 @click.option("--interval", type=click.Choice(["monthly", "bimonthly"]), default="monthly",
               show_default=True,
               help="Scheduler cadence (ignored with --once): 1st of each month, "
                    "or 1st of odd months.")
-def workflow(once, max_dois, batch_size, rolling_month, interval):
+def workflow(once, max_dois, batch_size, rolling_month, trial, providers, interval):
     """Run the monthly SciConBench-Track pipeline.
 
     Requires a core set created once via `scicon-track init-core-set`.
@@ -57,11 +65,18 @@ def workflow(once, max_dois, batch_size, rolling_month, interval):
     from prefect.schedules import Cron
     from run_workflow import sciconbench_track_pipeline
 
+    provider_list = (
+        [p.strip() for p in providers.split(",") if p.strip()]
+        if providers else None
+    )
+
     if once:
         sciconbench_track_pipeline(
             batch_size=batch_size,
             max_dois=max_dois,
             rolling_month=rolling_month,
+            trial=trial,
+            providers=provider_list,
         )
     else:
         cron = "0 0 1 * *" if interval == "monthly" else "0 0 1 1,3,5,7,9,11 *"

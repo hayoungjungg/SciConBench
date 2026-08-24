@@ -31,6 +31,7 @@ import yaml
 from config.config import (
     DataCollectionConfig,
     HuggingFaceConfig,
+    HuggingFaceTrialConfig,
     HuggingFaceUploadConfig,
     HuggingFaceSourceConfig,
     PathConfig,
@@ -72,6 +73,13 @@ def _resolve_paths(cfg: PathConfig) -> PathConfig:
 def _resolve_hf_output(cfg: HuggingFaceConfig) -> HuggingFaceConfig:
     """Make HF output / readme paths absolute."""
     upload = cfg.upload
+    trial = None
+    if cfg.trial is not None:
+        trial = HuggingFaceTrialConfig(
+            config=cfg.trial.config,
+            output=REPO_ROOT / cfg.trial.output,
+            path_in_repo=cfg.trial.path_in_repo,
+        )
     return HuggingFaceConfig(
         source=cfg.source,
         upload=HuggingFaceUploadConfig(
@@ -79,6 +87,7 @@ def _resolve_hf_output(cfg: HuggingFaceConfig) -> HuggingFaceConfig:
             output=REPO_ROOT / upload.output,
             path_in_repo=upload.path_in_repo,
         ),
+        trial=trial,
     )
 
 
