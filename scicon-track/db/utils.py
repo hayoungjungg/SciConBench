@@ -201,10 +201,12 @@ def reset_for_production(*, refresh_parquet: bool = True) -> dict[str, Any]:
         trial_removed = True
 
     if refresh_parquet:
+        from data_collection.utils import previous_year_month
         from huggingface.uploader import SciConBenchUploader
 
+        # Local parquet/cache should match what production would publish.
         uploader = SciConBenchUploader()
-        uploader.save_to_parquet()
+        uploader.save_to_parquet(closed_month=previous_year_month())
         uploader.refresh_filter_caches()
 
     write_doi_panels()

@@ -1,8 +1,9 @@
 """Pipeline email notifications for SciConBench-Track.
 
-Builds a running :class:`PipelineReport` during a workflow run, then emails a
-plain-text digest on success or failure. Emails are best-effort: missing
-credentials or SMTP errors never abort the pipeline.
+Builds a running :class:`PipelineReport` during a workflow run and emails a
+plain-text digest after each stage finishes (progressively longer as more
+stages complete), plus a final success or failure email. Emails are
+best-effort: missing credentials or SMTP errors never abort the pipeline.
 """
 
 from __future__ import annotations
@@ -55,9 +56,13 @@ class StageUpdate:
     detail: str = ""
 
 
+# Number of numbered pipeline stages in run_workflow (for progress subjects).
+_TOTAL_STAGES = 12
+
+
 @dataclass
 class PipelineReport:
-    """Accumulates stage progress + run metadata for the end-of-run email.
+    """Accumulates stage progress + run metadata for progressive + final emails.
 
     When ``workflow_log`` is set, every stage begin/finish/fail and
     note/warn/error is also appended to the on-disk workflow log.
@@ -79,6 +84,7 @@ class PipelineReport:
     upload_note: str = ""
     extra_notes: list[str] = field(default_factory=list)
     workflow_log: Any = None  # optional WorkflowLog; avoid circular import type
+    email_on_stage: bool = True  # send a progress email after each finish()
 
     def begin(self, name: str) -> None:
         self.current_stage = name
@@ -91,6 +97,8 @@ class PipelineReport:
         if self.workflow_log is not None:
             self.workflow_log.stage_end(name, summary=summary, detail=detail)
         self.current_stage = None
+        if self.email_on_stage:
+            notify_stage(self)
 
     def fail_stage(self, summary: str = "", detail: str = "") -> None:
         name = self.current_stage or "unknown"
@@ -100,6 +108,7 @@ class PipelineReport:
         if self.workflow_log is not None:
             self.workflow_log.stage_fail(name, summary=summary, detail=detail)
         self.current_stage = None
+        # Failure email is sent by notify_failure; no mid-stage progress mail.
 
     def note(self, text: str) -> None:
         self.extra_notes.append(text)
@@ -130,6 +139,60 @@ class PipelineReport:
         )
         return f"[SciConBench-{tag}] FAILED @ {stage} — {self.started_at}"
 
+    def subject_progress(self) -> str:
+        tag = "TRIAL" if self.trial else "Track"
+        done = len(self.stages)
+        last = self.stages[-1].name if self.stages else "unknown"
+        # Prefer "3. Discover + prune" → short name after the number prefix.
+        short = last.split(". ", 1)[-1] if ". " in last else last
+        return (
+            f"[SciConBench-{tag}] Stage {done}/{_TOTAL_STAGES} done — "
+            f"{short} — {self.started_at}"
+        )
+
+    def render_progress(self) -> str:
+        """Growing mid-run digest: same sections as success, filled as data appears."""
+        done = len(self.stages)
+        last = self.stages[-1] if self.stages else None
+        last_line = ""
+        if last:
+            last_line = f"Just finished: {last.name}"
+            if last.summary:
+                last_line += f" — {last.summary}"
+        parts = [
+            self._header(f"IN PROGRESS ({done}/{_TOTAL_STAGES} stages done)"),
+            last_line,
+            self._config_block(),
+            self._stage_log(),
+            self._panels_block(),
+            self._discovery_block(),
+        ]
+        # Qualitative / metrics sections appear once we have DOIs to talk about;
+        # early stages still show empty/partial placeholders so the email grows.
+        if self.new_dois or self.eval_dois or done >= 5:
+            parts.append(self._sample_digest())
+        if self.eval_dois or done >= 9:
+            parts.append(self._metrics_block())
+        if self.extra_notes:
+            parts.append("NOTES\n" + "\n".join(f"  • {n}" for n in self.extra_notes))
+        remaining = max(0, _TOTAL_STAGES - done)
+        if remaining:
+            wrap = (
+                f"Progress: {done}/{_TOTAL_STAGES} stages complete "
+                f"({remaining} remaining).\n"
+                "You will get another email after the next stage "
+                "(or a final SUCCESS / FAILED email)."
+            )
+        else:
+            wrap = (
+                f"Progress: {done}/{_TOTAL_STAGES} stages complete — wrapping up.\n"
+                "A final SUCCESS or FAILED email will follow shortly."
+            )
+        parts.append(
+            wrap + "\nThis is an automated SciConBench-Track notification."
+        )
+        return "\n\n".join(p for p in parts if p)
+
     def render_success(self) -> str:
         parts = [
             self._header("SUCCESS"),
@@ -149,7 +212,10 @@ class PipelineReport:
         return "\n\n".join(p for p in parts if p)
 
     def render_failure(self, error: str) -> str:
-        stage = self.current_stage or "unknown (before stage tracking / between stages)"
+        stage = self.current_stage or (
+            next((s.name for s in reversed(self.stages) if s.status == "failed"), None)
+            or "unknown (before stage tracking / between stages)"
+        )
         parts = [
             self._header("FAILED"),
             self._config_block(),
@@ -614,9 +680,16 @@ def notify_start(report: PipelineReport) -> None:
         f"max_dois:      {report.max_dois if report.max_dois is not None else 'none'}\n"
         f"providers:     {providers}\n"
         f"Started:       {report.started_at}\n\n"
-        f"You will get another email when the run finishes (success or failure)."
+        f"You will get a progress email after each of the {_TOTAL_STAGES} stages "
+        f"finishes (the digest grows as more stages complete), then a final "
+        f"SUCCESS or FAILED email when the run ends."
     )
     send_email(f"[SciConBench-{mode}] Started — {report.started_at}", body)
+
+
+def notify_stage(report: PipelineReport) -> None:
+    """Email a progressively longer digest after a stage finishes."""
+    send_email(report.subject_progress(), report.render_progress())
 
 
 def notify_success(report: PipelineReport) -> None:

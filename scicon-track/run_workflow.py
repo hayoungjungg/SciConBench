@@ -291,8 +291,10 @@ def _grade_result_ok(result: dict, *, n_facts: int, kind: str) -> None:
 
 
 # ── Notification helpers ───────────────────────────────────────────────────────
-# Rich stage digests live in notifications.py (PipelineReport). Emails are
-# best-effort and never abort the pipeline.
+# Rich stage digests live in notifications.py (PipelineReport). A progress
+# email is sent after each stage finishes (via report.finish); final
+# success/failure emails wrap the run. Emails are best-effort and never
+# abort the pipeline.
 
 
 def _now() -> str:
@@ -1357,16 +1359,20 @@ def task_print_eval_metrics(
 def task_upload_to_hf(
     trial: bool = False,
     include_dois: list[str] | None = None,
+    closed_month: str | None = None,
 ) -> None:
     from config import hf_cfg
     from huggingface.uploader import SciConBenchUploader
 
-    # Always rebuild the local Cochrane-filter cache from the full
-    # production merge (live benchmark + every FACTS_GENERATED DB row).
-    # Trial mode still needs that complete title list; it just must not
-    # push the merged parquet onto the live ``benchmark`` shard.
+    # Rebuild the local Cochrane-filter cache from the rows about to be
+    # published. Production merges only closed-month rolling + core.
+    # Trial still builds a full (unfiltered) cache first so title lists stay
+    # complete, then pushes a separate ``trial`` shard and never overwrites
+    # the live ``benchmark`` parquet or the Hub README changelog.
     cache_uploader = SciConBenchUploader()
-    cache_uploader.save_to_parquet()
+    cache_uploader.save_to_parquet(
+        closed_month=None if trial else closed_month,
+    )
     cache_uploader.refresh_filter_caches()
 
     if trial:
@@ -1401,7 +1407,14 @@ def task_upload_to_hf(
         )
         return
 
-    cache_uploader.upload()
+    if not closed_month:
+        raise RuntimeError(
+            "closed_month is required for production HuggingFace upload "
+            "(open-month rolling reviews must not be published)."
+        )
+    url = cache_uploader.upload()
+    cache_uploader.update_hub_readme(closed_month)
+    print(f"Production upload: {url}; Hub README changelog updated for {closed_month}.")
 
 
 # ── Batch helpers ──────────────────────────────────────────────────────────────
@@ -1438,8 +1451,9 @@ def sciconbench_track_pipeline(
       6.  Generate clinical questions
       7.  Generate Cochrane atomic facts
       8.  Upload to HuggingFace (hayoungjung/SciConBench, benchmark/test;
-          ``--trial`` writes config ``trial`` instead and never overwrites
-          the live benchmark shard)
+          closed-month rolling + core only; Hub README changelog updated in
+          a second commit. ``--trial`` writes config ``trial`` instead and
+          never overwrites the live benchmark shard or README changelog)
       9.  Query models against core + rolling panels whose publication month
           is on or before the last closed calendar month (open-month reviews
           are ingested but not evaluated until that month ends).
@@ -1606,14 +1620,22 @@ def sciconbench_track_pipeline(
         # 8. Upload to HuggingFace
         report.begin("8. Upload to HuggingFace")
         upload_dois = list(new_dois) if trial else None
-        _run_task(task_upload_to_hf, trial=trial, include_dois=upload_dois)
+        _run_task(
+            task_upload_to_hf,
+            trial=trial,
+            include_dois=upload_dois,
+            closed_month=None if trial else target_month,
+        )
         if trial:
             report.upload_note = (
                 f"trial track only ({len(upload_dois or [])} DOI filter(s)); "
                 "production benchmark/test NOT overwritten"
             )
         else:
-            report.upload_note = "production benchmark/test merged + uploaded"
+            report.upload_note = (
+                f"production benchmark/test merged + uploaded "
+                f"(closed month {target_month}); Hub README changelog updated"
+            )
         report.finish(report.upload_note)
 
         # 9. Query models against core + every *closed* rolling panel.

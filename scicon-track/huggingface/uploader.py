@@ -2,7 +2,8 @@
 
 Each monthly run:
   1. Pulls the current Parquet from the HuggingFace repo.
-  2. Fetches new rows from the local SQLite database.
+  2. Fetches new rows from the local SQLite database (closed months only
+     for production uploads — open-month rolling reviews stay local).
   3. Merges with stale-DOI handling:
        - If a new DOI supersedes an existing one (same base CD number, higher
          .pubN version), the old row is removed and the new one is inserted.
@@ -15,15 +16,18 @@ Each monthly run:
      ``CochraneResultFilter`` reads from never lag behind what's about to be
      published.
   6. Pushes the merged Parquet back to the same repo.
+  7. (Production only) Updates the Hub dataset README with a newest-first
+     monthly changelog entry in a second commit.
 
 Usage
 -----
     from huggingface.uploader import SciConBenchUploader
 
     uploader = SciConBenchUploader()
-    uploader.save_to_parquet()       # merge + write local Parquet
-    uploader.refresh_filter_caches() # regenerate sciconharness's filter caches
-    uploader.upload()                # push to HuggingFace Hub
+    uploader.save_to_parquet(closed_month="2026-07")
+    uploader.refresh_filter_caches()
+    uploader.upload()
+    uploader.update_hub_readme(closed_month="2026-07")
 
 Requires:
     pip install huggingface_hub pyarrow pandas datasets
@@ -36,20 +40,41 @@ import json
 import logging
 import os
 import re
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 from datasets import load_dataset
 from huggingface_hub import HfApi
 
-from config import hf_cfg, path_cfg
+from config import hf_cfg
 from db.utils import get_sciconbench_rows
-from huggingface.utils import DATASET_COLUMN_ORDER, normalize_atomic_facts_pairs, write_parquet
+from huggingface.utils import DATASET_COLUMN_ORDER, normalize_atomic_facts_pairs
 
 logger = logging.getLogger(__name__)
 
 # Path to persistent stale-DOI audit log (inside the gitignored data_track/ dir).
 _STALE_LOG = Path(__file__).resolve().parent.parent.parent / "data_track" / "stale_dois.json"
+
+# Leading Hub README changelog lines, e.g.
+#   > Latest update — **July 2026**. SciConBench is a *live* …
+_UPDATE_LINE_RE = re.compile(
+    r"^> (?:Latest )?update — \*\*[^*]+\*\*\..*$",
+    re.IGNORECASE,
+)
+_PREVIOUS_ITEM_RE = re.compile(
+    r"^- \*\*[^*]+\*\* — .+$",
+)
+_PREVIOUS_UPDATES_HEADING_RE = re.compile(
+    r"^#{1,6}\s+Previous updates\s*$",
+    re.IGNORECASE,
+)
+_DETAILS_OPEN_RE = re.compile(r"^<details>\s*$", re.IGNORECASE)
+_DETAILS_CLOSE_RE = re.compile(r"^</details>\s*$", re.IGNORECASE)
+_PREVIOUS_SUMMARY_RE = re.compile(
+    r"^<summary>\s*Previous updates\s*</summary>\s*$",
+    re.IGNORECASE,
+)
 
 
 def _base_doi(doi: str) -> str:
@@ -62,11 +87,169 @@ def _pub_version(doi: str) -> int:
     return int(m.group(1)) if m else 1
 
 
+def _format_sample_count(n: int) -> str:
+    """Format a question-row count like the Hub card (e.g. 9110 → ``9.11K``)."""
+    return f"{n / 1000:.2f}K"
+
+
+def _month_label(year_month: str) -> str:
+    """``2026-07`` → ``July 2026``."""
+    return datetime.strptime(year_month, "%Y-%m").strftime("%B %Y")
+
+
+def _build_update_line(
+    *,
+    latest: bool,
+    month_label: str,
+    before: int,
+    after: int,
+) -> str:
+    """Build a Latest blockquote or a Previous-updates list item."""
+    before_s = _format_sample_count(before)
+    after_s = _format_sample_count(after)
+    if latest:
+        return (
+            f"> Latest update — **{month_label}**. SciConBench is a *live* "
+            f"benchmark updated monthly with newly released CDSR reviews. "
+            f"This release updates the benchmark from {before_s} to {after_s} "
+            f"samples and replaces superseded reviews with their latest "
+            f"editions through **{month_label}**."
+        )
+    return (
+        f"- **{month_label}** — from {before_s} to {after_s} samples; "
+        f"superseded reviews replaced through {month_label}."
+    )
+
+
+def _month_from_update_line(line: str) -> str | None:
+    m = re.search(r"\*\*([^*]+)\*\*", line)
+    return m.group(1) if m else None
+
+
+def _to_previous_update_item(line: str) -> str:
+    """Normalize a Latest/Update blockquote (or list item) for Previous updates."""
+    stripped = line.strip()
+    if _PREVIOUS_ITEM_RE.match(stripped):
+        return stripped
+
+    month = _month_from_update_line(stripped)
+    counts = re.search(
+        r"from\s+(\d+\.\d+K)\s+to\s+(\d+\.\d+K)",
+        stripped,
+        flags=re.IGNORECASE,
+    )
+    if month and counts:
+        return (
+            f"- **{month}** — from {counts.group(1)} to {counts.group(2)} "
+            f"samples; superseded reviews replaced through {month}."
+        )
+    if month:
+        rest = re.sub(
+            r"^>\s*(?:Latest )?update — \*\*[^*]+\*\*\.\s*",
+            "",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        return f"- **{month}** — {rest}"
+    return f"- {stripped.lstrip('> ').lstrip('- ')}"
+
+
+def _consume_previous_entries(lines: list[str], start: int) -> tuple[list[str], int]:
+    """Collect previous-update entries from a heading or ``<details>`` block."""
+    updates: list[str] = []
+    i = start
+    if i >= len(lines):
+        return updates, i
+
+    # Collapsible: <details> … </details>
+    if _DETAILS_OPEN_RE.match(lines[i]):
+        i += 1
+        while i < len(lines) and not _DETAILS_CLOSE_RE.match(lines[i]):
+            if (
+                not lines[i].strip()
+                or _PREVIOUS_SUMMARY_RE.match(lines[i])
+            ):
+                i += 1
+                continue
+            if _UPDATE_LINE_RE.match(lines[i]) or _PREVIOUS_ITEM_RE.match(lines[i]):
+                updates.append(_to_previous_update_item(lines[i]))
+            i += 1
+        if i < len(lines) and _DETAILS_CLOSE_RE.match(lines[i]):
+            i += 1
+        return updates, i
+
+    # Legacy: ## Previous updates + blockquotes/list items
+    if _PREVIOUS_UPDATES_HEADING_RE.match(lines[i]):
+        i += 1
+        while i < len(lines):
+            if not lines[i].strip():
+                i += 1
+                continue
+            if _UPDATE_LINE_RE.match(lines[i]) or _PREVIOUS_ITEM_RE.match(lines[i]):
+                updates.append(_to_previous_update_item(lines[i]))
+                i += 1
+                continue
+            break
+    return updates, i
+
+
+def _split_update_preamble(text: str) -> tuple[list[str], str]:
+    """Split leading latest + previous-updates changelog from the card body."""
+    lines = (text or "").splitlines()
+    i = 0
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+
+    updates: list[str] = []
+    # Optional leading "Latest update" / loose update blockquotes.
+    while i < len(lines):
+        if not lines[i].strip():
+            i += 1
+            continue
+        if _UPDATE_LINE_RE.match(lines[i]):
+            updates.append(lines[i])
+            i += 1
+            continue
+        break
+
+    prior, i = _consume_previous_entries(lines, i)
+    updates.extend(prior)
+
+    rest = "\n".join(lines[i:])
+    return updates, rest
+
+
+def _render_changelog(latest_line: str, prior_lines: list[str], rest: str) -> str:
+    """Render latest blurb, then a collapsible Previous updates block, then body."""
+    parts: list[str] = [latest_line]
+    if prior_lines:
+        items = "\n".join(prior_lines)
+        prior_block = (
+            "<details>\n"
+            "<summary>Previous updates</summary>\n\n"
+            f"{items}\n\n"
+            "</details>"
+        )
+        parts.append(prior_block)
+    if rest.strip():
+        parts.append(rest.lstrip("\n"))
+    return "\n\n".join(parts) + "\n"
+
+
+def _eligible_for_closed_month(row: dict, closed_month: str) -> bool:
+    """Core always publishes; rolling only when ``cohort_month <= closed_month``."""
+    if row.get("panel_type") == "core":
+        return True
+    cohort = row.get("cohort_month")
+    return bool(cohort and cohort <= closed_month)
+
+
 class SciConBenchUploader:
     """Append new monthly examples to the live SciConBench HuggingFace dataset.
 
-    Existing rows (core benchmark) are never modified — only new DOIs absent
-    from the current HF dataset are appended.
+    Existing rows are kept unless superseded by a newer ``.pubN`` or present in
+    the stale-DOI audit log. Production uploads only publish closed-month
+    rolling rows (plus core).
     """
 
     def __init__(
@@ -92,8 +275,10 @@ class SciConBenchUploader:
         self._src_split = src.split
 
         # Populated by save_to_parquet(); reused by refresh_filter_caches()
-        # so it doesn't need a second HF pull.
+        # and update_hub_readme().
         self._merged_rows: list[dict] | None = None
+        self._existing_row_count: int | None = None
+        self._merged_row_count: int | None = None
 
     # ── Internal helpers ───────────────────────────────────────────────────────
 
@@ -111,7 +296,7 @@ class SciConBenchUploader:
                 token=self.token,
                 # Appended rows change the Parquet shard's actual size without
                 # updating the dataset card's recorded split sizes (by design —
-                # we intentionally leave the README untouched), so HF's cached
+                # we intentionally leave YAML sizes untouched), so HF's cached
                 # metadata is stale immediately after every monthly push. Skip
                 # that check rather than failing to load valid data.
                 verification_mode="no_checks",
@@ -209,9 +394,15 @@ class SciConBenchUploader:
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def save_to_parquet(self) -> None:
-        """Pull HF dataset, merge with DB rows, write merged Parquet locally."""
+    def save_to_parquet(self, closed_month: str | None = None) -> None:
+        """Pull HF dataset, merge with DB rows, write merged Parquet locally.
+
+        When *closed_month* is set (production), only core rows and rolling
+        rows with ``cohort_month <= closed_month`` are merged in from the DB.
+        Open-month rolling reviews remain local until that month closes.
+        """
         existing_rows = self._load_existing_hf_rows()
+        self._existing_row_count = len(existing_rows)
         db_rows = get_sciconbench_rows()
 
         # Normalise DB rows to match DATASET_COLUMN_ORDER.
@@ -219,6 +410,18 @@ class SciConBenchUploader:
         # preprocessing only and are intentionally excluded from the upload.
         if self.include_dois is not None:
             db_rows = [r for r in db_rows if r.get("doi") in self.include_dois]
+
+        if closed_month is not None:
+            before_filter = len(db_rows)
+            db_rows = [
+                r for r in db_rows if _eligible_for_closed_month(r, closed_month)
+            ]
+            logger.info(
+                "Closed-month filter %s: %d → %d DB row(s) eligible for upload",
+                closed_month,
+                before_filter,
+                len(db_rows),
+            )
 
         packed_db = [
             {
@@ -242,6 +445,7 @@ class SciConBenchUploader:
 
         merged = self._merge_rows(existing_rows, packed_db)
         self._merged_rows = merged
+        self._merged_row_count = len(merged)
 
         self.output.parent.mkdir(parents=True, exist_ok=True)
         pd.DataFrame(merged, columns=list(DATASET_COLUMN_ORDER)).to_parquet(
@@ -277,7 +481,8 @@ class SciConBenchUploader:
     def ensure_hub_config(self) -> None:
         """Add this uploader's dataset config to the Hub README if missing.
 
-        Production monthly uploads leave the README untouched. Practice-run
+        Production monthly uploads leave YAML configs alone and instead call
+        :meth:`update_hub_readme` for the prose changelog. Practice-run
         configs (e.g. ``trial``) need an entry so
         ``load_dataset(repo, "trial")`` works after the first parquet push.
         """
@@ -315,11 +520,66 @@ class SciConBenchUploader:
             "Added HuggingFace config %s → %s", self._src_config, glob_path,
         )
 
+    def update_hub_readme(self, closed_month: str) -> None:
+        """Prepend a newest-first monthly changelog entry on the Hub README.
+
+        Production only. Runs as a *second* commit after :meth:`upload`.
+        The newest month stays as a top-level ``Latest update`` blurb; older
+        months move under a collapsible ``Previous updates`` ``<details>``
+        block as compact list items. Re-running the same ``closed_month``
+        replaces that month's entry.
+        """
+        from huggingface_hub import DatasetCard
+
+        if not self.token:
+            raise RuntimeError(
+                "HF_TOKEN environment variable is not set. "
+                "Get a write token from https://huggingface.co/settings/tokens"
+            )
+        if self._existing_row_count is None or self._merged_row_count is None:
+            raise RuntimeError(
+                "update_hub_readme() requires save_to_parquet() first "
+                "(no before/after row counts)."
+            )
+
+        month_label = _month_label(closed_month)
+        new_line = _build_update_line(
+            latest=True,
+            month_label=month_label,
+            before=self._existing_row_count,
+            after=self._merged_row_count,
+        )
+
+        card = DatasetCard.load(self.repo_id, repo_type="dataset", token=self.token)
+        prior_updates, rest = _split_update_preamble(card.text or "")
+
+        # Drop a prior entry for this same month (idempotent re-runs), then
+        # fold any remaining Latest/Update blurbs into Previous updates.
+        kept = [
+            _to_previous_update_item(line)
+            for line in prior_updates
+            if _month_from_update_line(line) != month_label
+        ]
+        card.text = _render_changelog(new_line, kept, rest)
+
+        card.push_to_hub(
+            self.repo_id,
+            repo_type="dataset",
+            token=self.token,
+            commit_message=f"Update dataset card: {month_label} release notes",
+        )
+        logger.info(
+            "Hub README updated for %s (%s → %s samples).",
+            month_label,
+            _format_sample_count(self._existing_row_count),
+            _format_sample_count(self._merged_row_count),
+        )
+
     def upload(self, commit_message: str | None = None) -> str:
         """Push the merged local Parquet back to HuggingFace.
 
-        The dataset README is intentionally left untouched unless
-        :meth:`ensure_hub_config` is called first (trial track).
+        Does not modify the dataset README — call :meth:`update_hub_readme`
+        (production) or :meth:`ensure_hub_config` (trial) afterwards.
         Returns the URL of the uploaded Parquet file.
         """
         if not self.token:

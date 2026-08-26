@@ -168,14 +168,26 @@ def extract_text():
 
 
 @main.command()
-def upload():
+@click.option(
+    "--closed-month",
+    default=None,
+    metavar="YYYY-MM",
+    help="Publish core + rolling cohort_month <= this month "
+         "(default: previous calendar month). Open months stay local.",
+)
+def upload(closed_month):
     """Upload the current benchmark state to HuggingFace (hayoungjung/SciConBench test)."""
+    from data_collection.utils import previous_year_month
     from huggingface.uploader import SciConBenchUploader
+
+    month = closed_month or previous_year_month()
     uploader = SciConBenchUploader()
-    uploader.save_to_parquet()
+    uploader.save_to_parquet(closed_month=month)
     uploader.refresh_filter_caches()
     url = uploader.upload()
+    uploader.update_hub_readme(month)
     click.echo(f"Uploaded: {url}")
+    click.echo(f"Hub README changelog updated for {month}.")
 
 
 @main.command("reset-for-prod")

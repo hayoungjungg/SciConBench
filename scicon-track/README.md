@@ -185,9 +185,15 @@ scicon-track extract-text
 
 Upload the current benchmark state to HuggingFace
 (`hayoungjung/SciConBench`, config `benchmark`, split `test`).
+Only **core** plus rolling reviews with `cohort_month` on or before the
+closed month are published (default: previous calendar month). Open-month
+rolling reviews stay local. After the Parquet push, a second Hub commit
+puts a ``Latest update`` blurb at the top and folds older months into a
+collapsible ``Previous updates`` section (before/after sample counts included).
 
 ```bash
 scicon-track upload
+scicon-track upload --closed-month 2026-07
 ```
 
 ---
@@ -205,7 +211,7 @@ The `workflow` command executes these Prefect tasks in order:
 | 5 | `task_extract_text` | Extract reference text with pdfplumber and assign each rolling DOI to its publication-month panel |
 | 6 | `task_generate_questions` | Generate clinical questions |
 | 7 | `task_generate_cochrane_facts_batch` | Atomic-fact decomposition of Cochrane conclusions |
-| 8 | `task_upload_to_hf` | Merge + publish to `hayoungjung/SciConBench` (benchmark/test); also refreshes `sciconharness`'s local Cochrane-filter caches |
+| 8 | `task_upload_to_hf` | Merge + publish **closed-month** core+rolling rows to `hayoungjung/SciConBench` (benchmark/test); refresh `sciconharness` Cochrane-filter caches; then (production only) prepend a newest-first Hub README changelog entry in a second commit. Superseded `.pubN` DOIs are dropped from the merge. |
 | 9 | `task_run_queries` | Query models with SciConHarness. Open-weight models (`evaluate_once` in `query_batch_config.yaml`) are queried once per DOI; proprietary models are re-queried against core + all **closed** rolling panels every run. Rolling reviews published in the still-open calendar month are ingested but not queried until that month ends. A newly added model has zero rows and automatically backfills the (closed) universe. Only DOIs at `FACTS_GENERATED` in that universe are queried. Each pair is retried per-item, then leftover pairs are re-queried in whole-stage rounds; leftover pending DOI/model pairs fail the task. |
 | 10 | `task_generate_response_facts_by_model` | Atomic-fact decomposition of model responses |
 | 11 | `task_run_precision` | LLM-judge precision analysis |
@@ -213,7 +219,8 @@ The `workflow` command executes these Prefect tasks in order:
 
 Stages 4–12 retry each incomplete item (`ITEM_RETRY_ATTEMPTS`, default 3) and then re-scan remaining work (`STAGE_ROUNDS`, default 3). Atomic-fact stages use a higher per-item budget (`FACTS_ITEM_RETRY_ATTEMPTS`, default 4) before those whole-stage rounds. Queries work the same way: try each pending DOI/model pair a few times, then re-query whatever still has no well-formed `[[[...]]]` conclusion. A stage **raises** if anything is still missing or malformed after that — it does not skip bad output. Prefect then retries the task. Wiley TDM 404s are retried on later runs and do not fail the download stage; they become `SKIPPED` only after 5 distinct calendar months of 404s.
 
-Email notifications are sent on pipeline start, success, and failure.
+Email notifications are sent on pipeline start, after each stage finishes
+(a progressively longer digest), and on final success or failure.
 
 ---
 
@@ -224,7 +231,7 @@ Every DOI in the database belongs to one of two panels:
 | Panel | Description |
 |-------|-------------|
 | `core` | A **fixed** sample of up to 10 *already-curated* HuggingFace SciConBench reviews per calendar month from 1 Jul 2025 – 30 Jun 2026, drawn once via `scicon-track init-core-set`. Never resampled or backfilled. Proprietary models are re-queried against it every month (drift); open-weight models are queried once. If a newer `.pubN` of a tracked review appears, the old DOI is removed (the set shrinks) and the successor is added to the **rolling** panel (tagged with the successor's publication month), not back into core. |
-| `rolling` | New CDSR reviews not already on HuggingFace. Each review is tagged with the calendar month it was **published** (`cohort_month`). A run on any day finds all new reviews, downloads/extracts them, and buckets them by publication month — so July-published reviews are the July panel even if they were found in August, and August-published reviews found on Aug 18 wait to be evaluated until September. Wiley TDM → extract → questions/facts → merge into `hayoungjung/SciConBench`. Open-weight models are queried once per rolling DOI; proprietary models are re-queried against **all closed** rolling panels every run. A newer `.pubN` of a rolling DOI is handled the same way as core. |
+| `rolling` | New CDSR reviews not already on HuggingFace. Each review is tagged with the calendar month it was **published** (`cohort_month`). A run on any day finds all new reviews, downloads/extracts them, and buckets them by publication month — so July-published reviews are the July panel even if they were found in August, and August-published reviews found on Aug 18 wait to be evaluated until September. Wiley TDM → extract → questions/facts → merge into `hayoungjung/SciConBench` **only after that publication month closes** (open-month rows stay local). Open-weight models are queried once per rolling DOI; proprietary models are re-queried against **all closed** rolling panels every run. A newer `.pubN` of a rolling DOI is handled the same way as core. |
 
 Each rolling review is tagged with its `cohort_month` (e.g. `"2026-07"`), which is the publication month, not the run date.
 Panel membership is mirrored to `data_track/doi_panels.json` for inspection.
