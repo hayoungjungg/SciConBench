@@ -213,44 +213,7 @@ The `workflow` command executes these Prefect tasks in order:
 
 Stages 4–12 retry each incomplete item (`ITEM_RETRY_ATTEMPTS`, default 3) and then re-scan remaining work (`STAGE_ROUNDS`, default 3). Atomic-fact stages use a higher per-item budget (`FACTS_ITEM_RETRY_ATTEMPTS`, default 4) before those whole-stage rounds. Queries work the same way: try each pending DOI/model pair a few times, then re-query whatever still has no well-formed `[[[...]]]` conclusion. A stage **raises** if anything is still missing or malformed after that — it does not skip bad output. Prefect then retries the task. Wiley TDM 404s are retried on later runs and do not fail the download stage; they become `SKIPPED` only after 5 distinct calendar months of 404s.
 
-Email notifications are sent on pipeline start, success, and failure. Success
-and failure emails include a stage-by-stage log, discovery counts, sample
-review/question/atomic-fact content, model-response excerpts, qualitative
-precision/recall labels (contradicted / not supported / missed facts), and
-macro P/R/F1 by model. Set ``EMAIL_SENDER``, ``EMAIL_APP_PASSWORD``, and
-``EMAIL_RECIPIENT`` in ``.env`` (Gmail App Password). Missing credentials
-skip the email; the pipeline continues.
-
-### Workflow progress log
-
-Every run (trial or production) also writes a stage-level log to
-``data_track/logs/workflow-{mode}-{YYYYMM}-{timestamp}.log``. It records
-run config, each stage begin/end with counts processed, lane-level query
-summaries, warnings for exhausted item retries, and full tracebacks on
-failure. It does **not** dump per-DOI model responses (those live under
-``data_track/results/``). The path is printed at start/end and included in
-the email digest.
-
-
-### Prefect on NFS (`database is locked`) / ephemeral timeout
-
-Prefect keeps a local SQLite DB under ``$PREFECT_HOME`` (default
-``~/.prefect/prefect.db``). On NFS home directories this often fails at
-startup with ``OperationalError: database is locked`` while inserting
-``TELEMETRY_SESSION``. ``scicon-track`` auto-redirects ``PREFECT_HOME`` to
-``/tmp/$USER-prefect`` when the default would land on NFS. Override
-explicitly if you prefer:
-
-```bash
-export PREFECT_HOME=/tmp/$USER-prefect
-```
-
-``--once`` (including ``--trial``) also **bypasses Prefect's ephemeral API
-server** via ``flow.fn()`` + plain ``task.fn()`` calls. That avoids
-``Timed out while attempting to connect to ephemeral Prefect API server``
-on slow cluster cold starts. Scheduled ``.serve()`` runs still use Prefect
-normally, with a raised ephemeral startup timeout (120s).
-
+Email notifications are sent on pipeline start, success, and failure.
 
 ---
 
@@ -290,20 +253,20 @@ models behind a single provider):
 default_models:
   openai: gpt-5.6-sol
   claude: claude-opus-5
-  gemini: gemini-3.1-pro
+  gemini: gemini-3.7-flash
   azure:
     - DeepSeek-V4-Pro              # Azure Foundry Chat Completions
-    - DeepSeek-V3.2
+    - DeepSeek-V4-Flash-0731
   openrouter:                     # one provider, several models
     - moonshotai/kimi-k3          # Kimi K3
-    - z-ai/glm-5.2                # GLM-5.2
-    - qwen/qwen3.7-max            # Qwen3.7-max
+    - z-ai/glm-5.3                # GLM-5.3
+    - qwen/qwen3.8-max            # Qwen3.8-max
 
 evaluate_once:                    # open-weight: query each DOI once, ever
   - DeepSeek-V4-Pro
-  - DeepSeek-V3.2
+  - DeepSeek-V4-Flash-0731
   - moonshotai/kimi-k3
-  - z-ai/glm-5.2
+  - z-ai/glm-5.3
 ```
 
 Every `(provider, model)` pair produced by `QueryBatchConfig.iter_models()`
@@ -326,17 +289,17 @@ maximizing parallelism everywhere.
 lanes run concurrently against each other via `asyncio.gather`; *within* a
 lane, models — and DOIs within a model — are queried strictly sequentially:
 
-- `openrouter` — Kimi K3, GLM-5.2, Qwen3.7-max (`OPENROUTER_API_KEY*` /
+- `openrouter` — Kimi K3, GLM-5.3, Qwen3.8-max (`OPENROUTER_API_KEY*` /
   filtering variant under the clean-room config).
 - `azure_openai` — OpenAI GPT (`gpt-5.6-sol`) **then** DeepSeek-V4-Pro /
-  DeepSeek-V3.2, all on **`COCHRANE_DASHBOARD_OPENAI_KEY`** +
+  DeepSeek-V4-Flash-0731, all on **`COCHRANE_DASHBOARD_OPENAI_KEY`** +
   **`COCHRANE_DASHBOARD_BASE_URL`** (falls back to `AZURE_OPENAI_KEY` /
   `OPENAI_BASE_URL` if unset). GPT always runs before DeepSeek so they
   never share the Cochrane Dashboard quota concurrently.
 - `azure_anthropic` — Claude on Azure Foundry
   (`AZURE_ANTHROPIC_API_KEY`, `AZURE_ANTHROPIC_BASE_URL`,
   `AZURE_ANTHROPIC_RESOURCE_NAME`).
-- `gemini` — `gemini-3.1-pro` (Vertex AI / Google env vars).
+- `gemini` — `gemini-3.7-flash` (Vertex AI / Google env vars).
 
 A single `SciConHarness` instance is never called concurrently (it mutates
 per-instance state, e.g. the OpenRouter sticky-routing `session_id`, right
@@ -379,7 +342,13 @@ but every DOI/model/run_month triple also gets a plain JSON file at:
 
 ```
 data_track/results/<run_month>/<model>_tools_filter/<doi_safe>/result.json
+data_track/results/<run_month>/<model>_tools_filter/<doi_safe>/mcp_client.log
 ```
+
+The harness query/tool-call log (`mcp_client.log`) is written into the same
+per-DOI directory as `result.json` (track sets `SciConHarness(log_dir=...)`
+to `data_track/results/<run_month>/`). Static benchmark runs still default
+to `sciconharness/logs/` when `log_dir` is unset.
 
 The `<run_month>` partition matters because the pipeline runs monthly (or
 bimonthly) against a fixed "core" sample plus a rolling panel: the same
@@ -387,12 +356,10 @@ DOI/model pair can legitimately get queried again in a later month, and
 without partitioning by month that re-run would silently overwrite the
 earlier month's file even though the DB keeps them as distinct rows (unique
 on `doi, model, provider, config_label, run_month`). Within one
-`results/<run_month>/` directory, the layout is exactly the
-`<model_dir>/<doi_safe>/result.json` layout `sciconharness/logs/` uses for
-the static benchmark, so `scripts/check_conclusions.py
---logs-dir data_track/results/<run_month>` works against it unmodified (it
-just checks each file's `"response"` field for a well-formed `[[[...]]]`
-block).
+`results/<run_month>/` directory, the layout matches what
+`scripts/check_conclusions.py --logs-dir data_track/results/<run_month>`
+expects (it checks each file's `"response"` field for a well-formed
+`[[[...]]]` block).
 
 Each pipeline stage merges its own top-level key into the file as that
 DOI/model reaches it (see `_update_result_file` / `_results_file_path` in

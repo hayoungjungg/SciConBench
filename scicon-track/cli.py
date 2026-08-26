@@ -176,3 +176,33 @@ def upload():
     uploader.refresh_filter_caches()
     url = uploader.upload()
     click.echo(f"Uploaded: {url}")
+
+
+@main.command("reset-for-prod")
+@click.option("--no-refresh-parquet", is_flag=True,
+              help="Skip rebuilding the local production parquet/filter caches.")
+def reset_for_prod(no_refresh_parquet):
+    """Clear the rolling panel and practice-run artifacts before a production deploy.
+
+    Removes all rolling-panel DOIs (DB rows, PDFs, supplemental HTML), deletes
+    stored model responses and per-run result trees from trial/smoke runs, drops
+    the local trial parquet, and rebuilds ``doi_panels.json`` plus the local
+    production merge parquet (unless ``--no-refresh-parquet``).
+    """
+    from db.utils import reset_for_production
+
+    summary = reset_for_production(refresh_parquet=not no_refresh_parquet)
+    click.echo(f"Removed {len(summary['removed_rolling'])} rolling DOI(s):")
+    for doi in summary["removed_rolling"]:
+        click.echo(f"  {doi}")
+    click.echo(f"Cleared {summary['cleared_responses']} model response(s).")
+    if summary["cleared_result_months"]:
+        click.echo(
+            "Cleared result trees: "
+            + ", ".join(summary["cleared_result_months"])
+        )
+    if summary["cleared_logs"]:
+        click.echo("Removed logs: " + ", ".join(summary["cleared_logs"]))
+    if summary["trial_parquet_removed"]:
+        click.echo("Removed local trial parquet.")
+    click.echo("Ready for `scicon-track workflow --once` (production).")

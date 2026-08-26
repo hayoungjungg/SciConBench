@@ -118,6 +118,106 @@ def remove_doi(doi: str) -> bool:
         return True
 
 
+def clear_rolling_panel(*, delete_pdfs: bool = True) -> list[str]:
+    """Remove every rolling-panel DOI and optionally its downloaded PDF."""
+    from pathlib import Path
+
+    from config import path_cfg
+    from data_collection.utils import sanitize_doi_for_filename
+
+    rolling_dois = sorted(get_dois_by_panel(PanelType.ROLLING))
+    removed: list[str] = []
+    for doi in rolling_dois:
+        pdf_path: Path | None = None
+        with _session()() as session:
+            record = session.get(DOIInfo, doi)
+            if record and record.pdf_path:
+                pdf_path = Path(record.pdf_path)
+        if not remove_doi(doi):
+            continue
+        removed.append(doi)
+        if delete_pdfs and pdf_path and pdf_path.exists():
+            pdf_path.unlink()
+        safe = sanitize_doi_for_filename(doi)
+        for subdir in ("supplemental_html/articles", "supplemental_html/failed"):
+            html_path = path_cfg.data_dir / "tdm_extraction" / subdir / f"{safe}.html"
+            if html_path.exists():
+                html_path.unlink()
+    if removed:
+        write_doi_panels()
+    return removed
+
+
+def clear_query_artifacts(*, run_months: list[str] | None = None) -> int:
+    """Delete model responses and linked response-fact rows.
+
+    When *run_months* is ``None``, every stored response is removed.
+    """
+    with _session().begin() as session:
+        q = session.query(ModelResponse)
+        if run_months is not None:
+            q = q.filter(ModelResponse.run_month.in_(run_months))
+        responses = q.all()
+        response_ids = [r.id for r in responses]
+        if response_ids:
+            session.query(AtomicFacts).filter(
+                AtomicFacts.source == AtomicFactSource.MODEL_RESPONSE,
+                AtomicFacts.id.in_(response_ids),
+            ).delete(synchronize_session=False)
+        for response in responses:
+            session.delete(response)
+        return len(responses)
+
+
+def reset_for_production(*, refresh_parquet: bool = True) -> dict[str, Any]:
+    """Clear rolling panel and practice-run artifacts for a clean prod deployment."""
+    import shutil
+
+    from config import hf_cfg, path_cfg
+
+    removed_rolling = clear_rolling_panel()
+    cleared_responses = clear_query_artifacts()
+
+    results_root = path_cfg.data_dir / "results"
+    cleared_result_months: list[str] = []
+    if results_root.exists():
+        for month_dir in list(results_root.iterdir()):
+            if not month_dir.is_dir():
+                continue
+            cleared_result_months.append(month_dir.name)
+            shutil.rmtree(month_dir, ignore_errors=True)
+
+    cleared_logs: list[str] = []
+    logs_root = path_cfg.data_dir / "logs"
+    if logs_root.exists():
+        for pattern in ("workflow-trial-*", "query-smoke-*"):
+            for path in logs_root.glob(pattern):
+                path.unlink()
+                cleared_logs.append(path.name)
+
+    trial_removed = False
+    if hf_cfg.trial is not None and hf_cfg.trial.output.exists():
+        hf_cfg.trial.output.unlink()
+        trial_removed = True
+
+    if refresh_parquet:
+        from huggingface.uploader import SciConBenchUploader
+
+        uploader = SciConBenchUploader()
+        uploader.save_to_parquet()
+        uploader.refresh_filter_caches()
+
+    write_doi_panels()
+
+    return {
+        "removed_rolling": removed_rolling,
+        "cleared_responses": cleared_responses,
+        "cleared_result_months": cleared_result_months,
+        "cleared_logs": cleared_logs,
+        "trial_parquet_removed": trial_removed,
+    }
+
+
 def get_doi_info_rows() -> list[dict[str, Any]]:
     """Return every DOIInfo row as a plain dict (panel membership snapshot)."""
     with _session()() as session:
@@ -419,10 +519,10 @@ def get_dois_needing_pdf() -> list[str]:
 
 
 def get_dois_needing_text_extraction() -> list[str]:
-    """Return DOIs with a PDF but no extracted reference text yet.
+    """Return DOIs that still need reference text extracted.
 
-    Includes ``FAILED`` rows that already have a ``pdf_path`` so a transient
-    extraction error is retried instead of stuck forever.
+    Includes rows with a downloaded PDF, failed PDF/extraction retries, and
+    failed downloads with no PDF (supplemental-only path).
     """
     with _session()() as session:
         rows = (
@@ -438,7 +538,7 @@ def get_dois_needing_text_extraction() -> list[str]:
         for row in rows:
             if row.processing_status == ProcessingStatus.PDF_DOWNLOADED:
                 out.append(row.doi)
-            elif row.pdf_path:
+            elif row.processing_status == ProcessingStatus.FAILED:
                 out.append(row.doi)
         return out
 

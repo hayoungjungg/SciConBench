@@ -519,7 +519,7 @@ def _format_response_block(resp: dict[str, Any]) -> list[str]:
     ]
 
     try:
-        with _Session()() as session:
+        with _Session() as session:
             af = (
                 session.query(AtomicFacts)
                 .filter(

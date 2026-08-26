@@ -70,8 +70,9 @@ _DB_WRITE_LOCK = threading.Lock()
 #    human-browsable, easy-to-diff mirror on disk) ──────────────────────────
 #
 # Every DOI/model gets one JSON file at
-# data_track/results/<model>_tools_filter/<doi_safe>/result.json -- the same
-# <model_dir>/<doi_safe>/result.json layout sciconharness/logs/ uses for the
+# data_track/results/<run_month>/<model>_tools_filter/<doi_safe>/result.json
+# (and mcp_client.log in the same directory) -- the same
+# <model_dir>/<doi_safe>/ layout sciconharness/logs/ uses for the
 # static benchmark (see scripts/check_conclusions.py), so the same kind of
 # "does this have a well-formed [[[...]]] response" check can point at this
 # directory too. Each pipeline stage (query, atomic facts, precision,
@@ -421,7 +422,10 @@ def task_download_pdfs(dois: list[str] | None = None) -> dict[str, str]:
         leftover = [d for d in leftover if d in wanted]
     leftover = [d for d in leftover if d not in unavailable]
     if leftover:
-        raise _stage_leftover_error("PDF download", leftover)
+        print(
+            f"PDF download: {len(leftover)} DOI(s) still without PDF after "
+            f"{STAGE_ROUNDS} round(s); text extraction will use supplemental metadata."
+        )
     return paths
 
 
@@ -698,9 +702,13 @@ async def _run_provider_lane(
     per-instance state, e.g. the OpenRouter sticky-routing session_id, right
     before each call).
     """
-    from config import query_cfg
+    from config import path_cfg, query_cfg
     from db.utils import populate_model_response
     from sciconharness import SciConHarness
+
+    # Put mcp_client.log (and related harness logs) next to result.json:
+    # data_track/results/<run_month>/<model>_tools_filter/<doi_safe>/
+    results_log_root = path_cfg.data_dir / "results" / run_month
 
     for provider, model in lane_models:
         dois = _pending_dois_for_model(
@@ -739,6 +747,7 @@ async def _run_provider_lane(
             cochrane_titles=all_titles,
             doi_to_title=doi_to_title,
             save_results=False,
+            log_dir=results_log_root,
             # Response quality-check retry: re-query up to this many times if
             # the response lacks a well-formed [[[...]]] conclusion of at
             # least min_conclusion_length chars (see SciConHarness.query()).
@@ -1534,7 +1543,16 @@ def sciconbench_track_pipeline(
         # 5. Extract text
         report.begin("5. Extract reference text")
         pending_text = get_dois_needing_text_extraction()
-        n_extracted = _run_task(task_extract_text)
+        # Trial / --max-dois: only extract text for newly discovered DOIs (plus
+        # any explicitly still-pending among that set), not the full backlog.
+        extract_scope = list(new_dois) if (trial or max_dois is not None) else None
+        if extract_scope is not None:
+            pending_text = [d for d in pending_text if d in set(extract_scope)]
+            print(
+                f"Text extraction scoped to {len(pending_text)} DOI(s) "
+                f"(new/max-dois filter)."
+            )
+        n_extracted = _run_task(task_extract_text, extract_scope)
         report.finish(
             f"{n_extracted} extracted; "
             f"{len(pending_text)} were pending at stage start"
