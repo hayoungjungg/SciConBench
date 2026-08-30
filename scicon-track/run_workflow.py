@@ -7,10 +7,10 @@ Limit to N DOIs (smoke test):   python scicon-track/run_workflow.py --once --max
 Rolling panel month override:   python scicon-track/run_workflow.py --once --rolling-month 2026-07
 
 The core set must be created once via ``scicon-track init-core-set`` before
-any monthly run. Every run processes the (possibly shrunken) core panel plus
-every accumulated rolling panel; open-weight models skip DOIs they have
-already answered, proprietary models are re-queried in full. Adding a model
-to query_batch_config.yaml is enough — the next run backfills it.
+any monthly run. After a full rolling year it advances one cohort per month.
+Every run evaluates that core plus the latest configured rolling cohorts; each
+model queries a DOI at most once. Adding a model to query_batch_config.yaml is
+enough — the next run evaluates it on that bounded universe.
 """
 
 from __future__ import annotations
@@ -591,22 +591,40 @@ def task_generate_cochrane_facts_batch(batch: dict, questions: dict) -> None:
 # (provider, model) pairs are grouped into "lanes"; every lane runs
 # concurrently against every other lane (via asyncio.gather), but *within* a
 # lane, models are queried strictly sequentially, one full DOI pass at a
-# time. Four lanes, each with its own credential / rate-limit domain:
+# time. Lanes, each with its own credential / rate-limit domain:
 #
-#   openrouter       — Kimi / GLM / Qwen (OPENROUTER_API_KEY*)
-#   azure_openai     — OpenAI GPT then DeepSeek (COCHRANE_DASHBOARD_*)
-#   azure_anthropic  — Claude on Azure (AZURE_ANTHROPIC_*)
-#   gemini           — Gemini (Vertex / GOOGLE_*)
+#   openrouter_filtering  — OPENROUTER_API_KEY_FILTERING
+#   openrouter_base_model — OPENROUTER_API_KEY_BASE_MODEL
+#   openrouter_generic    — OPENROUTER_API_KEY
+#   azure_openai          — OpenAI GPT then DeepSeek (COCHRANE_DASHBOARD_*)
+#   azure_anthropic       — Claude on Azure (AZURE_ANTHROPIC_*)
+#   gemini                — Gemini (Vertex / GOOGLE_*)
+#
+# The three openrouter_* lanes run at the same time → up to 3 concurrent
+# OpenRouter requests (one per key). Membership:
+#   base_model ← query_cfg.openrouter_base_model_lane
+#   generic    ← query_cfg.openrouter_generic_lane
+#   filtering  ← remaining provider=openrouter models
+# Keep ≤2 models per OpenRouter lane.
 #
 # Within azure_openai, openai GPT always runs before azure DeepSeek models
 # so the shared Cochrane Dashboard quota is not contended by two models at
 # once. A single SciConHarness instance is never called concurrently (it
 # mutates per-instance state, e.g. the OpenRouter sticky-routing session_id).
 QUERY_LANES: dict[str, tuple[str, ...]] = {
-    "openrouter": ("openrouter",),
     "azure_openai": ("openai", "azure"),
     "azure_anthropic": ("claude",),
     "gemini": ("gemini",),
+    # openrouter is bucketed separately in task_run_queries (three key lanes).
+}
+
+OPENROUTER_FILTERING_LANE = "openrouter_filtering"
+OPENROUTER_BASE_MODEL_LANE = "openrouter_base_model"
+OPENROUTER_GENERIC_LANE = "openrouter_generic"
+OPENROUTER_LANE_KEY_ENV: dict[str, str] = {
+    OPENROUTER_FILTERING_LANE: "OPENROUTER_API_KEY_FILTERING",
+    OPENROUTER_BASE_MODEL_LANE: "OPENROUTER_API_KEY_BASE_MODEL",
+    OPENROUTER_GENERIC_LANE: "OPENROUTER_API_KEY",
 }
 
 # Within the azure_openai lane, force GPT before DeepSeek regardless of
@@ -614,8 +632,23 @@ QUERY_LANES: dict[str, tuple[str, ...]] = {
 _AZURE_OPENAI_LANE_ORDER: dict[str, int] = {"openai": 0, "azure": 1}
 
 
+def _env_api_key(*names: str) -> str | None:
+    """First non-empty env var among *names*, stripping surrounding quotes."""
+    for name in names:
+        raw = os.environ.get(name)
+        if not raw:
+            continue
+        key = raw.strip().strip("'\"")
+        if key:
+            return key
+    return None
+
+
 def _resolve_query_credentials(
-    provider: str, model: str,
+    provider: str,
+    model: str,
+    *,
+    lane_name: str | None = None,
 ) -> tuple[str | None, str | None, str | None]:
     """Return (api_key, base_url, api_version) for a query-stage provider.
 
@@ -625,24 +658,58 @@ def _resolve_query_credentials(
     - ``claude``: Azure Anthropic Foundry (``AZURE_ANTHROPIC_*``).
       ``AZURE_ANTHROPIC_RESOURCE_NAME`` is still read from the env inside
       ``create_provider()`` / ``ClaudeProvider``.
+    - ``openrouter``: key forced from the lane
+      (``OPENROUTER_API_KEY_FILTERING``, ``OPENROUTER_API_KEY_BASE_MODEL``,
+      or ``OPENROUTER_API_KEY``). Non-generic lanes fall back to
+      ``OPENROUTER_API_KEY`` if their specific key is unset.
     - Everything else: leave unset so ``create_provider()`` resolves from env.
     """
     del model  # reserved for future per-model overrides
     if provider in ("openai", "azure"):
         return (
-            os.environ.get("COCHRANE_DASHBOARD_OPENAI_KEY")
-            or os.environ.get("AZURE_OPENAI_KEY"),
+            _env_api_key("COCHRANE_DASHBOARD_OPENAI_KEY", "AZURE_OPENAI_KEY"),
             os.environ.get("COCHRANE_DASHBOARD_BASE_URL")
             or os.environ.get("OPENAI_BASE_URL"),
             os.environ.get("OPENAI_API_VERSION"),
         )
     if provider == "claude":
         return (
-            os.environ.get("AZURE_ANTHROPIC_API_KEY"),
+            _env_api_key("AZURE_ANTHROPIC_API_KEY"),
             os.environ.get("AZURE_ANTHROPIC_BASE_URL"),
             None,
         )
+    if provider == "openrouter":
+        key_env = OPENROUTER_LANE_KEY_ENV.get(
+            lane_name or "", "OPENROUTER_API_KEY_FILTERING"
+        )
+        # Generic lane is already OPENROUTER_API_KEY; other lanes fall back to it.
+        if key_env == "OPENROUTER_API_KEY":
+            return _env_api_key("OPENROUTER_API_KEY"), os.environ.get("OPENROUTER_BASE_URL"), None
+        return (
+            _env_api_key(key_env, "OPENROUTER_API_KEY"),
+            os.environ.get("OPENROUTER_BASE_URL"),
+            None,
+        )
     return None, None, None
+
+
+def _openrouter_lane_for_model(
+    model: str,
+    *,
+    base_model_lane: list[str],
+    generic_lane: list[str],
+) -> str:
+    """Which OpenRouter key-lane a model belongs to.
+
+    Explicit lane lists win; anything else goes to the filtering lane.
+    If a model appears in both explicit lists, base_model wins and a
+    warning should be logged by the caller.
+    """
+    if model in base_model_lane:
+        return OPENROUTER_BASE_MODEL_LANE
+    if model in generic_lane:
+        return OPENROUTER_GENERIC_LANE
+    return OPENROUTER_FILTERING_LANE
 
 
 def _round_robin_shards(items: list, n: int) -> list[list]:
@@ -661,10 +728,11 @@ def _pending_dois_for_model(
 ) -> list[str]:
     """DOIs this model still needs to query this run.
 
-    Open-weight (``evaluate_once``): skip any DOI that already has a
-    response in *any* month. Proprietary: skip only DOIs already queried
-    *this* ``run_month``. A brand-new model has zero rows, so it backfills
-    the full universe automatically.
+    Default (``once``): skip any DOI that already has a response in *any*
+    month. Optional ``reevaluate_always`` models: skip only DOIs already
+    queried *this* ``run_month``. The caller supplies the current core plus
+    bounded rolling window, so a brand-new model never backfills older rolling
+    history.
     """
     from config import query_cfg
     from db.utils import get_dois_with_response
@@ -694,6 +762,7 @@ async def _run_provider_lane(
     run_month: str,
     max_format_retries: int,
     min_conclusion_length: int,
+    max_tokens: int | None = 4096,
 ) -> None:
     """Sequentially query every (provider, model) in one lane, over all DOIs.
 
@@ -731,13 +800,15 @@ async def _run_provider_lane(
         if not dois:
             continue
 
-        api_key, base_url, api_version = _resolve_query_credentials(provider, model)
+        api_key, base_url, api_version = _resolve_query_credentials(
+            provider, model, lane_name=lane_name,
+        )
 
-        # OpenRouter / Gemini leave api_key/base_url unset so create_provider()
-        # resolves OPENROUTER_API_KEY* / Vertex AI from env. Azure OpenAI
-        # (openai + DeepSeek) and Azure Anthropic (claude) get credentials
-        # forced here so the track never silently falls back to the wrong
-        # Azure resource.
+        # OpenRouter gets its lane's key forced here (FILTERING / BASE_MODEL /
+        # GENERIC). Gemini leaves api_key/base_url unset so create_provider()
+        # resolves Vertex AI from env. Azure OpenAI (openai + DeepSeek) and
+        # Azure Anthropic (claude) get credentials forced so the track never
+        # silently falls back to the wrong Azure resource.
         harness = SciConHarness(
             provider=provider,
             model=model,
@@ -755,6 +826,7 @@ async def _run_provider_lane(
             # least min_conclusion_length chars (see SciConHarness.query()).
             max_format_retries=max_format_retries,
             min_conclusion_length=min_conclusion_length,
+            max_tokens=max_tokens,
         )
         async with harness:
             for doi in dois:
@@ -821,7 +893,32 @@ async def _run_provider_lane(
                             f"(attempt {attempt}/{ITEM_RETRY_ATTEMPTS}): {exc}"
                         )
                         if attempt < ITEM_RETRY_ATTEMPTS:
-                            await asyncio.sleep(ITEM_RETRY_BACKOFF_SECS)
+                            wait = ITEM_RETRY_BACKOFF_SECS
+                            # OpenRouter 402 in_flight / 429 often carry Retry-After.
+                            try:
+                                from sciconharness.mcp_client.llm_providers.openrouter_provider import (
+                                    is_rate_limit_error,
+                                    parse_rate_limit_wait_time,
+                                )
+                                if is_rate_limit_error(exc):
+                                    hinted = parse_rate_limit_wait_time(str(exc))
+                                    if hinted is not None:
+                                        wait = max(wait, float(hinted) + 1.0)
+                                    else:
+                                        wait = max(wait, 120.0)
+                            except Exception:
+                                err_l = str(exc).lower()
+                                if (
+                                    "in_flight" in err_l
+                                    or "in-flight" in err_l
+                                    or "429" in err_l
+                                ):
+                                    wait = max(wait, 120.0)
+                            print(
+                                f"Backing off {wait:.0f}s before retry "
+                                f"({provider}/{model} doi={doi})"
+                            )
+                            await asyncio.sleep(wait)
                 if not saved:
                     msg = (
                         f"Query still incomplete for doi={doi} {provider}/{model} "
@@ -869,9 +966,11 @@ async def task_run_queries(
 
     (provider, model) pairs are grouped into lanes (QUERY_LANES) that run
     concurrently against each other; within a lane, models are queried
-    strictly sequentially (see _run_provider_lane). Four lanes:
-    openrouter, azure_openai (GPT then DeepSeek on COCHRANE_DASHBOARD_*),
-    azure_anthropic (Claude on AZURE_ANTHROPIC_*), gemini.
+    strictly sequentially (see _run_provider_lane). OpenRouter is split
+    into three key lanes (FILTERING + BASE_MODEL + GENERIC) for up to 3
+    concurrent OpenRouter requests. Other lanes: azure_openai (GPT then
+    DeepSeek on COCHRANE_DASHBOARD_*), azure_anthropic (Claude on
+    AZURE_ANTHROPIC_*), gemini.
     """
     from config import query_cfg
     from db.utils import get_questions, get_reviews_from_db
@@ -925,7 +1024,28 @@ async def task_run_queries(
     # Bucket (provider, model) pairs into lanes; anything not covered by
     # QUERY_LANES falls into its own "other" lane so nothing is silently
     # dropped if a new provider is added later without updating the map.
-    # azure_openai is sorted so openai GPT always precedes azure DeepSeek.
+    # openrouter is split into three key lanes; azure_openai is sorted so
+    # openai GPT always precedes azure DeepSeek.
+    base_or_models = list(query_cfg.openrouter_base_model_lane)
+    generic_or_models = list(query_cfg.openrouter_generic_lane)
+    configured_or = {m for p, m in query_cfg.iter_models() if p == "openrouter"}
+    for label, listed in (
+        ("openrouter_base_model_lane", base_or_models),
+        ("openrouter_generic_lane", generic_or_models),
+    ):
+        unknown = [m for m in listed if m not in configured_or]
+        if unknown:
+            print(
+                f"Warning: {label} lists models not in "
+                f"default_models.openrouter (ignored for bucketing): {unknown}"
+            )
+    overlap = sorted(set(base_or_models) & set(generic_or_models))
+    if overlap:
+        print(
+            f"Warning: models listed in both openrouter_base_model_lane and "
+            f"openrouter_generic_lane (base_model wins): {overlap}"
+        )
+
     lane_of_provider: dict[str, str] = {
         provider: lane_name
         for lane_name, lane_providers in QUERY_LANES.items()
@@ -933,7 +1053,14 @@ async def task_run_queries(
     }
     lanes: dict[str, list[tuple[str, str]]] = {}
     for provider, model in models:
-        lane_name = lane_of_provider.get(provider, "other")
+        if provider == "openrouter":
+            lane_name = _openrouter_lane_for_model(
+                model,
+                base_model_lane=base_or_models,
+                generic_lane=generic_or_models,
+            )
+        else:
+            lane_name = lane_of_provider.get(provider, "other")
         lanes.setdefault(lane_name, []).append((provider, model))
     if "azure_openai" in lanes:
         # Stable sort: openai GPT before azure DeepSeek; keep YAML order
@@ -946,6 +1073,19 @@ async def task_run_queries(
         f"Running {len(lanes)} query lane(s) concurrently "
         f"({', '.join(f'{name}: {len(m)} model(s)' for name, m in lanes.items())})..."
     )
+    for lane_name, lane_models in lanes.items():
+        if lane_name in OPENROUTER_LANE_KEY_ENV:
+            key_env = OPENROUTER_LANE_KEY_ENV[lane_name]
+            n = len(lane_models)
+            if n > 2:
+                print(
+                    f"Warning: [{lane_name}] has {n} models (prefer ≤2 per "
+                    f"OpenRouter key lane): {[m for _, m in lane_models]}"
+                )
+            print(
+                f"  [{lane_name}] key={key_env} models="
+                f"{[m for _, m in lane_models]}"
+            )
     leftover: list[tuple[str, str, str]] = []
     for round_i in range(1, STAGE_ROUNDS + 1):
         leftover = _leftover_queries(models, dois, run_month, config_label)
@@ -974,6 +1114,7 @@ async def task_run_queries(
                 run_month=run_month,
                 max_format_retries=query_cfg.max_format_retries,
                 min_conclusion_length=query_cfg.min_conclusion_length,
+                max_tokens=query_cfg.max_tokens,
             )
             for lane_name, lane_models in lanes.items()
         ))
@@ -998,8 +1139,8 @@ async def task_run_queries(
 # repeat sequentially until you finish" for atomic facts; a single batch of
 # 2 for precision/recall, since those aren't grouped by model).
 FACTS_JUDGE_API_KEYS: list[tuple[str, str, str | None]] = [
-    ("AZURE_OPENAI_KEY", "OPENAI_BASE_URL", "OPENAI_API_VERSION"),
-    ("COCHRANE_DASHBOARD_OPENAI_KEY", "COCHRANE_DASHBOARD_BASE_URL", None),
+    ("SKYLOR_AZURE_OPENAI_KEY", "SKYLOR_OPENAI_BASE_URL", "OPENAI_API_VERSION"),
+    ("MEHAER_AZURE_OPENAI_KEY", "MEHAER__OPENAI_BASE_URL", "OPENAI_API_VERSION"),
 ]
 FACTS_MODELS_PER_BATCH = 2
 FACTS_SHARD_CONCURRENCY = 4
@@ -1441,23 +1582,22 @@ def sciconbench_track_pipeline(
 
     Stages:
       1.  Initialize DB
-      2.  Load the already-registered core set (must exist; never resampled)
+      2.  Load the initialized core-set lock
       3.  Discover all new reviews not already on HuggingFace
           + drop tracked DOIs replaced by a newer .pubN (successor goes
           into rolling, never back into core). Rolling cohort_month is the
           review's publication month, assigned after text extraction.
       4.  Download PDFs for anything still at REGISTERED
-      5.  Extract reference text from PDFs
+      5.  Extract reference text; rotate the core after a full rolling year
       6.  Generate clinical questions
       7.  Generate Cochrane atomic facts
       8.  Upload to HuggingFace (hayoungjung/SciConBench, benchmark/test;
           closed-month rolling + core only; Hub README changelog updated in
           a second commit. ``--trial`` writes config ``trial`` instead and
           never overwrites the live benchmark shard or README changelog)
-      9.  Query models against core + rolling panels whose publication month
-          is on or before the last closed calendar month (open-month reviews
-          are ingested but not evaluated until that month ends).
-          Per-model: open-weight once-ever, proprietary every run
+      9.  Query models against the current core + latest configured closed
+          rolling cohorts (open-month reviews wait until that month ends).
+          Default: each model queries each DOI once (see reevaluate_always).
       10. Generate model-response atomic facts
       11. Run precision & recall analysis
     """
@@ -1471,6 +1611,7 @@ def sciconbench_track_pipeline(
         get_eval_dois,
         get_questions,
         get_reviews_from_db,
+        rotate_core_panel,
     )
     from db.db import PanelType
     from notifications import PipelineReport
@@ -1571,6 +1712,18 @@ def sciconbench_track_pipeline(
             f"{n_extracted} extracted; "
             f"{len(pending_text)} were pending at stage start"
         )
+        if not trial:
+            rotation = rotate_core_panel(target_month)
+            report.n_core = len(get_dois_by_panel(PanelType.CORE))
+            if rotation["promoted"] or rotation["demoted"]:
+                note = (
+                    f"Core rotated to {rotation['core_window'][0]}.."
+                    f"{rotation['core_window'][1]}: "
+                    f"{len(rotation['promoted'])} promoted, "
+                    f"{len(rotation['demoted'])} demoted"
+                )
+                print(note)
+                report.note(note)
 
         # 6. Generate questions for reviews without one
         report.begin("6. Generate clinical questions")
@@ -1638,7 +1791,7 @@ def sciconbench_track_pipeline(
             )
         report.finish(report.upload_note)
 
-        # 9. Query models against core + every *closed* rolling panel.
+        # 9. Query models against core + the latest closed rolling cohorts.
         report.begin("9. Query models")
         eval_dois, held_back = get_eval_dois(target_month)
         if trial:
@@ -1655,7 +1808,7 @@ def sciconbench_track_pipeline(
         report.n_rolling = len(get_dois_by_panel(PanelType.ROLLING))
         print(
             f"Eval universe: {len(eval_dois)} DOI(s) with questions+facts "
-            f"(core + rolling cohort_month <= {target_month}; "
+            f"(core + latest rolling cohorts through {target_month}; "
             f"{len(get_dois_by_panel(PanelType.CORE))} core, "
             f"{report.n_rolling} rolling total; "
             f"{len(held_back)} rolling held back as still-open)."

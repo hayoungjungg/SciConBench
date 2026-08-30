@@ -35,6 +35,33 @@ def _session():
     return _db.Session
 
 
+def _parse_year_month(value: str) -> tuple[int, int]:
+    """Parse a canonical ``YYYY-MM`` value."""
+    try:
+        year_text, month_text = value.split("-", 1)
+        year, month = int(year_text), int(month_text)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ValueError(f"Expected YYYY-MM, got {value!r}") from exc
+    if len(year_text) != 4 or len(month_text) != 2 or not 1 <= month <= 12:
+        raise ValueError(f"Expected YYYY-MM, got {value!r}")
+    return year, month
+
+
+def _shift_year_month(value: str, months: int) -> str:
+    """Shift a ``YYYY-MM`` value by a signed number of months."""
+    year, month = _parse_year_month(value)
+    ordinal = year * 12 + month - 1 + months
+    shifted_year, shifted_month0 = divmod(ordinal, 12)
+    return f"{shifted_year:04d}-{shifted_month0 + 1:02d}"
+
+
+def _months_between(start: str, end: str) -> int:
+    """Return the signed whole-month distance from *start* to *end*."""
+    start_year, start_month = _parse_year_month(start)
+    end_year, end_month = _parse_year_month(end)
+    return (end_year - start_year) * 12 + end_month - start_month
+
+
 # ── DOI registration ───────────────────────────────────────────────────────────
 
 
@@ -470,14 +497,119 @@ def get_dois_by_status(status: ProcessingStatus) -> set[str]:
         }
 
 
+def rotate_core_panel(closed_month: str) -> dict[str, Any]:
+    """Advance the core by one monthly cohort after each post-baseline month.
+
+    The initial core remains fixed until ``core_rotation_after_months`` rolling
+    cohorts have closed. It then becomes a 12-month sliding cohort window:
+    rows in the departing core month become rolling, and every row in the
+    entering rolling month becomes core. Re-running a month is idempotent, and
+    an explicit historical run never rolls a newer core backward.
+    """
+    from config import dc_cfg
+
+    _parse_year_month(closed_month)
+    initial_start = dc_cfg.core_window_start.strftime("%Y-%m")
+    initial_end = dc_cfg.core_window_end.strftime("%Y-%m")
+    elapsed = _months_between(initial_end, closed_month)
+    shift = max(0, elapsed - dc_cfg.core_rotation_after_months + 1)
+    desired_start = _shift_year_month(initial_start, shift)
+    desired_end = _shift_year_month(initial_end, shift)
+
+    promoted: list[str] = []
+    demoted: list[str] = []
+    skipped_historical = False
+
+    with _session().begin() as session:
+        rows = (
+            session.query(DOIInfo, ReviewMetaData.publication_date)
+            .outerjoin(ReviewMetaData, ReviewMetaData.doi == DOIInfo.doi)
+            .all()
+        )
+
+        def panel_month(row: DOIInfo, publication_date: date | None) -> str | None:
+            if row.cohort_month:
+                return row.cohort_month
+            return publication_date.strftime("%Y-%m") if publication_date else None
+
+        current_core_months = [
+            month
+            for row, publication_date in rows
+            if row.panel_type == PanelType.CORE
+            if (month := panel_month(row, publication_date)) is not None
+        ]
+        if current_core_months and max(current_core_months) > desired_end:
+            skipped_historical = True
+        elif shift:
+            for row, publication_date in rows:
+                month = panel_month(row, publication_date)
+                if month is None:
+                    if row.panel_type == PanelType.CORE:
+                        logger.warning(
+                            "Cannot rotate core DOI %s without publication month",
+                            row.doi,
+                        )
+                    continue
+                if row.panel_type == PanelType.CORE and month < desired_start:
+                    row.panel_type = PanelType.ROLLING
+                    row.cohort_month = month
+                    demoted.append(row.doi)
+                elif (
+                    row.panel_type == PanelType.ROLLING
+                    and initial_end < month
+                    and desired_start <= month <= desired_end
+                ):
+                    row.panel_type = PanelType.CORE
+                    # Retain cohort_month so future rotations remain deterministic.
+                    promoted.append(row.doi)
+
+    if skipped_historical:
+        logger.warning(
+            "Core already extends beyond requested historical window %s..%s; "
+            "leaving panel membership unchanged",
+            desired_start,
+            desired_end,
+        )
+    elif promoted or demoted:
+        event = {
+            "event": "core_rotation",
+            "closed_month": closed_month,
+            "core_window": [desired_start, desired_end],
+            "promoted_from_rolling": sorted(promoted),
+            "demoted_to_rolling": sorted(demoted),
+        }
+        write_doi_panels(history_events=[event])
+        logger.info(
+            "Rotated core to %s..%s: %d promoted, %d demoted",
+            desired_start,
+            desired_end,
+            len(promoted),
+            len(demoted),
+        )
+
+    return {
+        "core_window": [desired_start, desired_end],
+        "promoted": sorted(promoted),
+        "demoted": sorted(demoted),
+        "skipped_historical": skipped_historical,
+    }
+
+
 def get_eval_dois(closed_month: str) -> tuple[list[str], list[str]]:
     """Return ``(eval_dois, held_back_rolling)`` for a pipeline run.
 
-    Evals cover core plus rolling reviews whose ``cohort_month`` is on or
-    before *closed_month* (the last finished calendar month). Rolling DOIs
-    with no cohort yet, or published in a still-open month, are held back
-    so a mid-month run does not score an incomplete panel.
+    Evals cover the current core plus only the configured number of most-recent
+    closed rolling cohorts. This bounds first-time evaluation for a newly added
+    model instead of backfilling the full longitudinal history. Rolling DOIs
+    with no cohort yet, or published after *closed_month*, are held back.
     """
+    from config import query_cfg
+
+    if query_cfg.rolling_panel_months < 1:
+        raise ValueError("rolling_panel_months must be at least 1")
+    rolling_start = _shift_year_month(
+        closed_month, -(query_cfg.rolling_panel_months - 1)
+    )
     ready = get_dois_by_status(ProcessingStatus.FACTS_GENERATED)
     eval_dois: list[str] = []
     held_back: list[str] = []
@@ -491,10 +623,10 @@ def get_eval_dois(closed_month: str) -> tuple[list[str], list[str]]:
         if row.panel_type != PanelType.ROLLING:
             continue
         cohort = row.cohort_month
-        if cohort and cohort <= closed_month:
+        if cohort and rolling_start <= cohort <= closed_month:
             if row.doi in ready:
                 eval_dois.append(row.doi)
-        else:
+        elif not cohort or cohort > closed_month:
             held_back.append(row.doi)
     return sorted(eval_dois), sorted(held_back)
 

@@ -54,6 +54,7 @@ Example — interactive chat (non-deep-research models only)::
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import uuid
@@ -91,9 +92,9 @@ class SciConHarness:
         Model name.  Defaults: openai→``gpt-5.1``, claude→``claude-sonnet-4-5``,
         gemini→``gemini-3-pro-preview``, perplexity→``sonar-reasoning-pro``,
         azure→``DeepSeek-V4-Pro``, openrouter→``moonshotai/kimi-k3``.
-        Other OpenRouter models used in this project: ``z-ai/glm-5.2``
-        (GLM-5.2), ``qwen/qwen3.5-9b`` (Qwen3.5-9B), ``qwen/qwen3.7-max``
-        (Qwen3.7-max).
+        Other OpenRouter models used in this project: ``z-ai/glm-5.3``,
+        ``qwen/qwen3.8-max``, plus controls ``qwen/qwen3.8-27b`` and
+        ``minimax/minimax-m3``.
     api_key : str, optional
         Override the provider API key (otherwise read from env).
     base_url : str, optional
@@ -662,6 +663,32 @@ class SciConHarness:
                     doi, attempt + 1, self.max_format_retries, e, exc_info=True,
                 )
                 if attempt < self.max_format_retries - 1:
+                    # Honor OpenRouter/provider Retry-After (incl. 402 in-flight
+                    # budget) instead of immediately re-firing the same call.
+                    wait_s = 0.0
+                    try:
+                        from sciconharness.mcp_client.llm_providers.openrouter_provider import (
+                            is_rate_limit_error,
+                            parse_rate_limit_wait_time,
+                        )
+                        if is_rate_limit_error(e):
+                            wait_s = parse_rate_limit_wait_time(str(e)) or 120.0
+                            wait_s = float(wait_s) + 1.0
+                    except Exception:
+                        err_l = str(e).lower()
+                        if (
+                            "429" in err_l
+                            or "rate limit" in err_l
+                            or "in_flight" in err_l
+                            or "in-flight" in err_l
+                        ):
+                            wait_s = 121.0
+                    if wait_s > 0:
+                        logger.warning(
+                            "Backing off %.0fs before retrying %s (rate/in-flight limit)",
+                            wait_s, doi,
+                        )
+                        await asyncio.sleep(wait_s)
                     logger.info("Retrying query for %s...", doi)
                 else:
                     raise  # propagate on final attempt so query_batch can capture it

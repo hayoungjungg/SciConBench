@@ -218,7 +218,10 @@ All three fall back to their previous hardcoded defaults (`"high"` / `HIGH` / a 
 
 ### Azure Foundry Chat Completions (`provider="azure"`)
 
-Azure Foundry Chat Completions models (**DeepSeek-V4-Pro**) use the OpenAI-compatible **Chat Completions** API, not the OpenAI Responses API. Use `provider="azure"` so the harness routes through `AzureChatCompletionsProvider`.
+Azure Foundry Chat Completions models (**DeepSeek-V4-Pro**, plus control
+**DeepSeek-V4-Flash-0731**) use the OpenAI-compatible **Chat Completions**
+API, not the OpenAI Responses API. Use `provider="azure"` so the harness
+routes through `AzureChatCompletionsProvider`.
 
 The wire format differs from `OpenAIProvider` (nested `function` schema, `role=tool` result messages, an injected `system` message instead of top-level `instructions`), but the functionality and end outcomes are identical: same `RESEARCH_ASSISTANT_PROMPT`, the same one-tool-result-per-message loop (`MCPClient` treats it exactly like OpenAI, since neither defines `format_multiple_tool_response_message`), and the same retry contract (rate-limit backoff, timeout retry, `ContextLengthExceededError` on context-window overflows).
 
@@ -246,33 +249,40 @@ python -m sciconharness.cli_scripts.query_batch azure \
     --enable-tool-calling --enable-filtering
 ```
 
-Pass your Azure **deployment name** exactly as `--model` (`DeepSeek-V4-Pro`).
+Pass your Azure **deployment name** exactly as `--model` (`DeepSeek-V4-Pro`
+or the control deployment `DeepSeek-V4-Flash-0731`).
 
 ### OpenRouter (`provider="openrouter"`)
 
 [OpenRouter](https://openrouter.ai) exposes the same OpenAI-compatible **Chat Completions** API as `AzureChatCompletionsProvider`, routed to a single OpenRouter API key. Use `provider="openrouter"` so the harness routes through `OpenRouterProvider`. Models onboarded so far:
 
-| Model | `--model` slug |
-|-------|----------------|
-| Kimi K3 | `moonshotai/kimi-k3` |
-| GLM-5.2 | `z-ai/glm-5.2` |
-| Qwen3.5-9B | `qwen/qwen3.5-9b` |
-| Qwen3.7-max | `qwen/qwen3.7-max` |
+| Model | `--model` slug | Notes |
+|-------|----------------|-------|
+| Kimi K3 | `moonshotai/kimi-k3` | |
+| GLM-5.2 / 5.3 | `z-ai/glm-5.2`, `z-ai/glm-5.3` | |
+| Qwen3.5-9B | `qwen/qwen3.5-9b` | |
+| Qwen3.7-max | `qwen/qwen3.7-max` | |
+| Qwen3.8-max | `qwen/qwen3.8-max` | |
+| Qwen3.8 27B | `qwen/qwen3.8-27b` | **control** (SciConBench-Track) |
+| MiniMax M3 | `minimax/minimax-m3` | **control** (SciConBench-Track) |
 
 `OpenRouterProvider` reuses the exact same message-preparation, tool-loop, and retry/error-handling logic as `AzureChatCompletionsProvider` — same `RESEARCH_ASSISTANT_PROMPT`, same one-tool-result-per-message loop, same `ContextLengthExceededError`/rate-limit/timeout contract.
 
 Reasoning is maxed out via OpenRouter's unified `reasoning` object, but instead of hardcoding `effort="max"`, the provider **systematically discovers** each model's actual supported effort levels from [`GET /models`](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#discovering-per-model-reasoning-options) at construction time (cached per model per process, via the shared `reasoning_discovery.py` module — also used by `ClaudeProvider`/`OpenAIProvider`/`GeminiProvider`, see above) and sends the true ceiling explicitly:
 
-| Model | Discovered `supported_efforts` | Effort sent |
-|-------|-------------------------------|-------------|
-| Kimi K3 | `["max", "high", "low"]` | `"max"` |
-| GLM-5.2 | `["xhigh", "high"]` (no `"max"`!) | `"xhigh"` |
-| Qwen3.5-9B | *(key omitted — no effort selection exposed)* | *(none — sends `reasoning.max_tokens=4096` instead)* |
-| Qwen3.7-max | *(key omitted — no effort selection exposed)* | *(none — sends `reasoning.max_tokens=4096` instead)* |
+| Model | Discovered `supported_efforts` | Reasoning payload sent |
+|-------|-------------------------------|------------------------|
+| Kimi K3 | `["max", "high", "low"]` | `enabled` + `effort="max"` |
+| GLM-5.2 | `["xhigh", "high"]` (no `"max"`!) | `enabled` + `effort="xhigh"` |
+| Qwen3.8-max | `["xhigh", ...]` | `enabled` + `effort="xhigh"` |
+| Qwen3.8 27B (control) | `["xhigh", "medium", "low"]` | `enabled` + `effort="xhigh"` |
+| Qwen3.5-9B | *(key omitted — no effort levels)* | `enabled` + `max_tokens=4096` (no `effort`) |
+| Qwen3.7-max | *(key omitted — no effort levels)* | `enabled` + `max_tokens=4096` (no `effort`) |
+| MiniMax M3 (control) | *(key omitted — no effort levels)* | `enabled` + `max_tokens=4096` (no `effort`) |
 
 If discovery ever fails (network error, model delisted, etc.) the provider falls back to `effort="max"`, which OpenRouter clamps to whatever the model actually supports.
 
-Qwen is a special case: OpenRouter confirms (rather than just failing to report) that it doesn't expose effort selection at all, so instead of leaving reasoning depth entirely to the API's own unstated default, the provider sends an explicit `reasoning.max_tokens=4096` token budget for it.
+Reasoning is **always enabled** for these models. Ones that expose effort levels get the highest effort; ones that don't (older Qwen slugs, MiniMax M3) still turn reasoning on and send an explicit `reasoning.max_tokens=4096` budget instead of an `effort` string. Newer Qwen3.8 models advertise efforts and take the discovered ceiling.
 
 Reasoning is also **preserved** across tool-calling turns per [OpenRouter's best practices](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#preserving-reasoning-blocks): the provider reads back both `message.reasoning_details` (the full structured block) and the plaintext `message.reasoning`/`reasoning_content` alias, and echoes `reasoning_details` verbatim on the next turn's assistant message whenever a model returns it (falling back to the plaintext alias otherwise), so tool-call round trips resume the model's reasoning state exactly rather than dropping it.
 

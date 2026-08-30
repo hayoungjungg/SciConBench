@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SciConBench — A live benchmark for scientific conclusion synthesis</title>
+<meta name="description" content="SciConBench is a live benchmark that continuously evaluates frontier AI agents on scientific conclusion synthesis, using newly published Cochrane systematic reviews under a clean-room retrieval protocol." />
+<meta property="og:title" content="SciConBench" />
+<meta property="og:description" content="A live benchmark for scientific conclusion synthesis. Continuously evaluating frontier models on newly published systematic reviews." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://sciconbench.cs.princeton.edu" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<div id="demo-banner" class="demo-banner" hidden>
+  <strong>Preview build.</strong> Scores on this page are synthetic placeholders generated with
+  <code>--demo</code> while the judging stages finish. Do not cite them.
+</div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="#top">
+      <span class="nav-mark" aria-hidden="true"></span>
+      SciConBench
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#leaderboard">Leaderboard</a>
+      <a href="#trend">Trend</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#dataset">Dataset</a>
+      <a href="#method">Method</a>
+    </nav>
+    <div class="nav-status" id="nav-status" title="Status of the most recent monthly run">
+      <span class="pulse" aria-hidden="true"></span>
+      <span id="nav-status-text">Loading…</span>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ───────────────────────────── hero ───────────────────────────── -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-badge">
+        <span class="pulse" aria-hidden="true"></span>
+        Live benchmark · updated monthly
+      </div>
+      <h1 class="hero-title">SciConBench</h1>
+      <p class="hero-tagline" id="hero-tagline"></p>
+      <p class="hero-lede" id="hero-lede"></p>
+
+      <div class="hero-actions" id="hero-actions"></div>
+
+      <dl class="hero-stats" id="hero-stats"></dl>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── the live loop ──────────────────────── -->
+  <section class="section section--tight">
+    <div class="wrap">
+      <div class="loop">
+        <div class="loop-copy">
+          <h2 class="section-title">Benchmarks go stale. This one doesn't.</h2>
+          <p>
+            Every static benchmark built from published literature ends up inside the next
+            model's training corpus. SciConBench sidesteps that by drawing questions from
+            systematic reviews as they are published — and by re-running the full frontier
+            every month, so the leaderboard tracks capability rather than memorization.
+          </p>
+          <p>
+            Each month the pipeline discovers newly published Cochrane reviews, decomposes
+            their expert conclusions into atomic facts, and asks every tracked model the
+            clinical question those reviews set out to answer. Retrieval runs through a
+            clean-room proxy that hides the review itself, anything citing it, and anything
+            published after it.
+          </p>
+        </div>
+        <ol class="loop-steps">
+          <li><span>01</span><div><strong>Discover</strong>New systematic reviews, the month they appear.</div></li>
+          <li><span>02</span><div><strong>Decompose</strong>Expert conclusions split into atomic, checkable facts.</div></li>
+          <li><span>03</span><div><strong>Publish</strong>Questions merged into the public HuggingFace dataset.</div></li>
+          <li><span>04</span><div><strong>Evaluate</strong>Every tracked model queried under the clean-room harness.</div></li>
+          <li><span>05</span><div><strong>Judge</strong>Factual precision and recall, fact by fact.</div></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── leaderboard ────────────────────────── -->
+  <section class="section" id="leaderboard">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Leaderboard</h2>
+          <p class="section-sub" id="leaderboard-sub"></p>
+        </div>
+        <div class="metric-toggle" id="metric-toggle" role="group" aria-label="Sort metric">
+          <button data-metric="f1" class="is-active">F1</button>
+          <button data-metric="precision">Precision</button>
+          <button data-metric="recall">Recall</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="board" id="board">
+          <thead>
+            <tr>
+              <th class="col-rank">#</th>
+              <th class="col-model">Model</th>
+              <th class="col-num" data-metric="precision">Precision <span class="arrow">↑</span></th>
+              <th class="col-num" data-metric="recall">Recall <span class="arrow">↑</span></th>
+              <th class="col-num" data-metric="f1">F1 <span class="arrow">↑</span></th>
+              <th class="col-num col-hide-sm">Reviews</th>
+              <th class="col-num col-hide-sm">Evaluated</th>
+            </tr>
+          </thead>
+          <tbody id="board-body"></tbody>
+        </table>
+      </div>
+      <p class="footnote" id="board-footnote"></p>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── trend ────────────────────────────── -->
+  <section class="section" id="trend">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Capability over time</h2>
+          <p class="section-sub">
+            Proprietary frontier models are re-evaluated every month against the full
+            accumulated panel, so their scores move as both the models and the review set change.
+          </p>
+        </div>
+      </div>
+      <div class="card card--chart">
+        <div id="trend-chart" class="chart" role="img" aria-label="Model F1 over monthly runs"></div>
+        <div id="trend-legend" class="legend"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ────────────────────────── pipeline ─────────────────────────── -->
+  <section class="section" id="pipeline">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Latest run</h2>
+          <p class="section-sub" id="pipeline-sub"></p>
+        </div>
+      </div>
+      <div class="stages" id="stages"></div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── dataset ─────────────────────────── -->
+  <section class="section" id="dataset">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">A dataset that grows every month</h2>
+          <p class="section-sub">
+            A frozen <em>core</em> panel keeps month-to-month comparisons stable. On top of it,
+            each monthly <em>rolling</em> cohort adds reviews that no model could have seen during
+            training.
+          </p>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card card--chart">
+          <h3 class="card-title">Reviews in the benchmark</h3>
+          <div id="growth-chart" class="chart" role="img" aria-label="Cumulative reviews by cohort month"></div>
+          <div class="legend legend--static">
+            <span><i style="background:#5b8def"></i>Core panel</span>
+            <span><i style="background:#39d0a0"></i>Rolling cohorts</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3 class="card-title">Composition</h3>
+          <div id="dataset-facts" class="factlist"></div>
+          <h3 class="card-title card-title--spaced">Review types</h3>
+          <div id="review-types" class="bars"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── effort ──────────────────────────── -->
+  <section class="section" id="effort">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">What it costs to answer</h2>
+          <p class="section-sub">
+            Synthesis is a long-horizon task: models search, read, and re-read before
+            committing to a conclusion. Averages are per review, from the latest run of each model.
+          </p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="board board--compact" id="effort-table">
+          <thead>
+            <tr>
+              <th class="col-model">Model</th>
+              <th class="col-num">Tool calls</th>
+              <th class="col-num">Agent turns</th>
+              <th class="col-num">Input tokens</th>
+              <th class="col-num">Output tokens</th>
+              <th class="col-num col-hide-sm">Most used tool</th>
+            </tr>
+          </thead>
+          <tbody id="effort-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── method ──────────────────────────── -->
+  <section class="section" id="method">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">How scoring works</h2>
+          <p class="section-sub">
+            Long-form conclusions can't be graded by string match. SciConBench grades them
+            fact by fact.
+          </p>
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="card card--metric">
+          <span class="metric-tag">Factual precision</span>
+          <p>
+            The agent's conclusion is decomposed into atomic facts, and a judge labels each one
+            <em>supported</em>, <em>contradicted</em>, or <em>not supported</em> against the full
+            review. Contradictions are penalized twice — once for not being supported, once for
+            being wrong.
+          </p>
+          <code class="formula">(supported / total) × ((total − contradicted) / total)</code>
+        </div>
+        <div class="card card--metric">
+          <span class="metric-tag">Factual recall</span>
+          <p>
+            The expert conclusion is decomposed the same way, and the judge checks how many of
+            those facts the agent's conclusion actually conveys. This is what separates a
+            confident-sounding summary from a complete one.
+          </p>
+          <code class="formula">supported expert facts / total expert facts</code>
+        </div>
+        <div class="card card--metric">
+          <span class="metric-tag">Clean room</span>
+          <p>
+            All retrieval is proxied. The harness blocks the target review, any document citing
+            it, and anything published after its date, across web search, academic search, and
+            page fetches — so the answer cannot simply be looked up.
+          </p>
+          <code class="formula">config: tools + filtering</code>
+        </div>
+      </div>
+
+      <div class="faq" id="faq"></div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────────── news ───────────────────────────── -->
+  <section class="section section--tight" id="news">
+    <div class="wrap">
+      <h2 class="section-title">Updates</h2>
+      <ul class="news" id="news-list"></ul>
+    </div>
+  </section>
+
+  <!-- ────────────────────────── citation ─────────────────────────── -->
+  <section class="section" id="cite">
+    <div class="wrap">
+      <div class="grid-2 grid-2--wide-left">
+        <div>
+          <h2 class="section-title">Citation</h2>
+          <pre class="cite" id="citation"></pre>
+        </div>
+        <div>
+          <h2 class="section-title">Team</h2>
+          <ul class="team" id="team"></ul>
+          <p class="contact" id="contact"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <span id="footer-generated"></span>
+    <span class="footer-links" id="footer-links"></span>
+  </div>
+</footer>
+
+<script src="assets/charts.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

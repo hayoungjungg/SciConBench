@@ -24,7 +24,10 @@ data_collection:
   # One-time core-set sample (see `scicon-track init-core-set`). Closed window.
   # Drawn from the curated HuggingFace SciConBench dataset (protocols already
   # filtered), NOT raw Crossref. Up to core_per_month reviews per calendar
-  # month in the window. The recurring pipeline never resamples or backfills.
+  # month in the window. After a full year of rolling cohorts closes, the
+  # recurring pipeline rotates this 12-month core forward one cohort per month:
+  # the earliest core cohort becomes rolling and the oldest eligible rolling
+  # cohort becomes core.
   # If a newer .pubN of a tracked review appears, the old DOI is removed (the
   # core set shrinks) and the successor is added to that month's rolling panel,
   # not back into core. Rolling months find *new* reviews not already on
@@ -34,4 +37,5 @@ data_collection:
   core_window_end: 2026-06-30
   core_per_month: 10
   core_sample_seed: 42
+  core_rotation_after_months: 12
 

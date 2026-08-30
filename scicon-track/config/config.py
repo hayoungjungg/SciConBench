@@ -34,17 +34,19 @@ class DataCollectionConfig(BaseModel):
     core_window_end: date = date(2026, 6, 30)
     core_per_month: int = 10
     core_sample_seed: int = 42
+    # Once this many rolling months have closed, advance the 12-month core
+    # window by one cohort each month.
+    core_rotation_after_months: int = 12
 
 
 class QueryBatchConfig(BaseModel):
     """Models evaluated each monthly harness run.
 
-    All providers in ``default_models`` are queried every month. Add or
+    All providers in ``default_models`` are considered each run. Add or
     remove entries there to control which models are benchmarked. Each
     provider maps to either a single model name (``str``) or a list of
     model names (``list[str]``) — the latter lets a single provider (e.g.
-    ``openrouter``, which hosts Kimi K3, GLM-5.2, Qwen3.5-9B, Qwen3.7-max,
-    etc.) run several distinct models every run.
+    ``openrouter``) run several distinct models every run.
     """
 
     enable_tool_calling: bool = True
@@ -55,12 +57,27 @@ class QueryBatchConfig(BaseModel):
     # ``[[[...]]]`` conclusion of at least ``min_conclusion_length`` chars.
     max_format_retries: int = 4
     min_conclusion_length: int = 20
-    # Open-weight models listed here are queried once per DOI and then
-    # skipped on later runs. Every other model in ``default_models`` is
-    # treated as proprietary and is re-queried against the full
-    # core + accumulated-rolling universe every run. A brand-new model
-    # (zero response rows) is always queried against that universe on
-    # its first appearance, regardless of this list.
+    # Per-turn completion cap for SciConHarness.query() / providers. Caps
+    # OpenRouter in-flight credit reservations when left unset on large
+    # context models.
+    max_tokens: Optional[int] = 4096
+    # Query only this many most-recent closed rolling cohorts, in addition to
+    # the current core panel. This bounds first-time evaluation for new models.
+    rolling_panel_months: int = 4
+    # OpenRouter key-lane membership. Models in these lists are billed to
+    # OPENROUTER_API_KEY_BASE_MODEL / OPENROUTER_API_KEY respectively;
+    # remaining openrouter models use OPENROUTER_API_KEY_FILTERING. The three
+    # lanes run concurrently (one active model each → up to 3 OpenRouter
+    # requests at once). Keep ≤2 models per lane.
+    openrouter_base_model_lane: list[str] = []
+    openrouter_generic_lane: list[str] = []
+    # Default: every model queries each DOI once. Models listed here are
+    # re-queried against the current core + rolling window every run. A
+    # brand-new model (zero response rows) evaluates that bounded universe
+    # on first appearance, regardless of this list.
+    reevaluate_always: list[str] = []
+    # Deprecated alias kept for old YAMLs; ignored if ``reevaluate_always``
+    # is the source of truth. Prefer leaving this empty.
     evaluate_once: list[str] = []
 
     def iter_models(self) -> list[tuple[str, str]]:
@@ -72,8 +89,8 @@ class QueryBatchConfig(BaseModel):
         return pairs
 
     def reeval_policy(self, model: str) -> str:
-        """Return ``"once"`` (open-weight) or ``"always"`` (proprietary)."""
-        return "once" if model in self.evaluate_once else "always"
+        """Return ``"once"`` (default) or ``"always"`` (opt-in re-query)."""
+        return "always" if model in self.reevaluate_always else "once"
 
 
 class HuggingFaceSourceConfig(BaseModel):

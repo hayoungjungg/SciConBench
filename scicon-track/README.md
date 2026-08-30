@@ -79,8 +79,8 @@ scicon-track workflow --once
 
 Runs the full monthly pipeline.  Pass `--once` to execute a single run and exit;
 omit it to start a Prefect scheduler that fires on the 1st of each calendar
-month (`cron 0 0 1 * *`, America/New_York). Requires a core set created once
-via `scicon-track init-core-set`.
+month (`cron 0 0 1 * *`, America/New_York). Use `--interval bimonthly` for the
+1st of odd months. Requires a core set created once via `scicon-track init-core-set`.
 
 ```
 Usage: scicon-track workflow [OPTIONS]
@@ -91,7 +91,7 @@ Options:
   --batch-size INT        Atomic-fact batch size.  [default: 500]
   --rolling-month YYYY-MM Latest closed month for evals (default: previous calendar month).
   --interval [monthly|bimonthly]
-                          Scheduler cadence (ignored with --once).
+                          Scheduler cadence (ignored with --once).  [default: monthly]
   --help                  Show this message and exit.
 ```
 
@@ -208,11 +208,11 @@ The `workflow` command executes these Prefect tasks in order:
 | 2 | `task_load_core_set` | Read the finalized core set from `data_track/core_set.json` (fails if `init-core-set` has not finished) |
 | 3 | `task_discover_and_prune` | Discover new CDSR reviews not already on HuggingFace or in the DB; if a newer `.pubN` of a tracked review appears, drop the old DOI and add the successor as rolling (never back into core). `cohort_month` is the publication month, set after text extraction. |
 | 4 | `task_download_pdfs` | Download PDFs via Wiley TDM API. A 404 is retried on later runs; after 5 distinct calendar months of 404s the DOI is skipped. |
-| 5 | `task_extract_text` | Extract reference text with pdfplumber and assign each rolling DOI to its publication-month panel |
+| 5 | `task_extract_text` | Extract reference text, assign rolling publication-month cohorts, and (after 12 rolling months) advance the 12-month core by one cohort |
 | 6 | `task_generate_questions` | Generate clinical questions |
 | 7 | `task_generate_cochrane_facts_batch` | Atomic-fact decomposition of Cochrane conclusions |
 | 8 | `task_upload_to_hf` | Merge + publish **closed-month** core+rolling rows to `hayoungjung/SciConBench` (benchmark/test); refresh `sciconharness` Cochrane-filter caches; then (production only) prepend a newest-first Hub README changelog entry in a second commit. Superseded `.pubN` DOIs are dropped from the merge. |
-| 9 | `task_run_queries` | Query models with SciConHarness. Open-weight models (`evaluate_once` in `query_batch_config.yaml`) are queried once per DOI; proprietary models are re-queried against core + all **closed** rolling panels every run. Rolling reviews published in the still-open calendar month are ingested but not queried until that month ends. A newly added model has zero rows and automatically backfills the (closed) universe. Only DOIs at `FACTS_GENERATED` in that universe are queried. Each pair is retried per-item, then leftover pairs are re-queried in whole-stage rounds; leftover pending DOI/model pairs fail the task. |
+| 9 | `task_run_queries` | Query models with SciConHarness against the current core plus the latest **4** closed rolling cohorts. By default every model queries each DOI **once** (skip if any prior response exists). Opt into per-run re-query via `reevaluate_always` in `query_batch_config.yaml`. A newly added model therefore evaluates the core and four-month rolling window, never the entire rolling history. Only `FACTS_GENERATED` DOIs are queried. Each pair is retried per-item, then leftover pairs are re-queried in whole-stage rounds; leftover pending DOI/model pairs fail the task. |
 | 10 | `task_generate_response_facts_by_model` | Atomic-fact decomposition of model responses |
 | 11 | `task_run_precision` | LLM-judge precision analysis |
 | 12 | `task_run_recall` | LLM-judge recall analysis |
@@ -230,8 +230,8 @@ Every DOI in the database belongs to one of two panels:
 
 | Panel | Description |
 |-------|-------------|
-| `core` | A **fixed** sample of up to 10 *already-curated* HuggingFace SciConBench reviews per calendar month from 1 Jul 2025 – 30 Jun 2026, drawn once via `scicon-track init-core-set`. Never resampled or backfilled. Proprietary models are re-queried against it every month (drift); open-weight models are queried once. If a newer `.pubN` of a tracked review appears, the old DOI is removed (the set shrinks) and the successor is added to the **rolling** panel (tagged with the successor's publication month), not back into core. |
-| `rolling` | New CDSR reviews not already on HuggingFace. Each review is tagged with the calendar month it was **published** (`cohort_month`). A run on any day finds all new reviews, downloads/extracts them, and buckets them by publication month — so July-published reviews are the July panel even if they were found in August, and August-published reviews found on Aug 18 wait to be evaluated until September. Wiley TDM → extract → questions/facts → merge into `hayoungjung/SciConBench` **only after that publication month closes** (open-month rows stay local). Open-weight models are queried once per rolling DOI; proprietary models are re-queried against **all closed** rolling panels every run. A newer `.pubN` of a rolling DOI is handled the same way as core. |
+| `core` | Initially, up to 10 curated reviews per month from Jul 2025–Jun 2026, drawn once via `scicon-track init-core-set`. After 12 rolling cohorts have closed, this becomes a monthly sliding 12-cohort window: the earliest core cohort is demoted to rolling and the oldest rolling cohort is promoted to core. For example, the Jun 2027 close replaces Jul 2025 with Jul 2026; the Jul 2027 close replaces Aug 2025 with Aug 2026. This keeps the core no more than two years old. Every model queries each current core DOI once. |
+| `rolling` | New CDSR reviews not already on HuggingFace, tagged by publication `cohort_month`. Open-month rows stay local until the month closes. Query evaluation includes only the latest `rolling_panel_months` closed cohorts (default **4**) outside the current core; older rolling history remains stored and published but is not backfilled for newly added models. A newer `.pubN` is assigned to rolling even when it replaces a core DOI. |
 
 Each rolling review is tagged with its `cohort_month` (e.g. `"2026-07"`), which is the publication month, not the run date.
 Panel membership is mirrored to `data_track/doi_panels.json` for inspection.
@@ -254,35 +254,54 @@ All behaviour is controlled by YAML files in `scicon-track/config/`.  No code ch
 `default_models` maps each provider to either a single model name or a
 **list** of model names — the list form lets one provider run several
 distinct models every run (used for OpenRouter, which hosts multiple
-models behind a single provider):
+models behind a single provider).
+
+Current monthly roster is **7 frontier models + 3 controls** (10 total).
+Controls are all open-weight, frontier models as of the start of the study
+running alongside the primary panel for comparison:
+
+| Role | Models |
+|------|--------|
+| Primary | GPT-5.6 Sol, Claude Opus 5, Gemini 3.7 Flash, DeepSeek-V4-Pro, Kimi K3, GLM-5.3, Qwen3.8-max |
+| Control | DeepSeek-V4-Flash-0731, Qwen3.8 27B, MiniMax M3 |
 
 ```yaml
+rolling_panel_months: 4             # newest closed rolling cohorts to evaluate
+
 default_models:
   openai: gpt-5.6-sol
   claude: claude-opus-5
   gemini: gemini-3.7-flash
   azure:
     - DeepSeek-V4-Pro              # Azure Foundry Chat Completions
-    - DeepSeek-V4-Flash-0731
-  openrouter:                     # one provider, several models
-    - moonshotai/kimi-k3          # Kimi K3
-    - z-ai/glm-5.3                # GLM-5.3
-    - qwen/qwen3.8-max            # Qwen3.8-max
+    - DeepSeek-V4-Flash-0731       # control
+  openrouter:                      # one provider, several models
+    - moonshotai/kimi-k3           # Kimi K3
+    - z-ai/glm-5.3                 # GLM-5.3
+    - qwen/qwen3.8-max             # Qwen3.8-max
+    - qwen/qwen3.8-27b             # control
+    - minimax/minimax-m3           # control
 
-evaluate_once:                    # open-weight: query each DOI once, ever
-  - DeepSeek-V4-Pro
-  - DeepSeek-V4-Flash-0731
-  - moonshotai/kimi-k3
+# OpenRouter split across three concurrent key lanes (≤2 models each):
+openrouter_base_model_lane:        # OPENROUTER_API_KEY_BASE_MODEL
   - z-ai/glm-5.3
-```
+  - qwen/qwen3.8-27b               # control
+openrouter_generic_lane:           # OPENROUTER_API_KEY
+  - qwen/qwen3.8-max
+  - minimax/minimax-m3             # control
+# remaining openrouter models → OPENROUTER_API_KEY_FILTERING
+#   (moonshotai/kimi-k3)
 
+reevaluate_always: []              # empty = all models query each DOI once
+```
 Every `(provider, model)` pair produced by `QueryBatchConfig.iter_models()`
 is queried in `task_run_queries` under a single **clean-room** configuration
-(`tools_filter`). Open-weight models listed in `evaluate_once` skip any DOI
-they have already answered; everything else (proprietary) is re-queried
-against core + all **closed** rolling panels every run. Adding a new model
-to `default_models` is enough — the next cron run sees zero response rows
-for it and backfills that closed universe. No need to pause the scheduler.
+(`tools_filter`). By default every model skips DOIs it has already answered;
+later runs only pick up newly closed rolling DOIs (and still-missing pairs
+within the four-month rolling window). Put a model in `reevaluate_always` only
+if you want the current core + rolling window re-queried every run. Adding a
+new model name to `default_models` evaluates the current core and latest four
+rolling cohorts; older rolling history is deliberately not backfilled.
 
 ### Pipeline concurrency
 
@@ -292,14 +311,21 @@ credential so nothing contends with itself for a rate limit — rather than
 maximizing parallelism everywhere.
 
 **Query stage (`task_run_queries` / `_run_provider_lane`, step 9).**
-`(provider, model)` pairs are grouped into **four lanes** (`QUERY_LANES`), and
-lanes run concurrently against each other via `asyncio.gather`; *within* a
-lane, models — and DOIs within a model — are queried strictly sequentially:
+`(provider, model)` pairs are grouped into **lanes** (`QUERY_LANES` plus
+three OpenRouter key lanes), and lanes run concurrently against each other
+via `asyncio.gather`; *within* a lane, models — and DOIs within a model —
+are queried strictly sequentially:
 
-- `openrouter` — Kimi K3, GLM-5.3, Qwen3.8-max (`OPENROUTER_API_KEY*` /
-  filtering variant under the clean-room config).
+- `openrouter_filtering` — Kimi K3 alone on
+  **`OPENROUTER_API_KEY_FILTERING`** (falls back to `OPENROUTER_API_KEY`).
+- `openrouter_base_model` — GLM-5.3 + control Qwen3.8 27B on
+  **`OPENROUTER_API_KEY_BASE_MODEL`** (`openrouter_base_model_lane`).
+- `openrouter_generic` — Qwen3.8-max + control MiniMax M3 on
+  **`OPENROUTER_API_KEY`** (`openrouter_generic_lane`).
+  The three OpenRouter lanes run concurrently → **up to 3 OpenRouter
+  requests at once** (prefer ≤2 models per lane).
 - `azure_openai` — OpenAI GPT (`gpt-5.6-sol`) **then** DeepSeek-V4-Pro /
-  DeepSeek-V4-Flash-0731, all on **`COCHRANE_DASHBOARD_OPENAI_KEY`** +
+  DeepSeek-V4-Flash-0731 (control), all on **`COCHRANE_DASHBOARD_OPENAI_KEY`** +
   **`COCHRANE_DASHBOARD_BASE_URL`** (falls back to `AZURE_OPENAI_KEY` /
   `OPENAI_BASE_URL` if unset). GPT always runs before DeepSeek so they
   never share the Cochrane Dashboard quota concurrently.
@@ -358,7 +384,7 @@ to `data_track/results/<run_month>/`). Static benchmark runs still default
 to `sciconharness/logs/` when `log_dir` is unset.
 
 The `<run_month>` partition matters because the pipeline runs monthly (or
-bimonthly) against a fixed "core" sample plus a rolling panel: the same
+bimonthly) against a sliding core plus a bounded rolling panel: the same
 DOI/model pair can legitimately get queried again in a later month, and
 without partitioning by month that re-run would silently overwrite the
 earlier month's file even though the DB keeps them as distinct rows (unique

@@ -45,9 +45,10 @@ python -m sciconharness.cli_scripts.query_batch azure \
     --enable-tool-calling --enable-filtering
 ```
 
-### OpenRouter models (Kimi K3 / GLM-5.2 / Qwen3.5-9B / Qwen3.7-max)
+### OpenRouter models (Kimi K3 / GLM / Qwen3.8 / MiniMax M3)
 
-Same procedure as above with `provider=openrouter`. Uses `OPENROUTER_API_KEY` in `.env`.
+Same procedure as above with `provider=openrouter`. Uses `OPENROUTER_API_KEY` in `.env`
+(or `OPENROUTER_API_KEY_FILTERING` / `OPENROUTER_API_KEY_BASE_MODEL` when those are set).
 
 ```bash
 python -m sciconharness.cli_scripts.query_batch openrouter \
@@ -56,17 +57,23 @@ python -m sciconharness.cli_scripts.query_batch openrouter \
     --enable-tool-calling --enable-filtering
 
 python -m sciconharness.cli_scripts.query_batch openrouter \
-    --model z-ai/glm-5.2 \
+    --model z-ai/glm-5.3 \
     --doi-questions data/doi_questions.json \
     --enable-tool-calling --enable-filtering
 
 python -m sciconharness.cli_scripts.query_batch openrouter \
-    --model qwen/qwen3.5-9b \
+    --model qwen/qwen3.8-max \
+    --doi-questions data/doi_questions.json \
+    --enable-tool-calling --enable-filtering
+
+# Controls
+python -m sciconharness.cli_scripts.query_batch openrouter \
+    --model qwen/qwen3.8-27b \
     --doi-questions data/doi_questions.json \
     --enable-tool-calling --enable-filtering
 
 python -m sciconharness.cli_scripts.query_batch openrouter \
-    --model qwen/qwen3.7-max \
+    --model minimax/minimax-m3 \
     --doi-questions data/doi_questions.json \
     --enable-tool-calling --enable-filtering
 ```

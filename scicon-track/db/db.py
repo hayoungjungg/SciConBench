@@ -1,8 +1,8 @@
 """SQLAlchemy ORM models for SciConBench-Track.
 
 Schema additions vs the static benchmark:
-  - DOIInfo.panel_type   – CORE (stable set) or ROLLING (monthly additions)
-  - DOIInfo.cohort_month – "YYYY-MM" for rolling reviews; NULL for core
+  - DOIInfo.panel_type   – CORE (sliding annual set) or ROLLING (monthly additions)
+  - DOIInfo.cohort_month – "YYYY-MM" for rolling/promoted reviews; initial core may be NULL
   - DOIInfo.processing_status – tracks progress through the TDM-based pipeline
   - DOIInfo.pdf_path     – local path to the downloaded PDF (rolling only)
   - DOIInfo.added_at     – when the DOI was registered
@@ -55,7 +55,7 @@ class DOIInfo(Base):
     panel_type: Mapped[PanelType] = mapped_column(default=PanelType.ROLLING)
     cohort_month: Mapped[Optional[str]] = mapped_column(
         nullable=True, default=None,
-        comment="YYYY-MM string for rolling reviews; NULL for core set",
+        comment="Publication YYYY-MM; NULL only for initial core rows",
     )
     processing_status: Mapped[ProcessingStatus] = mapped_column(
         default=ProcessingStatus.REGISTERED
