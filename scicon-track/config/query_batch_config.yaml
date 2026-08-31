@@ -14,10 +14,10 @@ enable_filtering: true
 max_format_retries: 4
 min_conclusion_length: 20
 
-# Per-turn completion cap passed to SciConHarness / providers. Also keeps
-# OpenRouter's in-flight credit reservation bounded (unset max_tokens on
-# large-context models can 402 even with credits remaining).
-max_tokens: 4096
+# Per-turn output cap for every configured provider (mapped to
+# max_output_tokens for GPT/Gemini and max_tokens elsewhere). Also bounds
+# OpenRouter's in-flight credit reservation.
+max_tokens: 8192
 
 # Evaluate the current core plus only the most recent N closed rolling cohorts.
 # This prevents a newly added model from backfilling the entire rolling history.
@@ -42,15 +42,18 @@ default_models:
     - qwen/qwen3.8-27b    # control
     - minimax/minimax-m3  # control
 
-# OpenRouter key-lane split (3 concurrent lanes, ≤2 models each).
-# Remaining openrouter models (not listed below) use OPENROUTER_API_KEY_FILTERING.
+# OpenRouter key assignment (NOT concurrent lanes — all OpenRouter models
+# run strictly one at a time in a single query lane).
+# Models in base_model_lane → OPENROUTER_API_KEY_BASE_MODEL.
+# Everything else (listed in generic_lane or unlisted) → OPENROUTER_API_KEY.
+# Pipeline run order = base_model_lane list, then generic_lane list.
 openrouter_base_model_lane:          # OPENROUTER_API_KEY_BASE_MODEL
   - z-ai/glm-5.3
-  - qwen/qwen3.8-27b                 # control
-openrouter_generic_lane:             # OPENROUTER_API_KEY
   - qwen/qwen3.8-max
+openrouter_generic_lane:             # OPENROUTER_API_KEY
+  - moonshotai/kimi-k3               # first among this key's models
+  - qwen/qwen3.8-27b                 # control
   - minimax/minimax-m3               # control
-# → filtering lane: moonshotai/kimi-k3
 
 # Default policy: every model evaluates each DOI once, ever. Later monthly
 # runs only pick up newly closed rolling DOIs (and missing responses still

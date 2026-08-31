@@ -593,38 +593,37 @@ def task_generate_cochrane_facts_batch(batch: dict, questions: dict) -> None:
 # lane, models are queried strictly sequentially, one full DOI pass at a
 # time. Lanes, each with its own credential / rate-limit domain:
 #
-#   openrouter_filtering  — OPENROUTER_API_KEY_FILTERING
-#   openrouter_base_model — OPENROUTER_API_KEY_BASE_MODEL
-#   openrouter_generic    — OPENROUTER_API_KEY
-#   azure_openai          — OpenAI GPT then DeepSeek (COCHRANE_DASHBOARD_*)
-#   azure_anthropic       — Claude on Azure (AZURE_ANTHROPIC_*)
-#   gemini                — Gemini (Vertex / GOOGLE_*)
+#   openrouter       — all OpenRouter models, strictly one at a time
+#                      (key still chosen per model: BASE_MODEL vs GENERIC)
+#   azure_openai     — OpenAI GPT then DeepSeek (COCHRANE_DASHBOARD_*)
+#   azure_anthropic  — Claude on Azure (AZURE_ANTHROPIC_*)
+#   gemini           — Gemini (Vertex / GOOGLE_*)
 #
-# The three openrouter_* lanes run at the same time → up to 3 concurrent
-# OpenRouter requests (one per key). Membership:
-#   base_model ← query_cfg.openrouter_base_model_lane
-#   generic    ← query_cfg.openrouter_generic_lane
-#   filtering  ← remaining provider=openrouter models
-# Keep ≤2 models per OpenRouter lane.
+# OpenRouter is a single lane on purpose: concurrent OpenRouter requests
+# (even on different keys of the same account) amplify 402 in-flight /
+# 429 pressure. Within the lane, models run sequentially in YAML order
+# (base_model_lane list, then generic_lane list, then any remainder).
 #
 # Within azure_openai, openai GPT always runs before azure DeepSeek models
 # so the shared Cochrane Dashboard quota is not contended by two models at
 # once. A single SciConHarness instance is never called concurrently (it
 # mutates per-instance state, e.g. the OpenRouter sticky-routing session_id).
 QUERY_LANES: dict[str, tuple[str, ...]] = {
+    "openrouter": ("openrouter",),
     "azure_openai": ("openai", "azure"),
     "azure_anthropic": ("claude",),
     "gemini": ("gemini",),
-    # openrouter is bucketed separately in task_run_queries (three key lanes).
 }
 
-OPENROUTER_FILTERING_LANE = "openrouter_filtering"
+# Key-affinity labels (not concurrent lanes). Used by resume/smoke scripts
+# and per-model credential selection inside the single openrouter lane.
+OPENROUTER_LANE = "openrouter"
 OPENROUTER_BASE_MODEL_LANE = "openrouter_base_model"
 OPENROUTER_GENERIC_LANE = "openrouter_generic"
 OPENROUTER_LANE_KEY_ENV: dict[str, str] = {
-    OPENROUTER_FILTERING_LANE: "OPENROUTER_API_KEY_FILTERING",
     OPENROUTER_BASE_MODEL_LANE: "OPENROUTER_API_KEY_BASE_MODEL",
     OPENROUTER_GENERIC_LANE: "OPENROUTER_API_KEY",
+    OPENROUTER_LANE: "OPENROUTER_API_KEY",  # default print / fallback
 }
 
 # Within the azure_openai lane, force GPT before DeepSeek regardless of
@@ -658,14 +657,14 @@ def _resolve_query_credentials(
     - ``claude``: Azure Anthropic Foundry (``AZURE_ANTHROPIC_*``).
       ``AZURE_ANTHROPIC_RESOURCE_NAME`` is still read from the env inside
       ``create_provider()`` / ``ClaudeProvider``.
-    - ``openrouter``: key forced from the lane
-      (``OPENROUTER_API_KEY_FILTERING``, ``OPENROUTER_API_KEY_BASE_MODEL``,
-      or ``OPENROUTER_API_KEY``). Non-generic lanes fall back to
-      ``OPENROUTER_API_KEY`` if their specific key is unset.
+    - ``openrouter``: key chosen per model from YAML membership
+      (``openrouter_base_model_lane`` → ``OPENROUTER_API_KEY_BASE_MODEL``,
+      else ``OPENROUTER_API_KEY``). All OpenRouter models still share one
+      sequential query lane so only one OpenRouter request is in flight.
     - Everything else: leave unset so ``create_provider()`` resolves from env.
     """
-    del model  # reserved for future per-model overrides
     if provider in ("openai", "azure"):
+        del model  # unused for these providers
         return (
             _env_api_key("COCHRANE_DASHBOARD_OPENAI_KEY", "AZURE_OPENAI_KEY"),
             os.environ.get("COCHRANE_DASHBOARD_BASE_URL")
@@ -673,16 +672,14 @@ def _resolve_query_credentials(
             os.environ.get("OPENAI_API_VERSION"),
         )
     if provider == "claude":
+        del model
         return (
             _env_api_key("AZURE_ANTHROPIC_API_KEY"),
             os.environ.get("AZURE_ANTHROPIC_BASE_URL"),
             None,
         )
     if provider == "openrouter":
-        key_env = OPENROUTER_LANE_KEY_ENV.get(
-            lane_name or "", "OPENROUTER_API_KEY_FILTERING"
-        )
-        # Generic lane is already OPENROUTER_API_KEY; other lanes fall back to it.
+        key_env = _openrouter_key_env_for_model(model)
         if key_env == "OPENROUTER_API_KEY":
             return _env_api_key("OPENROUTER_API_KEY"), os.environ.get("OPENROUTER_BASE_URL"), None
         return (
@@ -690,7 +687,23 @@ def _resolve_query_credentials(
             os.environ.get("OPENROUTER_BASE_URL"),
             None,
         )
+    del model
+    del lane_name
     return None, None, None
+
+
+def _openrouter_key_env_for_model(
+    model: str,
+    *,
+    base_model_lane: list[str] | None = None,
+) -> str:
+    """Env var name for the OpenRouter key this model should bill to."""
+    if base_model_lane is None:
+        from config import query_cfg
+        base_model_lane = list(query_cfg.openrouter_base_model_lane)
+    if model in base_model_lane:
+        return "OPENROUTER_API_KEY_BASE_MODEL"
+    return "OPENROUTER_API_KEY"
 
 
 def _openrouter_lane_for_model(
@@ -699,17 +712,16 @@ def _openrouter_lane_for_model(
     base_model_lane: list[str],
     generic_lane: list[str],
 ) -> str:
-    """Which OpenRouter key-lane a model belongs to.
+    """Key-affinity label for a model (not a concurrent lane).
 
-    Explicit lane lists win; anything else goes to the filtering lane.
-    If a model appears in both explicit lists, base_model wins and a
-    warning should be logged by the caller.
+    Kept for resume/smoke scripts that pin a model onto BASE_MODEL vs
+    GENERIC via the YAML membership lists. The query stage always places
+    every OpenRouter model into the single ``openrouter`` lane.
     """
+    _ = generic_lane
     if model in base_model_lane:
         return OPENROUTER_BASE_MODEL_LANE
-    if model in generic_lane:
-        return OPENROUTER_GENERIC_LANE
-    return OPENROUTER_FILTERING_LANE
+    return OPENROUTER_GENERIC_LANE
 
 
 def _round_robin_shards(items: list, n: int) -> list[list]:
@@ -762,7 +774,7 @@ async def _run_provider_lane(
     run_month: str,
     max_format_retries: int,
     min_conclusion_length: int,
-    max_tokens: int | None = 4096,
+    max_tokens: int | None = 8192,
 ) -> None:
     """Sequentially query every (provider, model) in one lane, over all DOIs.
 
@@ -804,8 +816,8 @@ async def _run_provider_lane(
             provider, model, lane_name=lane_name,
         )
 
-        # OpenRouter gets its lane's key forced here (FILTERING / BASE_MODEL /
-        # GENERIC). Gemini leaves api_key/base_url unset so create_provider()
+        # OpenRouter gets its lane's key forced here (BASE_MODEL / GENERIC).
+        # Gemini leaves api_key/base_url unset so create_provider()
         # resolves Vertex AI from env. Azure OpenAI (openai + DeepSeek) and
         # Azure Anthropic (claude) get credentials forced so the track never
         # silently falls back to the wrong Azure resource.
@@ -894,26 +906,25 @@ async def _run_provider_lane(
                         )
                         if attempt < ITEM_RETRY_ATTEMPTS:
                             wait = ITEM_RETRY_BACKOFF_SECS
-                            # OpenRouter 402 in_flight / 429 often carry Retry-After.
+                            # OpenRouter 402 in_flight / 429 — long backoff floor.
                             try:
                                 from sciconharness.mcp_client.llm_providers.openrouter_provider import (
                                     is_rate_limit_error,
-                                    parse_rate_limit_wait_time,
+                                    rate_limit_backoff_secs,
                                 )
                                 if is_rate_limit_error(exc):
-                                    hinted = parse_rate_limit_wait_time(str(exc))
-                                    if hinted is not None:
-                                        wait = max(wait, float(hinted) + 1.0)
-                                    else:
-                                        wait = max(wait, 120.0)
+                                    wait = rate_limit_backoff_secs(
+                                        str(exc), attempt=attempt - 1,
+                                    )
                             except Exception:
                                 err_l = str(exc).lower()
                                 if (
                                     "in_flight" in err_l
                                     or "in-flight" in err_l
                                     or "429" in err_l
+                                    or "rate limit" in err_l
                                 ):
-                                    wait = max(wait, 120.0)
+                                    wait = max(wait, 300.0)
                             print(
                                 f"Backing off {wait:.0f}s before retry "
                                 f"({provider}/{model} doi={doi})"
@@ -966,11 +977,11 @@ async def task_run_queries(
 
     (provider, model) pairs are grouped into lanes (QUERY_LANES) that run
     concurrently against each other; within a lane, models are queried
-    strictly sequentially (see _run_provider_lane). OpenRouter is split
-    into three key lanes (FILTERING + BASE_MODEL + GENERIC) for up to 3
-    concurrent OpenRouter requests. Other lanes: azure_openai (GPT then
-    DeepSeek on COCHRANE_DASHBOARD_*), azure_anthropic (Claude on
-    AZURE_ANTHROPIC_*), gemini.
+    strictly sequentially (see _run_provider_lane). All OpenRouter models
+    share one sequential lane (at most one OpenRouter request in flight);
+    per-model keys still follow openrouter_base_model_lane vs generic.
+    Other lanes: azure_openai (GPT then DeepSeek on COCHRANE_DASHBOARD_*),
+    azure_anthropic (Claude on AZURE_ANTHROPIC_*), gemini.
     """
     from config import query_cfg
     from db.utils import get_questions, get_reviews_from_db
@@ -1024,7 +1035,7 @@ async def task_run_queries(
     # Bucket (provider, model) pairs into lanes; anything not covered by
     # QUERY_LANES falls into its own "other" lane so nothing is silently
     # dropped if a new provider is added later without updating the map.
-    # openrouter is split into three key lanes; azure_openai is sorted so
+    # openrouter is one sequential lane; azure_openai is sorted so
     # openai GPT always precedes azure DeepSeek.
     base_or_models = list(query_cfg.openrouter_base_model_lane)
     generic_or_models = list(query_cfg.openrouter_generic_lane)
@@ -1043,7 +1054,7 @@ async def task_run_queries(
     if overlap:
         print(
             f"Warning: models listed in both openrouter_base_model_lane and "
-            f"openrouter_generic_lane (base_model wins): {overlap}"
+            f"openrouter_generic_lane (base_model key wins): {overlap}"
         )
 
     lane_of_provider: dict[str, str] = {
@@ -1053,14 +1064,7 @@ async def task_run_queries(
     }
     lanes: dict[str, list[tuple[str, str]]] = {}
     for provider, model in models:
-        if provider == "openrouter":
-            lane_name = _openrouter_lane_for_model(
-                model,
-                base_model_lane=base_or_models,
-                generic_lane=generic_or_models,
-            )
-        else:
-            lane_name = lane_of_provider.get(provider, "other")
+        lane_name = lane_of_provider.get(provider, "other")
         lanes.setdefault(lane_name, []).append((provider, model))
     if "azure_openai" in lanes:
         # Stable sort: openai GPT before azure DeepSeek; keep YAML order
@@ -1068,24 +1072,33 @@ async def task_run_queries(
         lanes["azure_openai"].sort(
             key=lambda pm: _AZURE_OPENAI_LANE_ORDER.get(pm[0], 99),
         )
+    # OpenRouter: one sequential lane. Order = base_model_lane list, then
+    # generic_lane list, then any unlisted remainder in default_models order.
+    if OPENROUTER_LANE in lanes:
+        rank: dict[str, int] = {}
+        i = 0
+        for m in base_or_models + generic_or_models:
+            if m not in rank:
+                rank[m] = i
+                i += 1
+
+        def _or_key(pm: tuple[str, str], _rank: dict[str, int] = rank) -> tuple[int, str]:
+            model = pm[1]
+            return (_rank.get(model, len(_rank)), model)
+
+        lanes[OPENROUTER_LANE].sort(key=_or_key)
 
     print(
         f"Running {len(lanes)} query lane(s) concurrently "
         f"({', '.join(f'{name}: {len(m)} model(s)' for name, m in lanes.items())})..."
     )
-    for lane_name, lane_models in lanes.items():
-        if lane_name in OPENROUTER_LANE_KEY_ENV:
-            key_env = OPENROUTER_LANE_KEY_ENV[lane_name]
-            n = len(lane_models)
-            if n > 2:
-                print(
-                    f"Warning: [{lane_name}] has {n} models (prefer ≤2 per "
-                    f"OpenRouter key lane): {[m for _, m in lane_models]}"
-                )
-            print(
-                f"  [{lane_name}] key={key_env} models="
-                f"{[m for _, m in lane_models]}"
-            )
+    if OPENROUTER_LANE in lanes:
+        print(
+            f"  [{OPENROUTER_LANE}] sequential (1 OpenRouter request at a time); "
+            f"models={[m for _, m in lanes[OPENROUTER_LANE]]}"
+        )
+        for _, model in lanes[OPENROUTER_LANE]:
+            print(f"    - {model} key={_openrouter_key_env_for_model(model, base_model_lane=base_or_models)}")
     leftover: list[tuple[str, str, str]] = []
     for round_i in range(1, STAGE_ROUNDS + 1):
         leftover = _leftover_queries(models, dois, run_month, config_label)

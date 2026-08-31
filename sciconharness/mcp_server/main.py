@@ -58,7 +58,11 @@ from .apis.serper_apis import (
     fetch_webpage_content,
     search_serper,
 )
-from .apis.jina_apis import JinaWebpageResponse, fetch_webpage_content_jina
+from .apis.jina_apis import (
+    JinaWebpageResponse,
+    fetch_webpage_content_jina,
+    require_jina_summarization_ready,
+)
 from .cache import set_cache_enabled
 
 dotenv.load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")  # SciConBench/.env
@@ -79,6 +83,17 @@ def _check_required_api_keys() -> None:
             + "\n".join(f"  {k}" for k in missing)
             + "\n\nAdd them to your .env file at the project root and restart."
         )
+    # Jina browse tool summarizes via Azure gpt-5-mini — fail fast if that
+    # path cannot work (do not start and later return raw multi-MB pages).
+    try:
+        require_jina_summarization_ready()
+    except Exception as exc:
+        raise EnvironmentError(
+            "MCP server cannot start: Jina summarization is not configured.\n\n"
+            f"  {exc}\n\n"
+            "Set AZURE_OPENAI_KEY and OPENAI_BASE_URL in your .env "
+            "(used only for gpt-5-mini page summarization)."
+        ) from exc
 
 
 mcp = FastMCP(

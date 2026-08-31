@@ -216,7 +216,8 @@ class OpenAIProvider(LLMProvider):
         api_version: Optional[str] = None,
         reasoning_effort: Optional[str] = _UNSET,
         verbosity: str = "medium",
-        reasoning_summary: str = "auto"
+        reasoning_summary: str = "auto",
+        max_output_tokens: Optional[int] = None,
     ):
         super().__init__(model, api_key)
         
@@ -242,6 +243,7 @@ class OpenAIProvider(LLMProvider):
         
         self.verbosity = verbosity 
         self.reasoning_summary = reasoning_summary
+        self.max_output_tokens = max_output_tokens
 
         if reasoning_effort is _UNSET:
             # Max out reasoning: discover this model's actual highest supported
@@ -339,6 +341,8 @@ class OpenAIProvider(LLMProvider):
                     "tools": tools_to_use,
                     "background": True,
                 }
+                if self.max_output_tokens is not None:
+                    api_params["max_output_tokens"] = self.max_output_tokens
                 # Add max_tool_calls if specified
                 if max_tool_calls is not None:
                     api_params["max_tool_calls"] = max_tool_calls
@@ -598,17 +602,21 @@ class OpenAIProvider(LLMProvider):
                     attempt + 1, max_retries, timeout_seconds
                 )
                 
+                api_params = {
+                    "instructions": instructions,
+                    "model": self.model,
+                    "input": input_list,
+                    "reasoning": reasoning,
+                    "tools": tools_to_use,
+                    "text": text,
+                }
+                if self.max_output_tokens is not None:
+                    api_params["max_output_tokens"] = self.max_output_tokens
+
                 response = await asyncio.wait_for(
                     loop.run_in_executor(
                         None,
-                        lambda: self.client.responses.create(
-                            instructions=instructions,
-                            model=self.model,
-                            input=input_list,
-                            reasoning=reasoning,
-                            tools=tools_to_use,
-                            text=text,
-                        )
+                        lambda: self.client.responses.create(**api_params)
                     ),
                     timeout=timeout_seconds
                 )

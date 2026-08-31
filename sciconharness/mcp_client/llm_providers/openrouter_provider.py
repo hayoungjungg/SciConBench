@@ -47,24 +47,21 @@ and sends the true highest level explicitly, cached per model for the
 process lifetime::
 
     moonshotai/kimi-k3  -> supported_efforts=["max", "high", "low"]   -> enabled + effort="max"
-    z-ai/glm-5.2        -> supported_efforts=["xhigh", "high"]        -> enabled + effort="xhigh" (not "max" — GLM-5.2 doesn't list it)
+    z-ai/glm-5.3        -> supported_efforts=["max", "high", "low"]   -> enabled + effort="max"
     qwen/qwen3.8-max    -> supported_efforts=["xhigh", "high", ...]   -> enabled + effort="xhigh"
     qwen/qwen3.8-27b    -> supported_efforts=["xhigh", "medium", "low"] -> enabled + effort="xhigh"
-    qwen/qwen3.5-9b     -> no `supported_efforts` key at all          -> enabled + max_tokens=4096 (no effort)
-    qwen/qwen3.7-max    -> no `supported_efforts` key at all          -> enabled + max_tokens=4096 (no effort)
-    minimax/minimax-m3  -> no `supported_efforts` key at all          -> enabled + max_tokens=4096 (no effort)
+    minimax/minimax-m3  -> no `supported_efforts` / no reasoning_effort -> enabled only
 
 If discovery fails (network error, model not listed, etc.) we fall back to
 ``effort="max"``, which OpenRouter clamps down to whatever the model
 actually supports.
 
 Reasoning is always turned on (``reasoning.enabled=True``) for these models.
-Ones that omit ``supported_efforts`` (older Qwen slugs, MiniMax M3) still
-enable reasoning and send an explicit ``reasoning.max_tokens=4096`` budget
-(``_DEFAULT_REASONING_MAX_TOKENS``) instead of an ``effort`` string. Newer
-Qwen3.8 models *do* advertise effort selection, so they take the discovered
-ceiling (``xhigh``) instead. Pass ``reasoning_max_tokens`` explicitly to
-override the budget for any model.
+Top-level completion ``max_tokens`` defaults to 8192 (``_DEFAULT_MAX_TOKENS``;
+pipeline YAML should match). The nested reasoning object never includes
+``max_tokens``: effort-capable models send their discovered ceiling
+(``max`` / ``xhigh``), while MiniMax sends only ``enabled=True`` because it
+does not expose effort selection.
 
 We only enable reasoning at all for the reasoning-capable models this
 provider was built for (matched by a case-insensitive substring on the model
@@ -146,16 +143,8 @@ DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 # qwen3.5 / 3.7 / 3.8 (max and 27B); ``minimax`` covers MiniMax M3.
 _REASONING_MODEL_HINTS = ("kimi", "glm", "qwen", "minimax")
 
-# Models that don't expose `reasoning.effort` selection on OpenRouter
-# (no `supported_efforts` key in their discovered config) — send this
-# explicit token budget via `reasoning.max_tokens` instead, so "maxed out"
-# reasoning has a concrete, generous ceiling rather than silently deferring
-# to the API's own unstated default reasoning depth. Used today for
-# Qwen3.5-9B / Qwen3.7-max / MiniMax M3; Qwen3.8 models advertise efforts
-# and take the discovered ceiling instead.
-_DEFAULT_REASONING_MAX_TOKENS = 4096
-# Back-compat alias for any external imports / older call sites.
-_QWEN_DEFAULT_REASONING_MAX_TOKENS = _DEFAULT_REASONING_MAX_TOKENS
+# Default top-level completion cap when the caller does not pass ``max_tokens``.
+_DEFAULT_MAX_TOKENS = 8192
 
 
 def parse_rate_limit_wait_time(error_message: str) -> Optional[float]:
@@ -180,6 +169,31 @@ def parse_rate_limit_wait_time(error_message: str) -> Optional[float]:
     if match:
         return float(match.group(1))
     return None
+
+
+# Floor / stretch for 429 and 402 in_flight retries. In-flight generations can
+# hold budget for many minutes; short waits just amplify the storm.
+RATE_LIMIT_MIN_WAIT_SECS = 300.0  # 5 minutes
+RATE_LIMIT_WAIT_MULTIPLIER = 2.0  # stretch Retry-After hints
+
+
+def rate_limit_backoff_secs(
+    error_message: str,
+    *,
+    attempt: int = 0,
+    retry_delay: float = 60.0,
+) -> float:
+    """Long backoff for OpenRouter 429 / in-flight budget errors.
+
+    Uses ``max(Retry-After * multiplier, MIN)``, or exponential from the min
+    floor when no hint is present.
+    """
+    hinted = parse_rate_limit_wait_time(error_message)
+    if hinted is not None:
+        wait = float(hinted) * RATE_LIMIT_WAIT_MULTIPLIER + 1.0
+    else:
+        wait = max(retry_delay, RATE_LIMIT_MIN_WAIT_SECS) * (2 ** attempt)
+    return max(wait, RATE_LIMIT_MIN_WAIT_SECS)
 
 
 def is_rate_limit_error(error: Any) -> bool:
@@ -233,7 +247,6 @@ class OpenRouterProvider(LLMProvider):
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         reasoning_effort: Optional[str] = None,
-        reasoning_max_tokens: Optional[int] = None,
         session_id: Optional[str] = None,
     ):
         # Pass the OpenRouter model slug through unchanged (e.g. "moonshotai/kimi-k3").
@@ -249,7 +262,9 @@ class OpenRouterProvider(LLMProvider):
 
         # Leave sampling at API defaults unless the caller overrides.
         self.temperature = temperature
-        self.max_tokens = max_tokens
+        # Top-level completion cap. This is distinct from the nested
+        # reasoning.max_tokens field, which this provider never sends.
+        self.max_tokens = max_tokens if max_tokens is not None else _DEFAULT_MAX_TOKENS
 
         # Sticky-routing key for prompt-cache affinity across a single
         # conversation's tool-calling loop (see module docstring). Usually
@@ -274,22 +289,13 @@ class OpenRouterProvider(LLMProvider):
             default_headers=extra_headers or None,
         )
 
-        # Max out reasoning for the models this provider targets. Rather than
-        # hardcoding "max" and hoping OpenRouter clamps it to something
-        # sensible, systematically discover the actual ceiling each model
-        # supports via GET /models (see reasoning_discovery.py) and send that
-        # explicitly — e.g. GLM-5.2 only advertises ["xhigh", "high"] (no
-        # "max" in the list), so we send enabled + effort="xhigh"; Qwen3.8-27B
-        # advertises ["xhigh", "medium", "low"] so we send enabled +
-        # effort="xhigh"; Qwen3.5-9B / MiniMax M3 omit `supported_efforts`
-        # entirely, so we still enable reasoning and send an explicit
-        # reasoning.max_tokens budget (not effort). Azure rejects a
-        # "thinking"/"reasoning" payload for models that don't support it,
-        # and OpenRouter is not guaranteed to ignore an unsupported one
-        # gracefully either, so we still gate all of this on known
-        # reasoning-capable slugs unless explicitly overridden.
+        # Max out reasoning for the models this provider targets via
+        # GET /models discovery (see reasoning_discovery.py). Current
+        # SciConBench OpenRouter slugs (verified against OpenRouter catalog):
+        #   kimi-k3 / glm-5.3     -> supported_efforts incl. "max"
+        #   qwen3.8-max / 27b     -> supported_efforts incl. "xhigh"
+        #   minimax-m3            -> reasoning yes, no reasoning_effort
         self._reasoning_enabled = False
-        self.reasoning_max_tokens = reasoning_max_tokens
         if reasoning_effort is not None:
             self.reasoning_effort = reasoning_effort
             self._reasoning_enabled = True
@@ -303,23 +309,11 @@ class OpenRouterProvider(LLMProvider):
                     "Discovered OpenRouter reasoning config for %s: %s -> using effort=%s",
                     self.model,
                     reasoning_cfg,
-                    self.reasoning_effort or "(none — enabled via max_tokens budget)",
+                    self.reasoning_effort or "(none — reasoning enabled only)",
                 )
-                # No effort selection exposed (confirmed via discovery, not
-                # just a failed lookup) — reasoning stays enabled, with an
-                # explicit reasoning.max_tokens budget (Qwen3.5 / MiniMax).
-                if not supports_effort and self.reasoning_max_tokens is None:
-                    self.reasoning_max_tokens = _DEFAULT_REASONING_MAX_TOKENS
-                    logger.info(
-                        "%s doesn't expose reasoning effort selection; "
-                        "enabling reasoning with max_tokens=%d instead.",
-                        self.model,
-                        self.reasoning_max_tokens,
-                    )
             else:
-                # Discovery failed or model isn't listed — "max" is a safe
-                # default since OpenRouter clamps unsupported effort values
-                # down to the nearest one the model actually supports.
+                # Discovery failed — "max" is a safe default; OpenRouter clamps
+                # unsupported effort values to the nearest supported one.
                 self.reasoning_effort = "max"
                 logger.info(
                     "No reasoning config discovered for %s via GET /models; "
@@ -331,12 +325,11 @@ class OpenRouterProvider(LLMProvider):
 
         logger.info(
             "OpenRouterProvider ready: model=%s endpoint=%s reasoning_enabled=%s "
-            "reasoning_effort=%s reasoning_max_tokens=%s temperature=%s",
+            "reasoning_effort=%s temperature=%s",
             self.model,
             self.base_url,
             self._reasoning_enabled,
             self.reasoning_effort,
-            self.reasoning_max_tokens,
             self.temperature,
         )
 
@@ -632,9 +625,12 @@ class OpenRouterProvider(LLMProvider):
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         max_retries: int = 3,
-        retry_delay: float = 10.0,
+        retry_delay: float = 60.0,
     ) -> Tuple[Any, Optional[str], List[Dict[str, Any]], Optional[str]]:
         """Call OpenRouter Chat Completions with retries for timeouts / rate limits.
+
+        Rate/in-flight limits use a long backoff floor (see
+        ``rate_limit_backoff_secs``) so retries do not hammer the account.
 
         Contract matches ``AzureChatCompletionsProvider`` / ``OpenAIProvider``
         ``call_llm``:
@@ -712,18 +708,14 @@ class OpenRouterProvider(LLMProvider):
             api_params["max_tokens"] = self.max_tokens
         # Unified OpenRouter reasoning object — OpenAI SDK has no native field for
         # this, so it must go through extra_body. Always send "enabled": True when
-        # reasoning is on. Also send "effort" when the model exposes effort
-        # selection; for models like Qwen3.5 / MiniMax M3 that don't, send an
-        # explicit reasoning.max_tokens budget instead (see
-        # _DEFAULT_REASONING_MAX_TOKENS). Top-level api_params["max_tokens"] is
-        # the separate completion cap (e.g. 4096 from the track pipeline).
+        # reasoning is on. Never send nested reasoning.max_tokens: OpenRouter
+        # rejects it when effort is present. Budget-only models send enabled
+        # without effort and use the gateway/model's native reasoning budget.
         extra_body: Dict[str, Any] = {}
         if self._reasoning_enabled:
             reasoning_obj: Dict[str, Any] = {"enabled": True}
             if self.reasoning_effort:
                 reasoning_obj["effort"] = self.reasoning_effort
-            if self.reasoning_max_tokens:
-                reasoning_obj["max_tokens"] = self.reasoning_max_tokens
             extra_body["reasoning"] = reasoning_obj
         # Sticky routing so a multi-turn tool-calling conversation keeps
         # landing on the same upstream provider — see module docstring and
@@ -733,15 +725,15 @@ class OpenRouterProvider(LLMProvider):
         if extra_body:
             api_params["extra_body"] = extra_body
 
-        logger.debug(
+        logger.info(
             "OpenRouter API call: model=%s, messages=%d, tools=%d, system_prompt_length=%d, "
-            "reasoning_effort=%s, reasoning_max_tokens=%s, session_id=%s",
+            "max_tokens=%s, reasoning_effort=%s, session_id=%s",
             self.model,
             len(api_messages),
             len(tools_to_use) if tools_to_use else 0,
             len(system_message),
+            self.max_tokens,
             self.reasoning_effort,
-            self.reasoning_max_tokens,
             self.session_id,
         )
 
@@ -902,11 +894,9 @@ class OpenRouterProvider(LLMProvider):
 
                 last_exception = e
                 if is_rate_limit_error(e) and attempt < max_retries - 1:
-                    wait_time = parse_rate_limit_wait_time(error_msg)
-                    if wait_time is None:
-                        wait_time = retry_delay * (2 ** attempt)
-                    else:
-                        wait_time = wait_time + 1.0
+                    wait_time = rate_limit_backoff_secs(
+                        error_msg, attempt=attempt, retry_delay=retry_delay,
+                    )
                     logger.warning(
                         "OpenRouter rate limit (attempt %d/%d); waiting %.1fs",
                         attempt + 1, max_retries, wait_time,
@@ -929,11 +919,9 @@ class OpenRouterProvider(LLMProvider):
                 error_msg = str(e)
 
                 if is_rate_limit_error(e) and attempt < max_retries - 1:
-                    wait_time = parse_rate_limit_wait_time(error_msg)
-                    if wait_time is None:
-                        wait_time = retry_delay * (2 ** attempt)
-                    else:
-                        wait_time = wait_time + 1.0
+                    wait_time = rate_limit_backoff_secs(
+                        error_msg, attempt=attempt, retry_delay=retry_delay,
+                    )
                     logger.warning(
                         "OpenRouter rate limit (attempt %d/%d); waiting %.1fs",
                         attempt + 1,
@@ -989,8 +977,8 @@ class OpenRouterProvider(LLMProvider):
             f"  Endpoint: {self.base_url}",
             f"  Messages: {len(api_messages)}",
             f"  Tools: {len(tools_to_use) if tools_to_use else 0}",
+            f"  Max Tokens (completion): {self.max_tokens}",
             f"  Reasoning Effort: {self.reasoning_effort}",
-            f"  Reasoning Max Tokens: {self.reasoning_max_tokens}",
             f"  Session ID: {self.session_id}",
             f"  Temperature: {self.temperature}",
             "",

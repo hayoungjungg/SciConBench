@@ -37,6 +37,44 @@ else:
 JINA_API_KEY = os.getenv("JINA_API_KEY")
 TIMEOUT = int(os.getenv("API_TIMEOUT", 30))
 
+# Project root .env — used as a durable source for Azure summarization creds
+# even when process env was cleared (e.g. OpenRouter-only resume scripts).
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+_PROJECT_ENV_FILE = _PROJECT_ROOT / ".env"
+
+
+def _azure_openai_creds_for_summarization() -> Tuple[Optional[str], Optional[str]]:
+    """Resolve Azure OpenAI credentials for Jina page summarization.
+
+    Always uses ``AZURE_OPENAI_KEY`` + ``OPENAI_BASE_URL`` (never OpenRouter
+    or other provider keys). Checks process env first, then re-reads the
+    project ``.env`` so summarization still works if those vars were popped
+    from the environment for query routing.
+    """
+    api_key = os.getenv("AZURE_OPENAI_KEY")
+    endpoint = os.getenv("OPENAI_BASE_URL")
+    if api_key and endpoint:
+        return api_key, endpoint
+
+    if _PROJECT_ENV_FILE.is_file():
+        file_vals = dotenv.dotenv_values(_PROJECT_ENV_FILE)
+        api_key = api_key or (file_vals.get("AZURE_OPENAI_KEY") or None)
+        endpoint = endpoint or (file_vals.get("OPENAI_BASE_URL") or None)
+        if api_key:
+            api_key = api_key.strip().strip("'\"")
+        if endpoint:
+            endpoint = endpoint.strip().strip("'\"")
+
+    return api_key or None, endpoint or None
+
+
+class JinaSummarizationError(RuntimeError):
+    """Raised only when Azure OpenAI creds for Jina summarization are missing.
+
+    Transient Azure API failures are retried inside ``summarize_content`` and
+    fall back to truncated content — they do not raise this error.
+    """
+
 
 class JinaMetadata(TypedDict, total=False):
     lang: str
@@ -54,21 +92,51 @@ class JinaWebpageResponse(TypedDict, total=False):
     error: str
 
 
-def summarize_content(content: str, model: str = "gpt-5-mini") -> str:
+def require_jina_summarization_ready() -> Tuple[str, str]:
+    """Validate Azure OpenAI creds for Jina summarization; raise if missing.
+
+    Returns ``(api_key, endpoint)`` on success. This is the only hard stop —
+    without these keys pages would be returned unsummarized.
+    """
+    api_key, endpoint = _azure_openai_creds_for_summarization()
+    if not api_key or not endpoint:
+        msg = (
+            "Jina webpage summarization requires Azure OpenAI credentials "
+            "(AZURE_OPENAI_KEY + OPENAI_BASE_URL in env or project .env). "
+            "Refusing to continue without summarization."
+        )
+        logger.error(msg)
+        _main_logger.error(msg)
+        print(f"ERROR: {msg}", file=sys.stderr)
+        raise JinaSummarizationError(msg)
+    return api_key, endpoint
+
+
+def summarize_content(
+    content: str,
+    model: str = "gpt-5-mini",
+    *,
+    max_retries: int = 3,
+    retry_delay: float = 5.0,
+) -> str:
     """
     Summarize content using Azure OpenAI (gpt-5-mini) focusing on main details.
 
     Content is always truncated to MAX_CONTENT_LENGTH before being sent to the
-    API so that the summarizer never hits a context-length error.  If the API
-    call still fails for any reason the truncated content is returned as-is
-    rather than the full raw page.
+    API so that the summarizer never hits a context-length error.
+
+    Credentials are always ``AZURE_OPENAI_KEY`` / ``OPENAI_BASE_URL`` (env or
+    project ``.env``), independent of whichever key the query model uses.
+
+    Hard-stops (raises ``JinaSummarizationError``) only when Azure creds are
+    missing. Transient Azure API failures are retried, then fall back to the
+    truncated page text with a warning.
 
     Args:
         content: The content to summarize
         model: Azure OpenAI model to use (default: gpt-5-mini)
-
-    Returns:
-        Summarized content, or truncated original content if summarization fails
+        max_retries: Attempts for transient Azure failures (default: 3)
+        retry_delay: Base delay seconds between retries (exponential backoff)
     """
     original_length = len(content)
     logger.info(f"[summarize_content] Starting summarization with {model}. Original content length: {original_length:,} characters")
@@ -92,77 +160,90 @@ def summarize_content(content: str, model: str = "gpt-5-mini") -> str:
         )
         logger.info(f"[summarize_content] Content truncated to {len(content):,} characters (including truncation note)")
 
-    azure_api_key = os.getenv("AZURE_OPENAI_KEY")
-    azure_endpoint = os.getenv("OPENAI_BASE_URL")
+    # Hard stop only if Azure is not configured — otherwise we would silently
+    # ship unsummarized Jina pages into the query context.
+    azure_api_key, azure_endpoint = require_jina_summarization_ready()
 
-    if not azure_api_key or not azure_endpoint:
-        logger.warning(
-            "[summarize_content] Azure credentials not found, returning truncated content. "
-            "Please set AZURE_OPENAI_KEY and OPENAI_BASE_URL environment variables."
-        )
-        return content
+    # Responses API requires api-version 2025-03-01-preview or later
+    required_version = "2025-03-01-preview"
+    client = AzureOpenAI(
+        api_version=required_version,
+        azure_endpoint=azure_endpoint,
+        api_key=azure_api_key,
+    )
 
-    try:
-        # Responses API requires api-version 2025-03-01-preview or later
-        required_version = "2025-03-01-preview"
-        client = AzureOpenAI(
-            api_version=required_version,
-            azure_endpoint=azure_endpoint,
-            api_key=azure_api_key,
-        )
-        
-        prompt = f"""Summarize the following web content, focusing only on the main details and key information. Preserve important facts, numbers, dates, and conclusions. Aim to filter out any noisy characters (e.g., HTML tags, social media links, random strings, etc.) and outputting only important information. Specific details, including but not limited to metrics, deltas, definitions, settings, limitations, and citations and references should be preserved. Make sure not to lose any key information. 
+    prompt = f"""Summarize the following web content, focusing only on the main details and key information. Preserve important facts, numbers, dates, and conclusions. Aim to filter out any noisy characters (e.g., HTML tags, social media links, random strings, etc.) and outputting only important information. Specific details, including but not limited to metrics, deltas, definitions, settings, limitations, and citations and references should be preserved. Make sure not to lose any key information. 
 
 Content to summarize:
 {content}"""
-        
-        # Build reasoning and text parameters (medium reasoning and medium verbosity)
-        reasoning = {
-            "effort": "medium",
-            "summary": "auto"
-        }
-        
-        text = {
-            "verbosity": "medium"
-        }
-        
-        # Convert to input list format (as used in openai_provider)
-        input_list = [
-            {"role": "user", "content": prompt}
-        ]
-        
-        response = client.responses.create(
-            instructions="You are a helpful assistant that creates summaries of web content focusing on main details.",
-            model=model,
-            input=input_list,
-            reasoning=reasoning,
-            text=text,
-        )
 
-        summary = str(response.output_text) if response.output_text else None
-        if not summary:
-            for item in getattr(response, "output", []):
-                if hasattr(item, "text"):
-                    summary = str(item.text)
-                    break
+    reasoning = {
+        "effort": "medium",
+        "summary": "auto",
+    }
+    text = {
+        "verbosity": "medium",
+    }
+    input_list = [
+        {"role": "user", "content": prompt}
+    ]
 
-        final_summary = summary.strip() if summary else content
-        summarized_length = len(final_summary)
-        reduction = original_length - summarized_length
-        reduction_pct = (reduction / original_length * 100) if original_length > 0 else 0
-        logger.info(
-            f"[summarize_content] Summarization completed. Final length: {summarized_length:,} characters "
-            f"(reduced by {reduction:,} chars, {reduction_pct:.1f}%)"
-        )
-        return final_summary
+    last_error: Optional[BaseException] = None
+    for attempt in range(max_retries):
+        try:
+            response = client.responses.create(
+                instructions="You are a helpful assistant that creates summaries of web content focusing on main details.",
+                model=model,
+                input=input_list,
+                reasoning=reasoning,
+                text=text,
+            )
 
-    except Exception as e:
-        # Return the (already-truncated) content rather than the raw multi-MB original.
-        logger.error(
-            f"[summarize_content] Summarization failed: {str(e)}. "
-            f"Returning truncated content ({len(content):,} chars)."
-        )
-        return content
+            summary = str(response.output_text) if response.output_text else None
+            if not summary:
+                for item in getattr(response, "output", []):
+                    if hasattr(item, "text"):
+                        summary = str(item.text)
+                        break
+
+            if not summary or not str(summary).strip():
+                raise RuntimeError(
+                    f"Azure {model} returned an empty summary "
+                    f"(input was {original_length:,} characters)."
+                )
+
+            final_summary = str(summary).strip()
+            summarized_length = len(final_summary)
+            reduction = original_length - summarized_length
+            reduction_pct = (reduction / original_length * 100) if original_length > 0 else 0
+            logger.info(
+                f"[summarize_content] Summarization completed. Final length: {summarized_length:,} characters "
+                f"(reduced by {reduction:,} chars, {reduction_pct:.1f}%)"
+            )
+            return final_summary
+
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                wait = retry_delay * (2 ** attempt)
+                logger.warning(
+                    "[summarize_content] Azure summarization failed "
+                    "(attempt %d/%d): %s; retrying in %.1fs",
+                    attempt + 1, max_retries, e, wait,
+                )
+                time.sleep(wait)
+                continue
+            logger.error(
+                f"[summarize_content] Summarization failed after {max_retries} attempts: {e}. "
+                f"Returning truncated content ({len(content):,} chars)."
+            )
+            _main_logger.error(
+                f"[summarize_content] Summarization failed after {max_retries} attempts: {last_error}. "
+                f"Returning truncated content ({len(content):,} chars)."
+            )
+            return content
+
+    return content
 
 
 def normalize_metadata(metadata):
@@ -291,9 +372,9 @@ def fetch_webpage_content_jina(
                             _main_logger.info(f"Updated cache with summarized content ({len(summarized_content):,} chars)")
                         except Exception as e:
                             _main_logger.warning(f"Failed to update cache with summarized content: {e}")
-                    except Exception as e:
-                        _main_logger.error(f"Failed to summarize cached content: {e}", exc_info=True)
-                        # Return cached result anyway (might be truncated by summarize_content on error)
+                    except JinaSummarizationError:
+                        # Missing Azure creds — hard stop (do not serve raw pages).
+                        raise
                 
                 return cached_result
             # If cached result is an error, don't use it - allow retry

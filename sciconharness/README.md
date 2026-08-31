@@ -212,7 +212,7 @@ The discovered ceiling is translated into whatever mechanism each vendor's *nati
 |----------|-------------------|----------------------------------------|
 | `OpenAIProvider` | native `reasoning.effort` string | discovered value used as-is (OpenAI's own concept — OpenRouter just mirrors it) |
 | `GeminiProvider` | native `thinking_level` enum | discovered effort mapped through Google's effort→`thinkingLevel` table (Gemini has no tier above `HIGH`) |
-| `ClaudeProvider` | native fixed `thinking.budget_tokens` (no effort parameter exists in Anthropic's API) | discovered effort converted to a token budget via OpenRouter's own documented formula, `budget_tokens = max_tokens × effort_ratio`, capped at 80% of `max_tokens` to leave headroom for the final answer |
+| `ClaudeProvider` | native adaptive `output_config.effort` when supported; fixed `thinking.budget_tokens` otherwise | Opus 5 uses adaptive `effort=max`, matching the successful 2026-07 workflow calls; older models can use a discovered fixed token budget |
 
 All three fall back to their previous hardcoded defaults (`"high"` / `HIGH` / a flat 4096-token budget) if OpenRouter has no data for the given model or the lookup fails — this is purely additive and never blocks a run. All three still accept an explicit constructor override (`reasoning_effort=...`, `thinking_level=...`, `thinking_budget_tokens=...`) that skips discovery entirely. For today's default models this doesn't actually change anything — `gpt-5.1`'s and `gemini-3.1-pro-preview`'s discovered ceilings are already `"high"` (their existing hardcoded defaults), and `claude-sonnet-4-5` isn't listed with effort data on OpenRouter, so it keeps its existing flat 4096-token budget — but it means the harness automatically maxes reasoning correctly if you swap in a different/newer model for any of these three providers, without needing a code change.
 
@@ -252,6 +252,10 @@ python -m sciconharness.cli_scripts.query_batch azure \
 Pass your Azure **deployment name** exactly as `--model` (`DeepSeek-V4-Pro`
 or the control deployment `DeepSeek-V4-Flash-0731`).
 
+DeepSeek defaults match Claude/OpenRouter: completion `max_tokens=8192`,
+reasoning maxed via top-level `reasoning_effort="max"`. Azure Foundry does
+not expose a separate reasoning token budget (no `thinking` / `extra_body`).
+
 ### OpenRouter (`provider="openrouter"`)
 
 [OpenRouter](https://openrouter.ai) exposes the same OpenAI-compatible **Chat Completions** API as `AzureChatCompletionsProvider`, routed to a single OpenRouter API key. Use `provider="openrouter"` so the harness routes through `OpenRouterProvider`. Models onboarded so far:
@@ -273,16 +277,14 @@ Reasoning is maxed out via OpenRouter's unified `reasoning` object, but instead 
 | Model | Discovered `supported_efforts` | Reasoning payload sent |
 |-------|-------------------------------|------------------------|
 | Kimi K3 | `["max", "high", "low"]` | `enabled` + `effort="max"` |
-| GLM-5.2 | `["xhigh", "high"]` (no `"max"`!) | `enabled` + `effort="xhigh"` |
-| Qwen3.8-max | `["xhigh", ...]` | `enabled` + `effort="xhigh"` |
+| GLM-5.3 | `["max", "high", "low"]` | `enabled` + `effort="max"` |
+| Qwen3.8-max | `["xhigh", "high", "medium", "low", "minimal"]` | `enabled` + `effort="xhigh"` |
 | Qwen3.8 27B (control) | `["xhigh", "medium", "low"]` | `enabled` + `effort="xhigh"` |
-| Qwen3.5-9B | *(key omitted — no effort levels)* | `enabled` + `max_tokens=4096` (no `effort`) |
-| Qwen3.7-max | *(key omitted — no effort levels)* | `enabled` + `max_tokens=4096` (no `effort`) |
-| MiniMax M3 (control) | *(key omitted — no effort levels)* | `enabled` + `max_tokens=4096` (no `effort`) |
+| MiniMax M3 (control) | *(no effort — not in supported_parameters)* | `enabled` only |
 
 If discovery ever fails (network error, model delisted, etc.) the provider falls back to `effort="max"`, which OpenRouter clamps to whatever the model actually supports.
 
-Reasoning is **always enabled** for these models. Ones that expose effort levels get the highest effort; ones that don't (older Qwen slugs, MiniMax M3) still turn reasoning on and send an explicit `reasoning.max_tokens=4096` budget instead of an `effort` string. Newer Qwen3.8 models advertise efforts and take the discovered ceiling.
+Reasoning is **always enabled** for these models. Top-level completion `max_tokens` defaults to **8192**. The nested reasoning payload never includes `max_tokens`: effort-capable models use the discovered ceiling (`max` / `xhigh`), while MiniMax sends only `enabled`.
 
 Reasoning is also **preserved** across tool-calling turns per [OpenRouter's best practices](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#preserving-reasoning-blocks): the provider reads back both `message.reasoning_details` (the full structured block) and the plaintext `message.reasoning`/`reasoning_content` alias, and echoes `reasoning_details` verbatim on the next turn's assistant message whenever a model returns it (falling back to the plaintext alias otherwise), so tool-call round trips resume the model's reasoning state exactly rather than dropping it.
 

@@ -26,11 +26,14 @@ end-to-end contract matches ``OpenAIProvider`` exactly:
 
 Reasoning defaults (maxed; sampling left at API defaults)
 ---------------------------------------------------------
-**DeepSeek-V4-Pro**
+**DeepSeek-V4-Pro / DeepSeek-V4-Flash**
 
 - Thinking is on by default server-side.
 - Effort: ``reasoning_effort="max"`` (API default is only ``"high"``).
-  Values: ``"high"`` | ``"max"``.
+  Values: ``"high"`` | ``"max"``. Azure Foundry has no separate reasoning
+  token budget; only the effort level can be controlled.
+- Completion ``max_tokens`` defaults to **8192** (same pipeline default as
+  Claude / OpenRouter).
 - Do **not** send ``thinking`` / ``extra_body`` on Azure Foundry — Azure rejects
   them. Pass top-level ``reasoning_effort`` only.
 - ``temperature`` / ``top_p`` / penalties are ignored while thinking is on;
@@ -72,6 +75,11 @@ from .base import ContextLengthExceededError, LLMProvider
 from ..prompts import RESEARCH_ASSISTANT_PROMPT
 
 logger = logging.getLogger(__name__)
+
+# Match Claude / OpenRouter pipeline default. Azure DeepSeek has no separate
+# reasoning.max_tokens; effort="max" is the highest thinking share available.
+_DEFAULT_MAX_TOKENS = 8192
+
 
 def parse_rate_limit_wait_time(error_message: str) -> Optional[float]:
     match = re.search(r"Please try again in ([\d.]+)s", error_message)
@@ -142,14 +150,22 @@ class AzureChatCompletionsProvider(LLMProvider):
         )
         # Leave sampling at API defaults unless the caller overrides.
         self.temperature = temperature
-        self.max_tokens = max_tokens
 
         model_lower = model.lower()
         self._is_deepseek = "deepseek" in model_lower
+        # DeepSeek: default max_tokens=8192 (Claude/OpenRouter parity). Other
+        # Azure Chat Completions models keep API defaults when unset.
+        if max_tokens is not None:
+            self.max_tokens = max_tokens
+        elif self._is_deepseek:
+            self.max_tokens = _DEFAULT_MAX_TOKENS
+        else:
+            self.max_tokens = None
 
         # DeepSeek: max out reasoning (API default is only "high").
         # Azure Foundry rejects a "thinking" / extra_body payload for this model —
         # reasoning_effort must be passed as a top-level parameter only.
+        # No separate reasoning token budget exists on Azure.
         if reasoning_effort is not None:
             self.reasoning_effort = reasoning_effort
         elif self._is_deepseek:
@@ -160,10 +176,11 @@ class AzureChatCompletionsProvider(LLMProvider):
         self.client = self._build_client(api_key)
         logger.info(
             "AzureChatCompletionsProvider ready: model=%s endpoint=%s "
-            "client=%s reasoning_effort=%s temperature=%s",
+            "client=%s max_tokens=%s reasoning_effort=%s temperature=%s",
             self.model,
             self.base_url,
             type(self.client).__name__,
+            self.max_tokens,
             self.reasoning_effort,
             self.temperature,
         )

@@ -282,15 +282,14 @@ default_models:
     - qwen/qwen3.8-27b             # control
     - minimax/minimax-m3           # control
 
-# OpenRouter split across three concurrent key lanes (≤2 models each):
+# OpenRouter key assignment (single sequential query lane — not concurrent):
 openrouter_base_model_lane:        # OPENROUTER_API_KEY_BASE_MODEL
   - z-ai/glm-5.3
-  - qwen/qwen3.8-27b               # control
-openrouter_generic_lane:           # OPENROUTER_API_KEY
   - qwen/qwen3.8-max
+openrouter_generic_lane:           # OPENROUTER_API_KEY
+  - moonshotai/kimi-k3             # first among this key's models
+  - qwen/qwen3.8-27b               # control
   - minimax/minimax-m3             # control
-# remaining openrouter models → OPENROUTER_API_KEY_FILTERING
-#   (moonshotai/kimi-k3)
 
 reevaluate_always: []              # empty = all models query each DOI once
 ```
@@ -311,19 +310,16 @@ credential so nothing contends with itself for a rate limit — rather than
 maximizing parallelism everywhere.
 
 **Query stage (`task_run_queries` / `_run_provider_lane`, step 9).**
-`(provider, model)` pairs are grouped into **lanes** (`QUERY_LANES` plus
-three OpenRouter key lanes), and lanes run concurrently against each other
-via `asyncio.gather`; *within* a lane, models — and DOIs within a model —
-are queried strictly sequentially:
+`(provider, model)` pairs are grouped into **lanes** (`QUERY_LANES`), and
+lanes run concurrently against each other via `asyncio.gather`; *within* a
+lane, models — and DOIs within a model — are queried strictly sequentially:
 
-- `openrouter_filtering` — Kimi K3 alone on
-  **`OPENROUTER_API_KEY_FILTERING`** (falls back to `OPENROUTER_API_KEY`).
-- `openrouter_base_model` — GLM-5.3 + control Qwen3.8 27B on
-  **`OPENROUTER_API_KEY_BASE_MODEL`** (`openrouter_base_model_lane`).
-- `openrouter_generic` — Qwen3.8-max + control MiniMax M3 on
-  **`OPENROUTER_API_KEY`** (`openrouter_generic_lane`).
-  The three OpenRouter lanes run concurrently → **up to 3 OpenRouter
-  requests at once** (prefer ≤2 models per lane).
+- `openrouter` — **all** OpenRouter models in one sequential lane (at most
+  one OpenRouter request in flight, to avoid 402/429 in-flight storms).
+  Per-model key still follows YAML membership:
+  `openrouter_base_model_lane` → **`OPENROUTER_API_KEY_BASE_MODEL`**
+  (GLM-5.3, Qwen3.8-max); everything else → **`OPENROUTER_API_KEY`**
+  (Kimi K3, Qwen3.8-27B, MiniMax M3). Run order is base list then generic list.
 - `azure_openai` — OpenAI GPT (`gpt-5.6-sol`) **then** DeepSeek-V4-Pro /
   DeepSeek-V4-Flash-0731 (control), all on **`COCHRANE_DASHBOARD_OPENAI_KEY`** +
   **`COCHRANE_DASHBOARD_BASE_URL`** (falls back to `AZURE_OPENAI_KEY` /

@@ -663,17 +663,18 @@ class SciConHarness:
                     doi, attempt + 1, self.max_format_retries, e, exc_info=True,
                 )
                 if attempt < self.max_format_retries - 1:
-                    # Honor OpenRouter/provider Retry-After (incl. 402 in-flight
-                    # budget) instead of immediately re-firing the same call.
+                    # Honor OpenRouter Retry-After (incl. 402 in-flight) with a
+                    # long floor so format retries do not hammer the account.
                     wait_s = 0.0
                     try:
                         from sciconharness.mcp_client.llm_providers.openrouter_provider import (
                             is_rate_limit_error,
-                            parse_rate_limit_wait_time,
+                            rate_limit_backoff_secs,
                         )
                         if is_rate_limit_error(e):
-                            wait_s = parse_rate_limit_wait_time(str(e)) or 120.0
-                            wait_s = float(wait_s) + 1.0
+                            wait_s = rate_limit_backoff_secs(
+                                str(e), attempt=attempt,
+                            )
                     except Exception:
                         err_l = str(e).lower()
                         if (
@@ -682,7 +683,7 @@ class SciConHarness:
                             or "in_flight" in err_l
                             or "in-flight" in err_l
                         ):
-                            wait_s = 121.0
+                            wait_s = 300.0
                     if wait_s > 0:
                         logger.warning(
                             "Backing off %.0fs before retrying %s (rate/in-flight limit)",

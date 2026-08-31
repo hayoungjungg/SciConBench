@@ -57,18 +57,16 @@ class QueryBatchConfig(BaseModel):
     # ``[[[...]]]`` conclusion of at least ``min_conclusion_length`` chars.
     max_format_retries: int = 4
     min_conclusion_length: int = 20
-    # Per-turn completion cap for SciConHarness.query() / providers. Caps
-    # OpenRouter in-flight credit reservations when left unset on large
-    # context models.
-    max_tokens: Optional[int] = 4096
+    # Per-turn output cap for every provider. Provider adapters map this to
+    # their native max_tokens / max_output_tokens field.
+    max_tokens: Optional[int] = 8192
     # Query only this many most-recent closed rolling cohorts, in addition to
     # the current core panel. This bounds first-time evaluation for new models.
     rolling_panel_months: int = 4
-    # OpenRouter key-lane membership. Models in these lists are billed to
-    # OPENROUTER_API_KEY_BASE_MODEL / OPENROUTER_API_KEY respectively;
-    # remaining openrouter models use OPENROUTER_API_KEY_FILTERING. The three
-    # lanes run concurrently (one active model each → up to 3 OpenRouter
-    # requests at once). Keep ≤2 models per lane.
+    # OpenRouter key assignment (not concurrent lanes). Models in
+    # ``openrouter_base_model_lane`` bill to OPENROUTER_API_KEY_BASE_MODEL;
+    # everything else uses OPENROUTER_API_KEY. All OpenRouter models run in
+    # one sequential query lane (at most one OpenRouter request in flight).
     openrouter_base_model_lane: list[str] = []
     openrouter_generic_lane: list[str] = []
     # Default: every model queries each DOI once. Models listed here are

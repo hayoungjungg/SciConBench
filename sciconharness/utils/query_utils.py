@@ -73,7 +73,10 @@ def create_provider(
     
     if provider_name == "gemini":
         api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        return GeminiProvider(model=model, api_key=api_key)
+        gemini_kwargs = {"model": model, "api_key": api_key}
+        if max_tokens is not None:
+            gemini_kwargs["max_output_tokens"] = max_tokens
+        return GeminiProvider(**gemini_kwargs)
     elif provider_name == "perplexity":
         # Set default model based on provider if not specified
         if not model or model == "sonar":
@@ -175,6 +178,14 @@ def create_provider(
             claude_kwargs["temperature"] = temperature
         if max_tokens is not None:
             claude_kwargs["max_tokens"] = max_tokens
+
+        # Opus 5 does not accept fixed-budget thinking. The 2026-07 workflow
+        # succeeded by retrying every call in adaptive mode at effort=max;
+        # select that known-good mode directly to preserve the same behavior
+        # without an avoidable rejected request on every tool turn.
+        if model.lower() == "claude-opus-5":
+            claude_kwargs["thinking_mode"] = "adaptive"
+            claude_kwargs["adaptive_effort"] = "max"
         
         return ClaudeProvider(**claude_kwargs)
     else:
@@ -202,19 +213,28 @@ def create_provider(
         if is_deep_research:
             # Force regular OpenAI API for deep research models
             logger.info(f"Using regular OpenAI API for deep research model: {model} (Azure not supported)")
-            return OpenAIProvider(model=model, api_key=api_key)
+            openai_kwargs = {"model": model, "api_key": api_key}
+            if max_tokens is not None:
+                openai_kwargs["max_output_tokens"] = max_tokens
+            return OpenAIProvider(**openai_kwargs)
         elif openai_base_url:
             # For other models, use Azure OpenAI if base_url is provided
             openai_api_version = api_version or os.getenv("OPENAI_API_VERSION", "2025-04-01-preview")
-            return OpenAIProvider(
+            openai_kwargs = dict(
                 model=model,
                 api_key=api_key,
                 base_url=openai_base_url,
-                api_version=openai_api_version
+                api_version=openai_api_version,
             )
+            if max_tokens is not None:
+                openai_kwargs["max_output_tokens"] = max_tokens
+            return OpenAIProvider(**openai_kwargs)
         else:
             # Standard OpenAI API
-            return OpenAIProvider(model=model, api_key=api_key)
+            openai_kwargs = {"model": model, "api_key": api_key}
+            if max_tokens is not None:
+                openai_kwargs["max_output_tokens"] = max_tokens
+            return OpenAIProvider(**openai_kwargs)
 
 
 def load_cochrane_titles(titles_file: Path) -> list:
@@ -424,6 +444,7 @@ def extract_model_parameters(provider: Any) -> Dict[str, Any]:
         params["reasoning_effort"] = getattr(provider, 'reasoning_effort', None)
         params["verbosity"] = getattr(provider, 'verbosity', None)
         params["reasoning_summary"] = getattr(provider, 'reasoning_summary', None)
+        params["max_output_tokens"] = getattr(provider, 'max_output_tokens', None)
     
     # Perplexity-specific parameters
     if isinstance(provider, PerplexityProvider):
@@ -465,12 +486,9 @@ def extract_model_parameters(provider: Any) -> Dict[str, Any]:
         params["temperature"] = getattr(provider, 'temperature', None)
         params["max_tokens"] = getattr(provider, 'max_tokens', None)
         # reasoning_effort may be None even when reasoning is enabled, for
-        # models that don't expose effort selection (e.g. Qwen3.5-9B,
-        # Qwen3.7-max, MiniMax M3) — those still send enabled=True with an
-        # explicit reasoning_max_tokens budget. See reasoning_enabled for
-        # whether the "reasoning": {"enabled": True, ...} payload was sent.
+        # models that don't expose effort selection (e.g. MiniMax M3).
+        # See reasoning_enabled for whether the reasoning payload was sent.
         params["reasoning_effort"] = getattr(provider, 'reasoning_effort', None)
-        params["reasoning_max_tokens"] = getattr(provider, 'reasoning_max_tokens', None)
         params["reasoning_enabled"] = getattr(provider, '_reasoning_enabled', None)
         params["base_url"] = getattr(provider, 'base_url', None)
 
