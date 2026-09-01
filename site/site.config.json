@@ -1,26 +1,43 @@
 {
   "title": "SciConBench",
-  "tagline": "A live benchmark for scientific conclusion synthesis",
-  "description": "SciConBench measures whether AI agents can search the literature, weigh evidence quality, reconcile conflicting findings, and write the expert-level conclusion a systematic review would reach. New reviews are published every month, so the benchmark never stops growing \u2014 and neither does the evaluation.",
+  "tagline": "A live agentic benchmark for open-domain scientific conclusion synthesis",
+  "description": "Can AI agents synthesize scientific conclusions? SciConBench puts this long-horizon task to the test under our clean-room evaluation harness: agents search and browse the open web through controlled web tools, assess evidence quality, and integrate heterogeneous evidence into an expert-level scientific conclusion. As new systematic reviews are published each month, SciConBench continuously grows, enabling this dashboard to track how frontier AI agents measure up in their synthesis capabilities over time.",
   "institution": "Princeton University",
   "contact_email": "hayoung@cs.princeton.edu",
+  "paper_title": "Can AI Agents Synthesize Scientific Conclusions?",
   "links": {
-    "paper": "https://arxiv.org/abs/XXXX.XXXXX",
+    "paper": "https://arxiv.org/abs/2606.11337",
     "dataset": "https://huggingface.co/datasets/hayoungjung/SciConBench",
-    "code": "https://github.com/your-org/SciConBench"
+    "code": "https://github.com/hayoungjungg/SciConBench",
+    "blog": "https://blog.citp.princeton.edu/2026/06/11/ai-is-already-giving-medical-conclusions-are-they-any-good/"
+  },
+  "headline": {
+    "text": "Across 8 frontier models and deep research agents, the best clean-room factual F1 reported in the paper is 0.337 \u2014 reliable scientific synthesis remains an open problem.",
+    "source": "arXiv:2606.11337"
   },
   "team": [
-    { "name": "Hayoung Jung", "affiliation": "Princeton University" }
+    { "name": "Hayoung Jung" },
+    { "name": "Pedro Viana Diniz" },
+    { "name": "Jos\u00e9 Reinaldo Corr\u00eaa Roveda" },
+    { "name": "Abner Fernandes da Silva" },
+    { "name": "Haeun Jung" },
+    { "name": "Enoch Tsai" },
+    { "name": "Aleksandra Korolova" },
+    { "name": "Manoel Horta Ribeiro" }
   ],
-  "citation": "@article{sciconbench,\n  title  = {Can AI Agents Synthesize Scientific Conclusions?},\n  author = {Jung, Hayoung and others},\n  year   = {2026}\n}",
+  "citation": "@misc{jung2026aiagentssynthesizescientific,\n      title={Can AI Agents Synthesize Scientific Conclusions?},\n      author={Hayoung Jung and Pedro Viana Diniz and Jos\u00e9 Reinaldo Corr\u00eaa Roveda and Abner Fernandes da Silva and Haeun Jung and Enoch Tsai and Aleksandra Korolova and Manoel Horta Ribeiro},\n      year={2026},\n      eprint={2606.11337},\n      archivePrefix={arXiv},\n      primaryClass={cs.AI},\n      url={https://arxiv.org/abs/2606.11337},\n}",
   "news": [
     {
       "date": "2026-08-26",
       "text": "The August tracking run closed the July 2026 cohort: 34 newly published Cochrane reviews were ingested and merged into the public HuggingFace dataset."
     },
     {
-      "date": "2026-07-10",
-      "text": "SciConBench-Track goes live. The pipeline now runs on the 1st of every month, discovering new systematic reviews and re-evaluating frontier models under the clean-room protocol."
+      "date": "2026-07-15",
+      "text": "July 2026 dataset release. The benchmark grows from 9.11K to 9.17K samples, and superseded reviews are replaced with their latest editions."
+    },
+    {
+      "date": "2026-06-09",
+      "text": "Can AI Agents Synthesize Scientific Conclusions? is on arXiv (2606.11337), introducing SciConBench and the SciConHarness clean-room evaluation protocol."
     }
   ],
   "faq": [
@@ -30,15 +47,27 @@
     },
     {
       "question": "What stops an agent from just finding the answer online?",
-      "answer": "Every evaluation runs under SciConHarness, a clean-room protocol that proxies web search and page fetching. It filters out the target review, anything citing it, and any source published after the review's date, so the agent has to assemble the conclusion from primary evidence instead of retrieving it."
+      "answer": "Every evaluation runs under SciConHarness, a clean-room protocol that proxies web search and page fetching. It filters out the target review, anything citing it, and any source published after the review's date, so the agent has to assemble the conclusion from primary evidence instead of retrieving it. The paper reports that clean-room conditions consistently lower scores relative to unconstrained evaluation, which is direct evidence that leakage inflates estimates of synthesis ability."
     },
     {
       "question": "How are models scored?",
-      "answer": "Both the agent's conclusion and the expert conclusion are decomposed into atomic facts. Factual precision asks how many of the agent's claims the review supports, penalizing outright contradictions; factual recall asks how many of the expert's claims the agent recovered. F1 is their harmonic mean, macro-averaged over reviews."
+      "answer": "Both the agent's conclusion and the expert conclusion are decomposed into atomic facts. Factual precision asks how many of the agent's claims the review supports, penalizing outright contradictions; factual recall measures how many of the expert's claims the agent recovered, treating the Authors' Conclusions section as the authoritative answer. F1 is their harmonic mean, macro-averaged over reviews."
+    },
+    {
+      "question": "How does this dashboard relate to the benchmark on HuggingFace?",
+      "answer": "The HuggingFace release is the full benchmark: every Cochrane review the pipeline has processed, questions and atomic facts included. This dashboard reports the live evaluation panel, a much smaller set that every tracked model is re-run against each month. The panel combines a frozen core sample, which keeps month-to-month comparisons stable, with each new monthly cohort of freshly published reviews."
     },
     {
       "question": "How do I get a model onto the leaderboard?",
       "answer": "Open an issue or pull request on GitHub, or email us. Any model reachable through an OpenAI-, Anthropic-, Gemini-, or OpenRouter-compatible API can be added to the monthly roster in one config change."
+    },
+    {
+      "question": "Can I download the data?",
+      "answer": "Yes. The benchmark is on HuggingFace as hayoungjung/SciConBench, gated behind a contact-information agreement to keep crawlers from scraping and leaking it. Please do not reshare it in a crawlable format. Cochrane content remains copyrighted by its original authors and Cochrane, and its use is governed by Cochrane and Wiley terms."
     }
+  ],
+  "acknowledgements": [
+    "We thank Anushka Acharya and the Princeton Research Computing for their support in creating this dashboard evaluation infrastructure. In addition, we thank Francesco Salvi, Alejandro Cuevas, Bohdan Turbal, Max Springer, Chung Peng Lee, Elijah Fullerton, Jane Castleman, Blossom Metevier, Jason Greenfield, and members of the Center for Information Technology Policy for their helpful feedback and support.",
+    "This work was supported in part by the National Science Foundation grants CNS-1956435 and CNS-2344925, and by the Alfred P. Sloan Research Fellowship."
   ]
 }

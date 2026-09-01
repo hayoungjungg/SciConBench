@@ -3,7 +3,26 @@
 (function () {
   "use strict";
 
-  const $ = (id) => document.getElementById(id);
+  // Proxy that no-ops when an id is missing. A stale cached HTML/JS mismatch
+  // (e.g. after removing the nav status pill) used to throw on null and abort
+  // the whole render, which left the effort table and other sections empty.
+  const $ = (id) => {
+    const el = document.getElementById(id);
+    if (el) return el;
+    return new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          if (prop === "style") return {};
+          if (typeof prop === "string") return () => {};
+          return undefined;
+        },
+        set() {
+          return true;
+        },
+      }
+    );
+  };
 
   const fmtInt = (n) =>
     n === null || n === undefined ? "—" : Math.round(n).toLocaleString("en-US");
@@ -31,6 +50,16 @@
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[c]));
 
+  // Brand marks for the hero action buttons — each is the real logo art
+  // (arXiv's own logomark, GitHub's Octocat badge, HuggingFace's emoji
+  // mark) rather than a flattened single-color redraw.
+  const ICONS = {
+    arxiv: '<img src="assets/icon-arxiv.png" alt="" />',
+    huggingface: '<img src="assets/icon-huggingface.png" alt="" />',
+    github: '<img src="assets/icon-github.png" alt="" />',
+    blog: '<img src="assets/icon-blog.png" alt="" />',
+  };
+
   /* The next run always fires at 00:00 America/New_York on the 1st. */
   function nextRunLabel() {
     const now = new Date();
@@ -52,42 +81,42 @@
     const dataset = data.dataset;
 
     $("hero-tagline").textContent = site.tagline || "";
-    $("hero-lede").textContent = site.description || "";
+    $("intro-lede").textContent = site.description || "";
 
     const links = site.links || {};
     const actions = [
-      links.paper && {
-        href: links.paper, label: "Paper", sub: "arXiv", primary: true,
-      },
+      links.paper && { href: links.paper, label: "Paper", icon: "arxiv" },
       links.dataset && {
-        href: links.dataset, label: "Dataset", sub: "HuggingFace",
+        href: links.dataset, label: "Dataset", icon: "huggingface",
       },
-      links.code && { href: links.code, label: "Code", sub: "GitHub" },
-      { href: "#leaderboard", label: "Leaderboard", sub: summary.latest_run_month_label || "live" },
+      links.code && { href: links.code, label: "GitHub", icon: "github" },
+      links.blog && { href: links.blog, label: "Blog", icon: "blog" },
     ].filter(Boolean);
 
     $("hero-actions").innerHTML = actions
-      .map(
-        (a) =>
-          `<a class="btn${a.primary ? " btn--primary" : ""}" href="${escape(a.href)}"${
-            a.href.startsWith("#") ? "" : ' target="_blank" rel="noopener"'
-          }>${escape(a.label)}<span class="btn-sub">${escape(a.sub)}</span></a>`
-      )
+      .map((a) => {
+        const icon = a.icon ? `<span class="btn-icon">${ICONS[a.icon]}</span>` : "";
+        const sub = a.sub ? `<span class="btn-sub">${escape(a.sub)}</span>` : "";
+        return `<a class="btn${a.primary ? " btn--primary" : ""}" href="${escape(a.href)}"${
+          a.href.startsWith("#") ? "" : ' target="_blank" rel="noopener"'
+        }>${icon}${escape(a.label)}${sub}</a>`;
+      })
       .join("");
 
     const next = nextRunLabel();
+    const benchmark = data.benchmark || {};
     const stats = [
       {
-        label: "Systematic reviews",
-        value: fmtInt(dataset.total_reviews),
-        note: `${fmtInt(dataset.core_reviews)} core · ${fmtInt(dataset.rolling_reviews)} rolling`,
+        label: "Benchmark questions",
+        value: benchmark.available ? fmtCompact(benchmark.reviews) : fmtInt(dataset.total_reviews),
+        note: benchmark.available
+          ? `${fmtCompact(benchmark.atomic_facts)} expert atomic facts`
+          : "published on HuggingFace",
       },
       {
-        label: "Atomic facts",
-        value: fmtCompact(dataset.atomic_facts),
-        note: dataset.facts_per_review
-          ? `${dataset.facts_per_review} per review`
-          : "expert conclusions",
+        label: "Live evaluation panel",
+        value: fmtInt(dataset.total_reviews),
+        note: `${fmtInt(dataset.core_reviews)} core · ${fmtInt(dataset.rolling_reviews)} rolling`,
       },
       {
         label: "Models tracked",
@@ -277,12 +306,6 @@
       )
       .join("");
 
-    const statusText = pipeline.available
-      ? running
-        ? `running · stage ${stages.indexOf(running) + 1}/${stages.length}`
-        : `${pipeline.target_month || ""} · ${done}/${stages.length} stages`
-      : "awaiting first run";
-    $("nav-status-text").textContent = statusText;
   }
 
   /* ------------------------------------------------------------------ *
@@ -386,7 +409,9 @@
     $("news-list").innerHTML = (site.news || [])
       .map(
         (n) =>
-          `<li><time>${escape(fmtDate(n.date))}</time><span>${escape(n.text)}</span></li>`
+          `<li><img class="news-icon" src="assets/logo.png" alt="" aria-hidden="true" /><time>[${escape(
+            fmtDate(n.date)
+          )}]:</time> <span>${escape(n.text)}</span></li>`
       )
       .join("");
 
@@ -399,20 +424,35 @@
       )
       .join("");
 
+    if (site.headline && site.headline.text) {
+      $("headline").innerHTML =
+        escape(site.headline.text) +
+        (site.headline.source
+          ? `<cite>${
+              (site.links || {}).paper
+                ? `<a href="${escape(site.links.paper)}" target="_blank" rel="noopener">${escape(
+                    site.headline.source
+                  )}</a>`
+                : escape(site.headline.source)
+            }</cite>`
+          : "");
+      $("headline").hidden = false;
+    }
+
     $("citation").textContent = site.citation || "";
 
-    $("team").innerHTML = (site.team || [])
-      .map(
-        (m) =>
-          `<li>${escape(m.name)}<span>${escape(m.affiliation || "")}</span></li>`
-      )
-      .join("");
+    $("contact").textContent =
+      "For any inquiries, questions, or feedback, please contact us at " +
+      "hayoung [at] cs [dot] princeton [dot] edu!";
 
-    if (site.contact_email) {
-      $("contact").innerHTML =
-        `Questions, corrections, or a model you want on the board — email ` +
-        `<a href="mailto:${escape(site.contact_email)}">${escape(site.contact_email)}</a>.`;
-    }
+    const ack = Array.isArray(site.acknowledgements)
+      ? site.acknowledgements
+      : site.acknowledgements
+      ? [site.acknowledgements]
+      : [];
+    $("ack-text").innerHTML = ack
+      .map((p) => `<p class="team-toggle-legend">${escape(p)}</p>`)
+      .join("");
 
     const generated = new Date(data.generated_at);
     $("footer-generated").textContent =
@@ -436,6 +476,52 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * side nav scrollspy
+   * ------------------------------------------------------------------ */
+
+  // Runs independently of the dashboard fetch below: every section it
+  // targets is static markup, not generated from data.
+  function setupScrollSpy() {
+    const links = Array.from(document.querySelectorAll(".side-nav a[data-section]"));
+    const sections = links
+      .map((link) => ({ link, el: document.getElementById(link.dataset.section) }))
+      .filter((s) => s.el);
+    if (!sections.length) return;
+
+    const setActive = (id) => {
+      links.forEach((link) => link.classList.toggle("is-active", link.dataset.section === id));
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length) setActive(visible[0].target.id);
+      },
+      { rootMargin: "-15% 0px -70% 0px" }
+    );
+    sections.forEach((s) => observer.observe(s.el));
+  }
+
+  // The rail stays out of the way while the hero/overview is in view, and
+  // slides in once the reader has scrolled past it.
+  function setupSideNavReveal() {
+    const nav = document.querySelector(".side-nav");
+    const overview = document.getElementById("overview");
+    if (!nav || !overview) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => nav.classList.toggle("is-visible", !entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(overview);
+  }
+
+  setupScrollSpy();
+  setupSideNavReveal();
+
+  /* ------------------------------------------------------------------ *
    * boot
    * ------------------------------------------------------------------ */
 
@@ -453,6 +539,23 @@
         renderBoard();
       });
     });
+
+    const copyBtn = document.getElementById("copy-citation");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const text = document.getElementById("citation").textContent;
+        navigator.clipboard.writeText(text).then(() => {
+          const label = copyBtn.querySelector(".copy-label");
+          const prev = label.textContent;
+          copyBtn.classList.add("is-copied");
+          label.textContent = "Copied!";
+          setTimeout(() => {
+            copyBtn.classList.remove("is-copied");
+            label.textContent = prev;
+          }, 1600);
+        });
+      });
+    }
   }
 
   fetch("data/dashboard.json", { cache: "no-cache" })
@@ -474,8 +577,7 @@
       bindControls();
     })
     .catch((error) => {
-      $("hero-lede").textContent =
+      $("hero-tagline").textContent =
         "Dashboard data could not be loaded (" + error.message + ").";
-      $("nav-status-text").textContent = "data unavailable";
     });
 })();

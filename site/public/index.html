@@ -3,16 +3,18 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SciConBench — A live benchmark for scientific conclusion synthesis</title>
+<title>SciConBench</title>
 <meta name="description" content="SciConBench is a live benchmark that continuously evaluates frontier AI agents on scientific conclusion synthesis, using newly published Cochrane systematic reviews under a clean-room retrieval protocol." />
 <meta property="og:title" content="SciConBench" />
-<meta property="og:description" content="A live benchmark for scientific conclusion synthesis. Continuously evaluating frontier models on newly published systematic reviews." />
+<meta property="og:description" content="A live agentic benchmark for open-domain scientific conclusion synthesis. Continuously evaluating frontier models on newly published systematic reviews." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://sciconbench.cs.princeton.edu" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="assets/styles.css" />
+<meta property="og:image" content="https://sciconbench.cs.princeton.edu/assets/logo.png" />
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="48x48" href="/assets/favicon-48.png" />
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+<link rel="stylesheet" href="assets/styles.css?v=202608326" />
 </head>
 <body>
 <div class="grain" aria-hidden="true"></div>
@@ -22,42 +24,77 @@
   <code>--demo</code> while the judging stages finish. Do not cite them.
 </div>
 
-<header class="nav">
-  <div class="nav-inner">
-    <a class="nav-brand" href="#top">
-      <span class="nav-mark" aria-hidden="true"></span>
-      SciConBench
-    </a>
-    <nav class="nav-links" aria-label="Sections">
-      <a href="#leaderboard">Leaderboard</a>
-      <a href="#trend">Trend</a>
-      <a href="#pipeline">Pipeline</a>
-      <a href="#dataset">Dataset</a>
-      <a href="#method">Method</a>
-    </nav>
-    <div class="nav-status" id="nav-status" title="Status of the most recent monthly run">
-      <span class="pulse" aria-hidden="true"></span>
-      <span id="nav-status-text">Loading…</span>
-    </div>
-  </div>
-</header>
+<nav class="side-nav" aria-label="Page sections">
+  <a class="side-nav-brand" href="#overview">
+    <img src="assets/logo.png" width="20" height="20" alt="" />
+    SciConBench
+  </a>
+  <ul>
+    <li><a href="#overview" data-section="overview">Overview</a></li>
+    <li><a href="#news" data-section="news">Latest News</a></li>
+    <li><a href="#leaderboard" data-section="leaderboard">Leaderboard</a></li>
+    <li><a href="#trend" data-section="trend">Trend</a></li>
+    <li><a href="#pipeline" data-section="pipeline">Pipeline</a></li>
+    <li><a href="#dataset" data-section="dataset">Dataset</a></li>
+    <li><a href="#effort" data-section="effort">Cost</a></li>
+    <li><a href="#method" data-section="method">Method</a></li>
+    <li><a href="#cite" data-section="cite">Citation</a></li>
+  </ul>
+</nav>
 
 <main id="top">
 
   <!-- ───────────────────────────── hero ───────────────────────────── -->
-  <section class="hero">
+  <section class="hero" id="overview">
     <div class="wrap">
-      <div class="hero-badge">
-        <span class="pulse" aria-hidden="true"></span>
-        Live benchmark · updated monthly
-      </div>
+      <img class="hero-logo" src="assets/logo.png" width="84" height="84" alt="SciConBench logo" />
       <h1 class="hero-title">SciConBench</h1>
       <p class="hero-tagline" id="hero-tagline"></p>
-      <p class="hero-lede" id="hero-lede"></p>
 
       <div class="hero-actions" id="hero-actions"></div>
 
-      <dl class="hero-stats" id="hero-stats"></dl>
+    </div>
+  </section>
+
+  <!-- ──────────────────────────── news ───────────────────────────── -->
+  <section class="section section--tight" id="news">
+    <div class="wrap">
+      <div class="byline">
+        <div class="institution-marks">
+          <img src="assets/logo-princeton.png" alt="Princeton University" />
+          <span class="institution-sep" aria-hidden="true">&amp;</span>
+          <img src="assets/logo-citp.png" alt="Center for Information Technology Policy" />
+        </div>
+        <div class="byline-toggles">
+          <details class="team-toggle">
+            <summary>Authors <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 8.5 12 15.5 19 8.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg></summary>
+            <ul class="team-toggle-list">
+              <li>Hayoung Jung <sup>1</sup></li>
+              <li>Pedro Viana Diniz <sup>2</sup></li>
+              <li>José Reinaldo Corrêa Roveda <sup>2</sup></li>
+              <li>Abner Fernandes da Silva <sup>2</sup></li>
+              <li>Haeun Jung <sup>3</sup></li>
+              <li>Enoch Tsai <sup>4</sup></li>
+              <li>Aleksandra Korolova <sup>*1</sup></li>
+              <li>Manoel Horta Ribeiro <sup>*1</sup></li>
+            </ul>
+            <p class="team-toggle-legend">
+              <sup>1</sup>&nbsp;Princeton University &nbsp;·&nbsp;
+              <sup>2</sup>&nbsp;Universidade Federal de Minas Gerais &nbsp;·<br />
+              <sup>3</sup>&nbsp;Stony Brook University &nbsp;·&nbsp;
+              <sup>4</sup>&nbsp;Hackensack Meridian School of Medicine &nbsp;·<br />
+              <sup>*</sup>&nbsp;Jointly advised this work
+            </p>
+          </details>
+          <details class="team-toggle" id="ack">
+            <summary>Acknowledgement <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 8.5 12 15.5 19 8.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg></summary>
+            <div class="ack-copy" id="ack-text"></div>
+          </details>
+        </div>
+      </div>
+
+      <h2 class="section-title">Latest News</h2>
+      <ul class="news" id="news-list"></ul>
     </div>
   </section>
 
@@ -66,6 +103,7 @@
     <div class="wrap">
       <div class="loop">
         <div class="loop-copy">
+          <p id="intro-lede"></p>
           <h2 class="section-title">Benchmarks go stale. This one doesn't.</h2>
           <p>
             Every static benchmark built from published literature ends up inside the next
@@ -80,6 +118,7 @@
             clean-room proxy that hides the review itself, anything citing it, and anything
             published after it.
           </p>
+          <blockquote class="pullquote" id="headline" hidden></blockquote>
         </div>
         <ol class="loop-steps">
           <li><span>01</span><div><strong>Discover</strong>New systematic reviews, the month they appear.</div></li>
@@ -89,6 +128,8 @@
           <li><span>05</span><div><strong>Judge</strong>Factual precision and recall, fact by fact.</div></li>
         </ol>
       </div>
+
+      <dl class="hero-stats" id="hero-stats"></dl>
     </div>
   </section>
 
@@ -165,11 +206,16 @@
       <div class="section-head">
         <div>
           <h2 class="section-title">A dataset that grows every month</h2>
-          <p class="section-sub">
-            A frozen <em>core</em> panel keeps month-to-month comparisons stable. On top of it,
-            each monthly <em>rolling</em> cohort adds reviews that no model could have seen during
-            training.
+          <p class="section-sub" id="dataset-sub">
+            The full benchmark is published on HuggingFace. The figures below describe the
+            <em>live evaluation panel</em> — the subset every tracked model is re-run against
+            each month. A frozen <em>core</em> sample keeps month-to-month comparisons stable,
+            and each monthly <em>rolling</em> cohort adds reviews no model could have seen
+            during training.
           </p>
+          <pre class="snippet">from datasets import load_dataset
+
+dataset = load_dataset("hayoungjung/SciConBench")</pre>
         </div>
       </div>
       <div class="grid-2">
@@ -268,30 +314,25 @@
     </div>
   </section>
 
-  <!-- ──────────────────────────── news ───────────────────────────── -->
-  <section class="section section--tight" id="news">
-    <div class="wrap">
-      <h2 class="section-title">Updates</h2>
-      <ul class="news" id="news-list"></ul>
-    </div>
-  </section>
-
   <!-- ────────────────────────── citation ─────────────────────────── -->
   <section class="section" id="cite">
     <div class="wrap">
-      <div class="grid-2 grid-2--wide-left">
-        <div>
-          <h2 class="section-title">Citation</h2>
-          <pre class="cite" id="citation"></pre>
-        </div>
-        <div>
-          <h2 class="section-title">Team</h2>
-          <ul class="team" id="team"></ul>
-          <p class="contact" id="contact"></p>
-        </div>
+      <div class="cite-head">
+        <h2 class="section-title">Citation</h2>
+        <button class="copy-btn" id="copy-citation" type="button">
+          <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2" />
+          </svg>
+          <span class="copy-label">Copy</span>
+        </button>
       </div>
+      <pre class="cite" id="citation"></pre>
+      <p class="contact" id="contact"></p>
     </div>
   </section>
+
+
 </main>
 
 <footer class="footer">
@@ -301,7 +342,7 @@
   </div>
 </footer>
 
-<script src="assets/charts.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/charts.js?v=202608326"></script>
+<script src="assets/app.js?v=202608326"></script>
 </body>
 </html>

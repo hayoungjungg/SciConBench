@@ -11,6 +11,7 @@ ahead of time. Run this after a monthly pipeline run, then ``./publish.sh``.
 
 Reads (all read-only):
     data_track/sciconbench_track.db        model responses + judge scores
+    data_track/sciconbench_track.parquet   size of the published HuggingFace release
     data_track/logs/workflow-*.log         stage-by-stage status of latest run
     scicon-track/config/query_batch_config.yaml   model roster + re-eval policy
     site/site.config.json                  editable metadata (links, news, team)
@@ -33,6 +34,7 @@ SITE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SITE_DIR.parent
 DATA_DIR = Path(os.environ.get("SCICON_DATA_DIR", REPO_ROOT / "data_track"))
 DB_PATH = DATA_DIR / "sciconbench_track.db"
+PARQUET_PATH = DATA_DIR / "sciconbench_track.parquet"
 LOG_DIR = DATA_DIR / "logs"
 RESULTS_DIR = DATA_DIR / "results"
 CONFIG_PATH = REPO_ROOT / "scicon-track" / "config" / "query_batch_config.yaml"
@@ -156,11 +158,10 @@ def parse_model_roster() -> dict[str, str]:
         match = re.search(rf"^{key}:\s*$(.*?)(?=^\S|\Z)", text, re.M | re.S)
         if not match:
             return []
-        return [
-            line.strip()
-            for line in match.group(1).splitlines()
-            if line.strip() and not line.strip().startswith("#")
-        ]
+        # Trailing "# control" style annotations are common in this config and
+        # would otherwise become part of the model name.
+        lines = (raw.split("#", 1)[0].strip() for raw in match.group(1).splitlines())
+        return [line for line in lines if line]
 
     always = {line.lstrip("- ").strip() for line in block("reevaluate_always")}
     # Legacy YAMLs listed open-weight models under evaluate_once; invert that.
@@ -256,6 +257,39 @@ def parse_latest_run() -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # database
 # --------------------------------------------------------------------------- #
+
+def export_benchmark() -> dict[str, Any]:
+    """Size of the published HuggingFace release.
+
+    This is the whole benchmark (thousands of reviews), which is a different
+    quantity from the live evaluation panel that the monthly runs score. The
+    site shows both so the two are never confused.
+    """
+    empty = {"available": False, "reviews": None, "atomic_facts": None}
+    if not PARQUET_PATH.exists():
+        return empty
+    try:
+        import pyarrow.parquet as pq
+    except ImportError:
+        return empty
+
+    try:
+        table = pq.read_table(PARQUET_PATH, columns=["total_atomic_facts"])
+    except Exception:
+        return empty
+
+    counts = [n for n in table.column("total_atomic_facts").to_pylist() if n]
+    reviews = table.num_rows
+    return {
+        "available": True,
+        "reviews": reviews,
+        "atomic_facts": sum(counts),
+        "facts_per_review": round(sum(counts) / len(counts), 1) if counts else None,
+        "updated": datetime.fromtimestamp(
+            PARQUET_PATH.stat().st_mtime, tz=timezone.utc
+        ).strftime("%Y-%m-%d"),
+    }
+
 
 def connect() -> sqlite3.Connection:
     if not DB_PATH.exists():
@@ -516,6 +550,7 @@ def main() -> None:
 
     site_config = json.loads(SITE_CONFIG_PATH.read_text()) if SITE_CONFIG_PATH.exists() else {}
     roster = parse_model_roster()
+    benchmark = export_benchmark()
 
     with connect() as conn:
         dataset = export_dataset(conn)
@@ -549,6 +584,8 @@ def main() -> None:
         "summary": {
             "total_reviews": dataset["total_reviews"],
             "atomic_facts": dataset["atomic_facts"],
+            "benchmark_reviews": benchmark["reviews"],
+            "benchmark_atomic_facts": benchmark["atomic_facts"],
             "models_tracked": len([m for m in registry if m["active"]]),
             "total_responses": total_responses,
             "graded_responses": total_graded,
@@ -557,6 +594,7 @@ def main() -> None:
             "latest_run_month_label": month_label(latest_month) if latest_month else None,
             "run_months": run_months,
         },
+        "benchmark": benchmark,
         "dataset": dataset,
         "leaderboard": leaderboard,
         "series": build_series(entries),
@@ -569,8 +607,13 @@ def main() -> None:
     args.out.write_text(json.dumps(payload, indent=2) + "\n")
 
     print(f"wrote {args.out}")
+    if benchmark["available"]:
+        print(
+            f"  benchmark: {benchmark['reviews']} reviews · "
+            f"{benchmark['atomic_facts']} atomic facts"
+        )
     print(
-        f"  {dataset['total_reviews']} reviews · {dataset['atomic_facts']} atomic facts · "
+        f"  live panel: {dataset['total_reviews']} reviews · {dataset['atomic_facts']} atomic facts · "
         f"{len(leaderboard)} models on the board"
     )
     print(f"  {total_graded}/{total_responses} responses graded"
