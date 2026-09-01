@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="48x48" href="/assets/favicon-48.png" />
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
-<link rel="stylesheet" href="assets/styles.css?v=202608326" />
+<link rel="stylesheet" href="assets/styles.css?v=202608339" />
 </head>
 <body>
 <div class="grain" aria-hidden="true"></div>
@@ -66,29 +66,39 @@
           <img src="assets/logo-citp.png" alt="Center for Information Technology Policy" />
         </div>
         <div class="byline-toggles">
-          <details class="team-toggle">
+          <details class="team-toggle" name="byline">
             <summary>Authors <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 8.5 12 15.5 19 8.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg></summary>
-            <ul class="team-toggle-list">
-              <li>Hayoung Jung <sup>1</sup></li>
-              <li>Pedro Viana Diniz <sup>2</sup></li>
-              <li>José Reinaldo Corrêa Roveda <sup>2</sup></li>
-              <li>Abner Fernandes da Silva <sup>2</sup></li>
-              <li>Haeun Jung <sup>3</sup></li>
-              <li>Enoch Tsai <sup>4</sup></li>
-              <li>Aleksandra Korolova <sup>*1</sup></li>
-              <li>Manoel Horta Ribeiro <sup>*1</sup></li>
-            </ul>
-            <p class="team-toggle-legend">
-              <sup>1</sup>&nbsp;Princeton University &nbsp;·&nbsp;
-              <sup>2</sup>&nbsp;Universidade Federal de Minas Gerais &nbsp;·<br />
-              <sup>3</sup>&nbsp;Stony Brook University &nbsp;·&nbsp;
-              <sup>4</sup>&nbsp;Hackensack Meridian School of Medicine &nbsp;·<br />
-              <sup>*</sup>&nbsp;Jointly advised this work
-            </p>
+            <div class="toggle-panel">
+              <ul class="team-toggle-list">
+                <li class="team-toggle-row">
+                  <span>Hayoung Jung <sup>1</sup></span>
+                  <span>Pedro Viana Diniz <sup>2</sup></span>
+                  <span>José Reinaldo Corrêa Roveda <sup>2</sup></span>
+                </li>
+                <li class="team-toggle-row">
+                  <span>Abner Fernandes da Silva <sup>2</sup></span>
+                  <span>Haeun Jung <sup>3</sup></span>
+                  <span>Enoch Tsai <sup>4</sup></span>
+                </li>
+                <li class="team-toggle-row">
+                  <span>Aleksandra Korolova <sup>*1</sup></span>
+                  <span>Manoel Horta Ribeiro <sup>*1</sup></span>
+                </li>
+              </ul>
+              <p class="team-toggle-legend">
+                <sup>1</sup>&nbsp;Princeton University &nbsp;·&nbsp;
+                <sup>2</sup>&nbsp;Universidade Federal de Minas Gerais &nbsp;·<br />
+                <sup>3</sup>&nbsp;Stony Brook University &nbsp;·&nbsp;
+                <sup>4</sup>&nbsp;Hackensack Meridian School of Medicine &nbsp;·<br />
+                <sup>*</sup>&#8201;Jointly advised this work
+              </p>
+            </div>
           </details>
-          <details class="team-toggle" id="ack">
+          <details class="team-toggle" id="ack" name="byline">
             <summary>Acknowledgement <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 8.5 12 15.5 19 8.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg></summary>
-            <div class="ack-copy" id="ack-text"></div>
+            <div class="toggle-panel">
+              <div class="ack-copy" id="ack-text"></div>
+            </div>
           </details>
         </div>
       </div>
@@ -335,14 +345,7 @@ dataset = load_dataset("hayoungjung/SciConBench")</pre>
 
 </main>
 
-<footer class="footer">
-  <div class="wrap footer-inner">
-    <span id="footer-generated"></span>
-    <span class="footer-links" id="footer-links"></span>
-  </div>
-</footer>
-
-<script src="assets/charts.js?v=202608326"></script>
-<script src="assets/app.js?v=202608326"></script>
+<script src="assets/charts.js?v=202608339"></script>
+<script src="assets/app.js?v=202608339"></script>
 </body>
 </html>

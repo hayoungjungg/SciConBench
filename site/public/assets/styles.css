@@ -242,9 +242,9 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 
 /* ───────────────────────────── sections ─────────────────────────── */
 
-.section { padding: 48px 0; border-top: 1px solid var(--line-soft); }
+.section { padding: 48px 0; }
 .section--tight { padding: 40px 0; }
-#news { border-top: 0; padding-top: 0; }
+#news { padding-top: 0; }
 
 .section-head {
   display: flex;
@@ -632,17 +632,32 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 }
 
 .byline-toggles {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
+  --toggle-gap: 16px;
+  --toggle-col: 11.25rem; /* wide enough for the Acknowledgement pill */
+  --toggles-width: calc(var(--toggle-col) * 2 + var(--toggle-gap));
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: var(--toggle-col) var(--toggle-col);
+  justify-content: center;
+  column-gap: var(--toggle-gap);
+  align-items: start;
+  width: 100%;
+}
+
+/* Fixed-width slots: opening a panel only grows height, never shifts the pills. */
+.team-toggle {
+  min-width: 0;
+  text-align: center;
 }
 
 .team-toggle summary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
   padding: 8px 16px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -663,16 +678,45 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 }
 .team-toggle[open] .chevron { transform: rotate(180deg); }
 
+/* Full content-column width, centered under the button pair */
+.toggle-panel {
+  box-sizing: border-box;
+  width: 100cqw;
+  margin: 16px 0 0;
+  margin-left: calc((var(--toggles-width) - 100cqw) / 2);
+  text-align: center;
+}
+
+#ack .toggle-panel {
+  margin-left: calc(
+    (var(--toggles-width) - 100cqw) / 2
+    - var(--toggle-col)
+    - var(--toggle-gap)
+  );
+  background: var(--bg-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  text-align: center;
+}
+
 .team-toggle-list {
   list-style: none;
-  margin: 16px 0 0;
+  margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  color: var(--text);
+  text-align: center;
+}
+.team-toggle-row {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px 20px;
-  font-size: 14.5px;
-  color: var(--text);
+  gap: 6px 18px;
 }
 .team-toggle-list sup { color: var(--accent); font-size: 11px; }
 
@@ -680,10 +724,24 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   margin: 14px auto 0;
   font-size: 12.5px;
   color: var(--text-faint);
-  max-width: 62ch;
   text-align: center;
+  max-width: 62ch;
 }
 .team-toggle-legend sup { color: var(--accent); }
+
+.ack-copy {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
+.ack-copy .team-toggle-legend {
+  margin: 0;
+  max-width: none;
+  text-align: justify;
+  text-align-last: left;
+  hyphens: none;
+}
+.ack-copy .team-toggle-legend + .team-toggle-legend { margin-top: 12px; }
 
 /* ───────────────────────── citation / team ────────────────────── */
 
@@ -760,22 +818,6 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   font-style: normal;
   color: var(--text-faint);
 }
-
-/* ────────────────────────────── footer ────────────────────────── */
-
-.footer {
-  border-top: 1px solid var(--line-soft);
-  padding: 22px 0 36px;
-}
-.footer-inner {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  font-size: 12.5px;
-  color: var(--text-faint);
-}
-.footer-links { display: flex; gap: 16px; }
 
 /* ───────────────────────────── responsive ─────────────────────── */
 

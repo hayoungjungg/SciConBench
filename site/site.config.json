@@ -67,7 +67,7 @@
     }
   ],
   "acknowledgements": [
-    "We thank Anushka Acharya and the Princeton Research Computing for their support in creating this dashboard evaluation infrastructure. In addition, we thank Francesco Salvi, Alejandro Cuevas, Bohdan Turbal, Max Springer, Chung Peng Lee, Elijah Fullerton, Jane Castleman, Blossom Metevier, Jason Greenfield, and members of the Center for Information Technology Policy for their helpful feedback and support.",
+    "We thank Anushka Acharya and the Princeton Research Computing for their help in creating this live evaluation infrastructure. In addition, we thank Francesco Salvi, Alejandro Cuevas, Bohdan Turbal, Max Springer, Chung Peng Lee, Elijah Fullerton, Jane Castleman, Blossom Metevier, Jason Greenfield, and members of the Center for Information Technology Policy for their helpful feedback and support.",
     "This work was supported in part by the National Science Foundation grants CNS-1956435 and CNS-2344925, and by the Alfred P. Sloan Research Fellowship."
   ]
 }

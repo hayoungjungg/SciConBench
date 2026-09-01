@@ -454,25 +454,6 @@
       .map((p) => `<p class="team-toggle-legend">${escape(p)}</p>`)
       .join("");
 
-    const generated = new Date(data.generated_at);
-    $("footer-generated").textContent =
-      `SciConBench · ${site.institution || ""} · data generated ` +
-      (isNaN(generated)
-        ? data.generated_at
-        : generated.toLocaleString("en-US", {
-            dateStyle: "medium", timeStyle: "short", timeZone: "UTC",
-          }) + " UTC");
-
-    const links = site.links || {};
-    $("footer-links").innerHTML = Object.entries({
-      Paper: links.paper, Dataset: links.dataset, Code: links.code,
-    })
-      .filter(([, href]) => href)
-      .map(
-        ([label, href]) =>
-          `<a href="${escape(href)}" target="_blank" rel="noopener">${escape(label)}</a>`
-      )
-      .join("");
   }
 
   /* ------------------------------------------------------------------ *
