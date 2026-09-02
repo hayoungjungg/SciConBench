@@ -80,30 +80,225 @@
   }
 
   /* ---------------------------------------------------------------- *
+   * Provider "logomarks" — small abstract glyphs drawn in a 16x16 box
+   * centered at the origin, used to badge each chart point instead of a
+   * plain dot. Deliberately generic/abstract rather than reproductions
+   * of real trademarks.
+   * ---------------------------------------------------------------- */
+  const ICON_DRAWERS = {
+    openai: (g) => {
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i;
+        g.appendChild(
+          el("circle", { cx: Math.cos(a) * 4.6, cy: Math.sin(a) * 4.6, r: 2.5, fill: "#fff" })
+        );
+      }
+    },
+    anthropic: (g) => {
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i;
+        g.appendChild(
+          el("line", {
+            x1: 0, y1: 0, x2: Math.cos(a) * 6.6, y2: Math.sin(a) * 6.6,
+            stroke: "#fff", "stroke-width": 2, "stroke-linecap": "round",
+          })
+        );
+      }
+    },
+    gemini: (g) => {
+      g.appendChild(
+        el("path", {
+          d: "M0 -7 C1.4 -1.8 1.8 -1.4 7 0 C1.8 1.4 1.4 1.8 0 7 C-1.4 1.8 -1.8 1.4 -7 0 C-1.8 -1.4 -1.4 -1.8 0 -7 Z",
+          fill: "#fff",
+        })
+      );
+    },
+    azure: (g) => {
+      g.appendChild(
+        el("path", {
+          d: "M-7,0 C-7,-4.5 -3,-4.5 0,0 C3,4.5 7,4.5 7,0 C7,-4.5 3,-4.5 0,0 C-3,4.5 -7,4.5 -7,0",
+          fill: "none", stroke: "#fff", "stroke-width": 1.9, "stroke-linecap": "round",
+        })
+      );
+    },
+    openrouter: (g) => {
+      const pts = [[0, -6.5], [-5.8, 3.8], [5.8, 3.8]];
+      pts.forEach(([x1, y1], i) => {
+        const [x2, y2] = pts[(i + 1) % pts.length];
+        g.appendChild(
+          el("line", { x1, y1, x2, y2, stroke: "#fff", "stroke-width": 1.4, opacity: 0.85 })
+        );
+      });
+      pts.forEach(([cx, cy]) => g.appendChild(el("circle", { cx, cy, r: 1.7, fill: "#fff" })));
+    },
+    perplexity: (g) => {
+      for (let i = 0; i < 4; i++) {
+        const a = (Math.PI / 4) * i;
+        g.appendChild(
+          el("line", {
+            x1: -Math.cos(a) * 6.4, y1: -Math.sin(a) * 6.4,
+            x2: Math.cos(a) * 6.4, y2: Math.sin(a) * 6.4,
+            stroke: "#fff", "stroke-width": 1.6, "stroke-linecap": "round",
+          })
+        );
+      }
+      g.appendChild(el("circle", { cx: 0, cy: 0, r: 1.5, fill: "#fff" }));
+    },
+    deepseek: (g) => {
+      g.appendChild(
+        el("path", {
+          d: "M-6.5,-1.5 Q-3.5,-6.5 0,-1.5 Q3.5,3.5 6.5,-1.5",
+          fill: "none", stroke: "#fff", "stroke-width": 1.9, "stroke-linecap": "round",
+        })
+      );
+      g.appendChild(el("circle", { cx: 0, cy: 4.6, r: 1.3, fill: "#fff" }));
+    },
+    xai: (g) => {
+      g.appendChild(el("line", { x1: -5.6, y1: -5.6, x2: 5.6, y2: 5.6, stroke: "#fff", "stroke-width": 2.2, "stroke-linecap": "round" }));
+      g.appendChild(el("line", { x1: -5.6, y1: 5.6, x2: 5.6, y2: -5.6, stroke: "#fff", "stroke-width": 2.2, "stroke-linecap": "round" }));
+    },
+    meta: (g) => {
+      g.appendChild(el("circle", { cx: -3.1, cy: 0, r: 4.6, fill: "none", stroke: "#fff", "stroke-width": 1.7 }));
+      g.appendChild(el("circle", { cx: 3.1, cy: 0, r: 4.6, fill: "none", stroke: "#fff", "stroke-width": 1.7 }));
+    },
+    mistral: (g) => {
+      [-4.2, 0, 4.2].forEach((x, i) => {
+        g.appendChild(
+          el("rect", {
+            x: x - 1.1, y: -6 + i * 0.6, width: 2.2, height: 12 - i * 1.2,
+            rx: 1, fill: "#fff", opacity: 0.55 + i * 0.22,
+          })
+        );
+      });
+    },
+    qwen: (g) => {
+      g.appendChild(
+        el("path", {
+          d: "M-6.4,2.4 a3,3 0 0 1 0.4,-5.9 a3.6,3.6 0 0 1 6.7,-1.3 a3.2,3.2 0 0 1 2.7,6.4 a2,2 0 0 1 -0.2,0.8 Z",
+          fill: "#fff",
+        })
+      );
+    },
+    kimi: (g) => {
+      g.appendChild(el("circle", { cx: -2.2, cy: 0, r: 5.2, fill: "none", stroke: "#fff", "stroke-width": 1.7 }));
+      g.appendChild(el("line", { x1: 1.2, y1: -4.6, x2: 6.4, y2: -4.6, stroke: "#fff", "stroke-width": 1.9, "stroke-linecap": "round" }));
+      g.appendChild(el("line", { x1: 1.2, y1: 0, x2: 6.8, y2: 0, stroke: "#fff", "stroke-width": 1.9, "stroke-linecap": "round" }));
+      g.appendChild(el("line", { x1: 1.2, y1: 4.6, x2: 5.6, y2: 4.6, stroke: "#fff", "stroke-width": 1.9, "stroke-linecap": "round" }));
+    },
+    glm: (g) => {
+      g.appendChild(
+        el("path", {
+          d: "M-6.5,-5 L-6.5,5 M-6.5,-5 L-1,-5 M-6.5,0 L-2.2,0 M1.5,-5 L1.5,5 M1.5,-5 L6.8,-5 M1.5,0 L5.6,0 M1.5,5 L6.8,5",
+          fill: "none", stroke: "#fff", "stroke-width": 1.5, "stroke-linecap": "round", "stroke-linejoin": "round",
+        })
+      );
+    },
+    minimax: (g) => {
+      [-4.6, 0, 4.6].forEach((cx) => g.appendChild(el("circle", { cx, cy: 0, r: 2.1, fill: "#fff" })));
+    },
+  };
+
+  function drawFallbackIcon(g, letter) {
+    g.appendChild(
+      el(
+        "text",
+        {
+          x: 0, y: 3.4, "text-anchor": "middle",
+          "font-size": 9.5, "font-weight": 700, fill: "#fff",
+          "font-family": "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        },
+        letter
+      )
+    );
+  }
+
+  function drawIcon(g, key, fallbackLetter) {
+    const drawer = ICON_DRAWERS[(key || "").toLowerCase()];
+    if (drawer) drawer(g);
+    else drawFallbackIcon(g, (fallbackLetter || "?").slice(0, 1).toUpperCase());
+  }
+
+  /* Real brand marks, vendored locally (no third-party requests). Used when
+   * available; providers without an asset here fall back to ICON_DRAWERS. */
+  const ICON_IMAGES = {
+    openai: "assets/logos/openai.png",
+    anthropic: "assets/logos/anthropic.jpg",
+    gemini: "assets/logos/gemini.png",
+    perplexity: "assets/logos/perplexity.png",
+    deepseek: "assets/logos/deepseek.svg",
+    kimi: "assets/logos/kimi.svg",
+    qwen: "assets/logos/qwen.svg",
+    glm: "assets/logos/glm.svg",
+    ai2: "assets/logos/ai2.jpg",
+    minimax: "assets/logos/minimax.svg",
+  };
+
+  // Model name / date, a divider, then the plotted metric and a sample-size
+  // line. Live points carry a `panels` reviews breakdown (core vs. each
+  // rolling cohort) so that line can read "N samples (X core, Y rolling)";
+  // points without one (e.g. paper-release baselines) fall back to `note`.
+  function tooltipHtml(s, p, opts) {
+    const metricLine = `${opts.yLabel || "Value"}: ${opts.format(p.raw.value)}`;
+    let samplesLine = "";
+    if (p.raw.panels && Object.keys(p.raw.panels).length) {
+      const core = (p.raw.panels.core && p.raw.panels.core.reviews) || 0;
+      const rolling = Object.keys(p.raw.panels)
+        .filter((k) => k !== "core")
+        .reduce((sum, k) => sum + ((p.raw.panels[k] && p.raw.panels[k].reviews) || 0), 0);
+      samplesLine = `${core + rolling} samples (${core} core · ${rolling} rolling)`;
+    } else if (p.raw.note) {
+      samplesLine = p.raw.note;
+    }
+    return (
+      `<b style="color:${s.color}">${s.display_name}</b><br>${p.raw.label}` +
+      `<hr style="margin:5px 0;border:none;border-top:1px solid #e5e7eb;">` +
+      metricLine +
+      (samplesLine ? `<br>${samplesLine}` : "")
+    );
+  }
+
+  /* ---------------------------------------------------------------- *
    * Multi-series line chart over ordered categorical months.
-   * series: [{ display_name, color, points: [{ label, value }] }]
+   * series: [{ display_name, color, icon, points: [{ label, value }] }]
    * ---------------------------------------------------------------- */
   function lineChart(mount, series, options) {
     const opts = Object.assign(
-      { height: 320, yLabel: "", yMax: null, yMin: null, format: (v) => v.toFixed(3) },
+      {
+        height: 320, yLabel: "", yMax: null, yMin: null,
+        format: (v) => v.toFixed(3), badgeRadius: 12, dashedLine: false,
+        endLabels: false, tickCount: 5, labelOrder: null, leadingGapLabel: null, frontier: false,
+      },
       options
     );
     mount.innerHTML = "";
     if (!series.length) return;
 
-    const labels = [];
+    const discovered = [];
     series.forEach((s) =>
       s.points.forEach((p) => {
-        if (!labels.includes(p.label)) labels.push(p.label);
+        if (!discovered.includes(p.label)) discovered.push(p.label);
       })
     );
+    // Callers with a known chronology (e.g. a fixed "Paper" column ahead of
+    // the monthly runs) can pin the x-axis order explicitly; anything not
+    // named there still shows up, appended at the end.
+    const labels = opts.labelOrder
+      ? opts.labelOrder.filter((l) => discovered.includes(l)).concat(
+          discovered.filter((l) => !opts.labelOrder.includes(l))
+        )
+      : discovered;
 
     const values = series.flatMap((s) =>
       s.points.map((p) => p.value).filter((v) => v !== null && v !== undefined)
     );
     if (!values.length) return;
 
-    const pad = { top: 18, right: 20, bottom: 34, left: 46 };
+    const pad = {
+      top: opts.badgeRadius + 8,
+      right: opts.endLabels ? 148 : 20,
+      bottom: 44,
+      left: 46,
+    };
     const W = 860;
     const H = opts.height;
     const innerW = W - pad.left - pad.right;
@@ -112,17 +307,58 @@
     let lo = opts.yMin !== null ? opts.yMin : Math.min(...values);
     let hi = opts.yMax !== null ? opts.yMax : Math.max(...values);
     if (hi === lo) { hi = lo + 0.1; lo = Math.max(0, lo - 0.1); }
-    const span = hi - lo;
-    lo = Math.max(0, lo - span * 0.12);
-    hi = hi + span * 0.12;
+    // Only pad with breathing room around auto-computed bounds; explicit
+    // yMin/yMax from the caller are exact axis endpoints.
+    if (opts.yMin === null || opts.yMax === null) {
+      const span = hi - lo;
+      if (opts.yMin === null) lo = Math.max(0, lo - span * 0.12);
+      if (opts.yMax === null) hi = hi + span * 0.12;
+    }
 
-    const x = (i) =>
-      pad.left + (labels.length === 1 ? innerW / 2 : (i / (labels.length - 1)) * innerW);
+    // A "leading gap" label (e.g. a fixed paper-release snapshot) isn't part
+    // of the monthly timeline — pin it to its own island a bit clear of the
+    // y-axis, with real horizontal air before the actual chronological
+    // columns start, so it can't read as "the month before" the first run.
+    const hasGap =
+      opts.leadingGapLabel && labels[0] === opts.leadingGapLabel && labels.length > 1;
+    // Live monthly columns land a fixed, compact distance apart (like
+    // ticks on a ruler) instead of always stretching to fill however much
+    // width happens to be available — so with only two months of data,
+    // August lands right next to July instead of clear across the chart
+    // at a "last column" edge that has no real meaning yet. Only once
+    // enough months accumulate to outgrow the chart does spacing shrink
+    // below that ideal step, so everything still fits.
+    const IDEAL_COL_STEP = 130;
+    const colStep = (count, span) => (count > 1 ? Math.min(IDEAL_COL_STEP, span / (count - 1)) : 0);
+    let x;
+    let leadX, restStart, restCount, colX;
+    if (hasGap) {
+      leadX = pad.left + 90;
+      restStart = leadX + 170;
+      restCount = labels.length - 1;
+      colX = (rs, i) => rs + (i - 1) * colStep(restCount, W - pad.right - rs);
+      x = (i) => (i === 0 ? leadX : colX(restStart, i));
+    } else {
+      // Inset the first column a bit from the y-axis — sitting exactly on
+      // it (as a naive 0..innerW split would, when there's no leading gap
+      // column ahead of it) reads as a badge glued to the axis line.
+      const marginLeft = 80;
+      const plotStart = pad.left + marginLeft;
+      x = (i) => plotStart + i * colStep(labels.length, W - pad.right - plotStart);
+    }
     const y = (v) => pad.top + innerH - ((v - lo) / (hi - lo)) * innerH;
 
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" });
 
-    niceTicks(lo, hi, 5).forEach((t) => {
+    const R = opts.badgeRadius;
+    const clipId = `badge-clip-${Math.random().toString(36).slice(2, 9)}`;
+    const defs = el("defs");
+    const clipPath = el("clipPath", { id: clipId });
+    clipPath.appendChild(el("circle", { cx: 0, cy: 0, r: R }));
+    defs.appendChild(clipPath);
+    svg.appendChild(defs);
+
+    niceTicks(lo, hi, opts.tickCount).forEach((t) => {
       if (t < lo || t > hi) return;
       svg.appendChild(
         el("line", { class: "grid-line", x1: pad.left, x2: W - pad.right, y1: y(t), y2: y(t) })
@@ -140,20 +376,175 @@
       })
     );
 
-    labels.forEach((label, i) => {
-      svg.appendChild(
-        el("text", { x: x(i), y: H - 12, "text-anchor": "middle" }, label)
-      );
-    });
+    // The gap label (e.g. "Preprint Results (early-mid 2026)") is long
+    // enough to wrap onto two short lines rather than run wide over its
+    // narrow island.
+    function wrapLabel(text, maxChars) {
+      const words = text.split(" ");
+      const lines = [];
+      let cur = "";
+      words.forEach((w) => {
+        if (cur && (cur + " " + w).length > maxChars) {
+          lines.push(cur);
+          cur = w;
+        } else {
+          cur = cur ? cur + " " + w : w;
+        }
+      });
+      if (cur) lines.push(cur);
+      return lines;
+    }
 
-    series.forEach((s) => {
-      const points = labels
+    // A badge's y is always its true value — the axis reading has to stay
+    // trustworthy, so nothing ever nudges a dot vertically. When several
+    // models land close together in the same month, only their x spreads
+    // out a little (a month column carries no continuous meaning beyond
+    // "this month"), just enough to keep the badges from fully stacking.
+    const seriesPoints = series.map((s) => ({
+      s,
+      points: labels
         .map((label, i) => {
           const point = s.points.find((p) => p.label === label);
           if (!point || point.value === null || point.value === undefined) return null;
           return { i, x: x(i), y: y(point.value), raw: point };
         })
-        .filter(Boolean);
+        .filter(Boolean),
+    }));
+
+    // Several models landing on nearly the same score, in the same column,
+    // fan out horizontally so their badges don't fully stack. A badge's y
+    // is never touched — it has to read correctly against the gridlines —
+    // only x moves. Since y is fixed per badge, two badges only need to
+    // satisfy: dx^2 + dy^2 >= minDist^2 — i.e. exactly enough x separation
+    // to make up for however close they already are in y. This relaxes
+    // every close pair repeatedly (pushing along x only) until all clear,
+    // so even a tightly packed knot of a dozen badges always fully
+    // resolves instead of falling back to overlap once a fixed search
+    // budget runs out.
+    // Well under 2R on purpose — badges that land close in score are
+    // allowed to overlap a fair bit so a crowded column stays compact
+    // instead of fanning out wide; visually they're still clearly two
+    // separate, clickable dots, just closer together.
+    const minDist = R * 1.3;
+    const columnGroups = new Map();
+    seriesPoints.forEach(({ points }) =>
+      points.forEach((p) => {
+        if (!columnGroups.has(p.i)) columnGroups.set(p.i, []);
+        columnGroups.get(p.i).push(p);
+      })
+    );
+    columnGroups.forEach((group) => {
+      if (group.length < 2) return;
+      // Seed a vanishingly small left/right fan (by y-rank) purely so ties
+      // (badges starting at the exact same x) have a direction to resolve
+      // in — at 0.001px this has no visible effect on its own.
+      group
+        .slice()
+        .sort((a, b) => a.y - b.y)
+        .forEach((p, k) => {
+          p.x += (k % 2 === 0 ? -1 : 1) * (Math.floor(k / 2) + 1) * 0.001;
+        });
+      for (let iter = 0; iter < 80; iter++) {
+        let moved = false;
+        for (let i = 0; i < group.length; i++) {
+          for (let j = i + 1; j < group.length; j++) {
+            const a = group[i];
+            const b = group[j];
+            const dy = b.y - a.y;
+            if (Math.abs(dy) >= minDist) continue;
+            const targetDx = Math.sqrt(Math.max(0, minDist * minDist - dy * dy));
+            const dx = b.x - a.x;
+            const absDx = Math.abs(dx);
+            if (absDx >= targetDx) continue;
+            moved = true;
+            const deficit = targetDx - absDx;
+            const sign = dx !== 0 ? dx / absDx : 1;
+            a.x -= (sign * deficit) / 2;
+            b.x += (sign * deficit) / 2;
+          }
+        }
+        if (!moved) break;
+      }
+    });
+
+    // The leading gap column (e.g. "Preprint Results") can carry a lot more
+    // badges than any single monthly column ever will, so its fan-out can
+    // grow wide enough to crowd the first live month even though the two
+    // columns started with a comfortable gap. Rather than hand-tune that
+    // gap for however many models happen to be in the snapshot today, push
+    // the whole live timeline over — just enough to clear it, and no more —
+    // whenever the packed badges actually get close. Later columns shift
+    // less than the first one (columns beyond the chart's filled width
+    // don't shift at all yet), so the timeline simply compresses a touch
+    // instead of growing unbounded as more months are added.
+    if (hasGap && restCount >= 1) {
+      const col0 = columnGroups.get(0) || [];
+      const col1 = columnGroups.get(1) || [];
+      if (col0.length && col1.length) {
+        const col0MaxEdge = Math.max(...col0.map((p) => p.x)) + R;
+        const col1MinEdge = Math.min(...col1.map((p) => p.x)) - R;
+        const minGap = R * 3.2;
+        const shortfall = minGap - (col1MinEdge - col0MaxEdge);
+        if (shortfall > 0) {
+          const oldRestStart = restStart;
+          const newRestStart = oldRestStart + shortfall;
+          seriesPoints.forEach(({ points }) =>
+            points.forEach((p) => {
+              if (p.i >= 1) p.x += colX(newRestStart, p.i) - colX(oldRestStart, p.i);
+            })
+          );
+          restStart = newRestStart;
+        }
+      }
+    }
+
+    labels.forEach((label, i) => {
+      const isGapLabel = hasGap && i === 0;
+      if (isGapLabel) {
+        const lines = wrapLabel(label, 18);
+        const text = el("text", {
+          x: x(i), y: H - 12 - (lines.length - 1) * 12, "text-anchor": "middle",
+          "font-style": "italic", class: "axis-gap-label axis-x-label",
+        });
+        lines.forEach((line, k) => {
+          text.appendChild(el("tspan", { x: x(i), dy: k === 0 ? 0 : 12 }, line));
+        });
+        svg.appendChild(text);
+      } else {
+        svg.appendChild(
+          el("text", { x: x(i), y: H - 12, "text-anchor": "middle", class: "axis-x-label" }, label)
+        );
+      }
+    });
+
+    // The pareto frontier: whichever model scores highest in each column,
+    // connected across columns with a dotted line. The line itself still
+    // traces every column's best, but per our labeling policy below, only
+    // the single best-of-all-time point on it gets a name attached.
+    if (opts.frontier) {
+      const byColumn = new Map();
+      seriesPoints.forEach(({ s, points }) =>
+        points.forEach((p) => {
+          const cur = byColumn.get(p.i);
+          if (!cur || p.raw.value > cur.value) {
+            byColumn.set(p.i, { x: p.x, y: p.y, value: p.raw.value, i: p.i });
+          }
+        })
+      );
+      const frontierPoints = Array.from(byColumn.values()).sort((a, b) => a.i - b.i);
+      if (frontierPoints.length > 1) {
+        svg.appendChild(
+          el("path", {
+            class: "frontier-line",
+            d: frontierPoints
+              .map((p, k) => `${k ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+              .join(""),
+          })
+        );
+      }
+    }
+
+    seriesPoints.forEach(({ s, points }) => {
       if (!points.length) return;
 
       if (points.length > 1) {
@@ -161,26 +552,93 @@
           el("path", {
             class: "series-line",
             stroke: s.color,
+            "stroke-dasharray": opts.dashedLine ? "6 5" : null,
             d: points.map((p, k) => `${k ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(""),
           })
         );
       }
 
+      const imgSrc = ICON_IMAGES[(s.icon || "").toLowerCase()];
+
       points.forEach((p) => {
-        const dot = el("circle", {
-          class: "series-dot",
-          cx: p.x, cy: p.y, r: points.length === 1 ? 5 : 4,
-          fill: s.color,
+        const badge = el("g", {
+          class: `series-badge${s.control ? " series-badge--control" : ""}`,
+          transform: `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`,
         });
-        bindTip(
-          dot,
-          `<b style="color:${s.color}">${s.display_name}</b><br>${p.raw.label} · ${
-            opts.yLabel || "value"
-          } ${opts.format(p.raw.value)}${p.raw.note ? "<br>" + p.raw.note : ""}`
-        );
-        svg.appendChild(dot);
+        const visual = el("g", { class: "series-badge-visual" });
+        badge.appendChild(visual);
+        visual.appendChild(el("circle", { class: "series-badge-halo", r: R + 2, fill: "#fff" }));
+        if (imgSrc) {
+          // White backing keeps each brand mark legible regardless of its own
+          // palette; a thin ring in the series colour still shows the host.
+          visual.appendChild(el("circle", { r: R, fill: "#fff" }));
+          visual.appendChild(
+            el("image", {
+              href: imgSrc,
+              x: -R, y: -R, width: R * 2, height: R * 2,
+              "clip-path": `url(#${clipId})`,
+              preserveAspectRatio: "xMidYMid slice",
+            })
+          );
+          visual.appendChild(
+            el("circle", { class: "series-badge-ring", r: R - 0.75, fill: "none", stroke: s.color, "stroke-width": 1.5 })
+          );
+        } else {
+          visual.appendChild(el("circle", { class: "series-badge-dot", r: R, fill: s.color }));
+          drawIcon(visual, s.icon, s.provider_label || s.display_name);
+        }
+        bindTip(badge, tooltipHtml(s, p, opts));
+        svg.appendChild(badge);
       });
     });
+
+    // Labeling policy: naming every model's dot turns the chart into
+    // alphabet soup once more than a handful are plotted. Instead, only
+    // the best- and worst-scoring model in EACH column (bucket) get a
+    // name — not a single global best/worst across the whole chart.
+    // Each is, by definition, the extreme badge in its own column, so the
+    // space directly above (best) or below (worst) it is always clear —
+    // no collision pass needed.
+    if (opts.endLabels) {
+      const byColumn = new Map();
+      seriesPoints.forEach(({ s, points }) =>
+        points.forEach((p) => {
+          const v = p.raw.value;
+          if (v === null || v === undefined) return;
+          if (!byColumn.has(p.i)) byColumn.set(p.i, { best: null, worst: null });
+          const col = byColumn.get(p.i);
+          const entry = { x: p.x, y: p.y, value: v, name: s.display_name, color: s.color };
+          if (!col.best || v > col.best.value) col.best = entry;
+          if (!col.worst || v < col.worst.value) col.worst = entry;
+        })
+      );
+      byColumn.forEach((col) => {
+        if (col.best) {
+          svg.appendChild(
+            el(
+              "text",
+              {
+                class: "frontier-label", x: col.best.x, y: Math.max(pad.top + 9, col.best.y - R - 9),
+                "text-anchor": "middle", fill: col.best.color,
+              },
+              col.best.name
+            )
+          );
+        }
+        if (col.worst && !(col.best && col.worst.x === col.best.x && col.worst.y === col.best.y)) {
+          svg.appendChild(
+            el(
+              "text",
+              {
+                class: "frontier-label", x: col.worst.x, y: Math.min(H - pad.bottom - 4, col.worst.y + R + 16),
+                "text-anchor": "middle", fill: col.worst.color,
+              },
+              col.worst.name
+            )
+          );
+        }
+      });
+    }
 
     mount.appendChild(svg);
   }

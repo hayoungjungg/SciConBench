@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="48x48" href="/assets/favicon-48.png" />
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
-<link rel="stylesheet" href="assets/styles.css?v=202608339" />
+<link rel="stylesheet" href="assets/styles.css?v=202609011103" />
 </head>
 <body>
 <div class="grain" aria-hidden="true"></div>
@@ -30,14 +30,13 @@
     SciConBench
   </a>
   <ul>
-    <li><a href="#overview" data-section="overview">Overview</a></li>
-    <li><a href="#news" data-section="news">Latest News</a></li>
-    <li><a href="#leaderboard" data-section="leaderboard">Leaderboard</a></li>
-    <li><a href="#trend" data-section="trend">Trend</a></li>
-    <li><a href="#pipeline" data-section="pipeline">Pipeline</a></li>
-    <li><a href="#dataset" data-section="dataset">Dataset</a></li>
+    <li><a href="#trend" data-section="trend">AI Agent Progress on SciConBench</a></li>
+    <li><a href="#introduction" data-section="introduction">Introduction</a></li>
+    <li><a href="#data" data-section="data">Data + Method</a></li>
+    <li><a href="#leaderboard" data-section="leaderboard">Quantitative Results</a></li>
     <li><a href="#effort" data-section="effort">Cost</a></li>
-    <li><a href="#method" data-section="method">Method</a></li>
+    <li><a href="#method" data-section="method">Scoring</a></li>
+    <li><a href="#faq-section" data-section="faq-section">FAQ</a></li>
     <li><a href="#cite" data-section="cite">Citation</a></li>
   </ul>
 </nav>
@@ -103,43 +102,120 @@
         </div>
       </div>
 
-      <h2 class="section-title">Latest News</h2>
+      <h2 class="section-title news-title">Latest News</h2>
       <ul class="news" id="news-list"></ul>
     </div>
   </section>
 
-  <!-- ───────────────────────── the live loop ──────────────────────── -->
-  <section class="section section--tight">
+  <!-- ─────────────────────────── trend ────────────────────────────── -->
+  <section class="section section--tight" id="trend">
     <div class="wrap">
-      <div class="loop">
-        <div class="loop-copy">
-          <p id="intro-lede"></p>
-          <h2 class="section-title">Benchmarks go stale. This one doesn't.</h2>
-          <p>
-            Every static benchmark built from published literature ends up inside the next
-            model's training corpus. SciConBench sidesteps that by drawing questions from
-            systematic reviews as they are published — and by re-running the full frontier
-            every month, so the leaderboard tracks capability rather than memorization.
-          </p>
-          <p>
-            Each month the pipeline discovers newly published Cochrane reviews, decomposes
-            their expert conclusions into atomic facts, and asks every tracked model the
-            clinical question those reviews set out to answer. Retrieval runs through a
-            clean-room proxy that hides the review itself, anything citing it, and anything
-            published after it.
-          </p>
-          <blockquote class="pullquote" id="headline" hidden></blockquote>
+      <div class="section-head">
+        <div>
+          <h2 class="section-title progress-title">
+            AI Agent Progress on
+            <img class="progress-title-logo" src="assets/logo.png" width="28" height="28" alt="" />
+            SciConBench
+          </h2>
         </div>
-        <ol class="loop-steps">
-          <li><span>01</span><div><strong>Discover</strong>New systematic reviews, the month they appear.</div></li>
-          <li><span>02</span><div><strong>Decompose</strong>Expert conclusions split into atomic, checkable facts.</div></li>
-          <li><span>03</span><div><strong>Publish</strong>Questions merged into the public HuggingFace dataset.</div></li>
-          <li><span>04</span><div><strong>Evaluate</strong>Every tracked model queried under the clean-room harness.</div></li>
-          <li><span>05</span><div><strong>Judge</strong>Factual precision and recall, fact by fact.</div></li>
-        </ol>
       </div>
+      <div class="chart-toolbar">
+        <div class="chart-toolbar-group">
+          <div class="metric-toggle" id="trend-metric-toggle" role="group" aria-label="Metric">
+            <button data-metric="f1" class="is-active">Factual F1</button>
+            <button data-metric="precision">Factual Precision</button>
+            <button data-metric="recall">Factual Recall</button>
+          </div>
+          <div class="metric-toggle" id="trend-panel-toggle" role="group" aria-label="Panel"></div>
+          <label class="panel-select-wrap panel-select-wrap--compact">
+            <span class="panel-select-label">Model Family</span>
+            <select id="trend-model-select" class="panel-select" aria-label="Focus on a model family (lab)"></select>
+          </label>
+        </div>
+      </div>
+      <div class="card card--chart">
+        <div id="trend-chart" class="chart chart--badged" role="img" aria-label="Model score over monthly runs"></div>
+        <p class="chart-footnote" id="trend-footnote"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ────────────────────────── introduction ─────────────────────── -->
+  <section class="section section--tight" id="introduction">
+    <div class="wrap">
+      <div class="section-head section-head--center">
+        <div>
+          <h2 class="section-title section-title--feature">Introduction</h2>
+        </div>
+      </div>
+      <div class="intro-copy" id="introduction-text"></div>
+      <figure class="teaser-figure">
+        <img
+          src="assets/teaser.png"
+          alt="Overview of the SciConBench benchmark, agentic synthesis task, clean-room harness, evaluation pipeline, and results"
+        />
+        <figcaption>
+          <a href="https://arxiv.org/abs/2606.11337" target="_blank" rel="noopener">Figure 1 from the preprint.</a>
+          (1) SciConBench launched with 9.11K questions paired with expert-written conclusions
+          and continues to grow as a live benchmark (9.19K samples as of August 2026!).
+          (2) Agents synthesize scientific conclusions using web tools.
+          (3) SciConHarness enforces clean-room evaluation by blocking ground-truth artifacts.
+          (4) An expert-validated pipeline decomposes generated and reference conclusions into
+          atomic facts and computes factual precision, recall, and F1. (5) Low clean-room
+          factual F1 scores show that reliable scientific conclusion synthesis remains difficult.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ───────────────────────────── data ───────────────────────────── -->
+  <section class="section section--tight" id="data">
+    <div class="wrap">
+      <div class="section-head section-head--center">
+        <div>
+          <h2 class="section-title section-title--feature">Data + Method</h2>
+        </div>
+      </div>
+      <div class="intro-copy">
+        <p>
+          SciConBench contains more than 9,000 questions derived from Cochrane systematic
+          reviews, each paired with an expert-written conclusion. Conclusions are decomposed
+          into atomic, checkable facts so model responses can be evaluated (see
+          “Quantitative Results” below).
+        </p>
+        <p>
+          The dashboard uses a live evaluation panel drawn from this benchmark: a fixed core
+          supports consistent comparisons, while monthly rolling cohorts add newly published
+          reviews. The full benchmark is available on Hugging Face.
+        </p>
+      </div>
+      <blockquote class="pullquote" id="headline" hidden></blockquote>
 
       <dl class="hero-stats" id="hero-stats"></dl>
+
+      <div class="dataset-details">
+        <p class="section-sub" id="dataset-sub">
+          The full benchmark is published on HuggingFace. The figures below describe the
+          <em>live evaluation panel</em> — the subset every tracked model is re-run against
+          each month. A frozen <em>core</em> sample keeps month-to-month comparisons stable,
+          and each monthly <em>rolling</em> cohort adds reviews no model could have seen
+          during training.
+        </p>
+        <div class="grid-2">
+          <div class="card card--chart">
+            <h3 class="card-title">Reviews in the benchmark</h3>
+            <div id="growth-chart" class="chart" role="img" aria-label="Cumulative reviews by cohort month"></div>
+            <div class="legend legend--static">
+              <span><i style="background:#5b8def"></i>Core panel</span>
+              <span><i style="background:#39d0a0"></i>Rolling cohorts</span>
+            </div>
+          </div>
+          <div class="card">
+            <h3 class="card-title">Composition</h3>
+            <div id="dataset-facts" class="factlist"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -148,13 +224,22 @@
     <div class="wrap">
       <div class="section-head">
         <div>
-          <h2 class="section-title">Leaderboard</h2>
+          <h2 class="section-title">Quantitative Results</h2>
           <p class="section-sub" id="leaderboard-sub"></p>
         </div>
-        <div class="metric-toggle" id="metric-toggle" role="group" aria-label="Sort metric">
-          <button data-metric="f1" class="is-active">F1</button>
-          <button data-metric="precision">Precision</button>
-          <button data-metric="recall">Recall</button>
+        <div class="board-controls">
+          <label class="panel-select-wrap">
+            <span class="panel-select-label">Panel</span>
+            <select id="panel-select" class="panel-select" aria-label="Filter scores by panel"></select>
+          </label>
+          <div class="metric-toggle" id="metric-toggle" role="group" aria-label="Sort metric">
+            <button data-metric="f1" class="is-active">Factual F1</button>
+            <button data-metric="precision">Factual Precision</button>
+            <button data-metric="recall">Factual Recall</button>
+          </div>
+          <button type="button" class="pill-toggle" id="board-paper-toggle" aria-pressed="false">
+            + Paper baselines
+          </button>
         </div>
       </div>
 
@@ -164,9 +249,9 @@
             <tr>
               <th class="col-rank">#</th>
               <th class="col-model">Model</th>
-              <th class="col-num" data-metric="precision">Precision <span class="arrow">↑</span></th>
-              <th class="col-num" data-metric="recall">Recall <span class="arrow">↑</span></th>
-              <th class="col-num" data-metric="f1">F1 <span class="arrow">↑</span></th>
+              <th class="col-num" data-metric="precision">Factual Precision <span class="arrow">↑</span></th>
+              <th class="col-num" data-metric="recall">Factual Recall <span class="arrow">↑</span></th>
+              <th class="col-num" data-metric="f1">Factual F1 <span class="arrow">↑</span></th>
               <th class="col-num col-hide-sm">Reviews</th>
               <th class="col-num col-hide-sm">Evaluated</th>
             </tr>
@@ -175,75 +260,6 @@
         </table>
       </div>
       <p class="footnote" id="board-footnote"></p>
-    </div>
-  </section>
-
-  <!-- ─────────────────────────── trend ────────────────────────────── -->
-  <section class="section" id="trend">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">Capability over time</h2>
-          <p class="section-sub">
-            Proprietary frontier models are re-evaluated every month against the full
-            accumulated panel, so their scores move as both the models and the review set change.
-          </p>
-        </div>
-      </div>
-      <div class="card card--chart">
-        <div id="trend-chart" class="chart" role="img" aria-label="Model F1 over monthly runs"></div>
-        <div id="trend-legend" class="legend"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ────────────────────────── pipeline ─────────────────────────── -->
-  <section class="section" id="pipeline">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">Latest run</h2>
-          <p class="section-sub" id="pipeline-sub"></p>
-        </div>
-      </div>
-      <div class="stages" id="stages"></div>
-    </div>
-  </section>
-
-  <!-- ─────────────────────────── dataset ─────────────────────────── -->
-  <section class="section" id="dataset">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">A dataset that grows every month</h2>
-          <p class="section-sub" id="dataset-sub">
-            The full benchmark is published on HuggingFace. The figures below describe the
-            <em>live evaluation panel</em> — the subset every tracked model is re-run against
-            each month. A frozen <em>core</em> sample keeps month-to-month comparisons stable,
-            and each monthly <em>rolling</em> cohort adds reviews no model could have seen
-            during training.
-          </p>
-          <pre class="snippet">from datasets import load_dataset
-
-dataset = load_dataset("hayoungjung/SciConBench")</pre>
-        </div>
-      </div>
-      <div class="grid-2">
-        <div class="card card--chart">
-          <h3 class="card-title">Reviews in the benchmark</h3>
-          <div id="growth-chart" class="chart" role="img" aria-label="Cumulative reviews by cohort month"></div>
-          <div class="legend legend--static">
-            <span><i style="background:#5b8def"></i>Core panel</span>
-            <span><i style="background:#39d0a0"></i>Rolling cohorts</span>
-          </div>
-        </div>
-        <div class="card">
-          <h3 class="card-title">Composition</h3>
-          <div id="dataset-facts" class="factlist"></div>
-          <h3 class="card-title card-title--spaced">Review types</h3>
-          <div id="review-types" class="bars"></div>
-        </div>
-      </div>
     </div>
   </section>
 
@@ -319,7 +335,17 @@ dataset = load_dataset("hayoungjung/SciConBench")</pre>
           <code class="formula">config: tools + filtering</code>
         </div>
       </div>
+    </div>
+  </section>
 
+  <!-- ───────────────────────────── faq ───────────────────────────── -->
+  <section class="section" id="faq-section">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Frequently Asked Questions</h2>
+        </div>
+      </div>
       <div class="faq" id="faq"></div>
     </div>
   </section>
@@ -327,8 +353,9 @@ dataset = load_dataset("hayoungjung/SciConBench")</pre>
   <!-- ────────────────────────── citation ─────────────────────────── -->
   <section class="section" id="cite">
     <div class="wrap">
-      <div class="cite-head">
-        <h2 class="section-title">Citation</h2>
+      <h2 class="section-title">Citation</h2>
+      <div class="cite-box">
+        <pre class="cite" id="citation"></pre>
         <button class="copy-btn" id="copy-citation" type="button">
           <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2" />
@@ -337,7 +364,6 @@ dataset = load_dataset("hayoungjung/SciConBench")</pre>
           <span class="copy-label">Copy</span>
         </button>
       </div>
-      <pre class="cite" id="citation"></pre>
       <p class="contact" id="contact"></p>
     </div>
   </section>
@@ -345,7 +371,7 @@ dataset = load_dataset("hayoungjung/SciConBench")</pre>
 
 </main>
 
-<script src="assets/charts.js?v=202608339"></script>
-<script src="assets/app.js?v=202608339"></script>
+<script src="assets/charts.js?v=202609021123"></script>
+<script src="assets/app.js?v=202609011103"></script>
 </body>
 </html>

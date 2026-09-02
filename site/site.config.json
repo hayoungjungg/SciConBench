@@ -1,7 +1,6 @@
 {
   "title": "SciConBench",
   "tagline": "A live agentic benchmark for open-domain scientific conclusion synthesis",
-  "description": "Can AI agents synthesize scientific conclusions? SciConBench puts this long-horizon task to the test under our clean-room evaluation harness: agents search and browse the open web through controlled web tools, assess evidence quality, and integrate heterogeneous evidence into an expert-level scientific conclusion. As new systematic reviews are published each month, SciConBench continuously grows, enabling this dashboard to track how frontier AI agents measure up in their synthesis capabilities over time.",
   "institution": "Princeton University",
   "contact_email": "hayoung@cs.princeton.edu",
   "paper_title": "Can AI Agents Synthesize Scientific Conclusions?",
@@ -10,10 +9,6 @@
     "dataset": "https://huggingface.co/datasets/hayoungjung/SciConBench",
     "code": "https://github.com/hayoungjungg/SciConBench",
     "blog": "https://blog.citp.princeton.edu/2026/06/11/ai-is-already-giving-medical-conclusions-are-they-any-good/"
-  },
-  "headline": {
-    "text": "Across 8 frontier models and deep research agents, the best clean-room factual F1 reported in the paper is 0.337 \u2014 reliable scientific synthesis remains an open problem.",
-    "source": "arXiv:2606.11337"
   },
   "team": [
     { "name": "Hayoung Jung" },
@@ -28,16 +23,16 @@
   "citation": "@misc{jung2026aiagentssynthesizescientific,\n      title={Can AI Agents Synthesize Scientific Conclusions?},\n      author={Hayoung Jung and Pedro Viana Diniz and Jos\u00e9 Reinaldo Corr\u00eaa Roveda and Abner Fernandes da Silva and Haeun Jung and Enoch Tsai and Aleksandra Korolova and Manoel Horta Ribeiro},\n      year={2026},\n      eprint={2606.11337},\n      archivePrefix={arXiv},\n      primaryClass={cs.AI},\n      url={https://arxiv.org/abs/2606.11337},\n}",
   "news": [
     {
-      "date": "2026-08-26",
-      "text": "The August tracking run closed the July 2026 cohort: 34 newly published Cochrane reviews were ingested and merged into the public HuggingFace dataset."
+      "date": "2026-08-29",
+      "text": "This evaluation dashboard is finally live! It hosts monthly evaluations of the latest AI agents from 7 frontier labs on a fixed core set and newly posted SciConBench samples, measuring their scientific conclusion synthesis capabilities over time."
     },
     {
       "date": "2026-07-15",
-      "text": "July 2026 dataset release. The benchmark grows from 9.11K to 9.17K samples, and superseded reviews are replaced with their latest editions."
+      "text": "July 2026 dataset release. The benchmark grows from 9.11K to 9.17K samples; superseded reviews are replaced with their latest editions."
     },
     {
       "date": "2026-06-09",
-      "text": "Can AI Agents Synthesize Scientific Conclusions? is on arXiv (2606.11337), introducing SciConBench and the SciConHarness clean-room evaluation protocol."
+      "text": "Our paper \"Can AI Agents Synthesize Scientific Conclusions?\" is on arXiv, introducing SciConBench and SciConHarness, our clean-room evaluation harness."
     }
   ],
   "faq": [
@@ -65,6 +60,11 @@
       "question": "Can I download the data?",
       "answer": "Yes. The benchmark is on HuggingFace as hayoungjung/SciConBench, gated behind a contact-information agreement to keep crawlers from scraping and leaking it. Please do not reshare it in a crawlable format. Cochrane content remains copyrighted by its original authors and Cochrane, and its use is governed by Cochrane and Wiley terms."
     }
+  ],
+  "introduction": [
+    "AI agents are transforming how individuals and institutions access and act on scientific knowledge. Unlike traditional search engines that retrieve documents for users to synthesize, these systems increasingly perform the *long-horizon* task of *scientific conclusion synthesis* themselves: retrieving evidence, reasoning across sources, and producing conclusions used in consequential decisions. The stakes are especially high in health, where billions of ChatGPT messages concern healthcare each week and OpenEvidence, a specialized clinical AI copilot for high-stakes decision-making, reports more than 200 million AI-assisted clinical consultations.",
+    "*So, can AI agents synthesize scientific conclusions?* **SciConBench** tests this with 9K+ questions paired with expert conclusions from Cochrane systematic reviews. Under **SciConHarness**, agents search and browse the open web through clean-room tools that prevent access to benchmark answers, then assess and integrate evidence into a scientific conclusion evaluated for factual correctness (precision) and completeness (recall). ++The best agent in our preprint reached only 0.337 factual F1.++ Because static benchmarks can leak into models' pretraining data, SciConBench is **live**: each month, we add fresh samples from newly published reviews.",
+    "**To track progress in synthesis capability over time, this dashboard evaluates frontier models monthly on fresh samples and a fixed core set, distinguishing capability improvements from gains driven by benchmark leakage.**"
   ],
   "acknowledgements": [
     "We thank Anushka Acharya and the Princeton Research Computing for their help in creating this live evaluation infrastructure. In addition, we thank Francesco Salvi, Alejandro Cuevas, Bohdan Turbal, Max Springer, Chung Peng Lee, Elijah Fullerton, Jane Castleman, Blossom Metevier, Jason Greenfield, and members of the Center for Information Technology Policy for their helpful feedback and support.",

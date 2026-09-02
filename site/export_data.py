@@ -60,15 +60,28 @@ PIPELINE_STAGES = [
     ("12. Recall analysis", "Judge how many expert facts the model recovered."),
 ]
 
-# Brand colours, assigned per provider so a model inherits its lab's colour.
+# Brand colours. Most of these keys are *labs* (the company that actually
+# built the model), keyed the same way as resolve_icon()'s logomark keys —
+# a couple (azure, openrouter) are API hosts, kept only as a last-resort
+# fallback for a model resolve_family() can't otherwise place.
 PROVIDER_META = {
     "openai": {"label": "OpenAI", "color": "#10a37f"},
     "claude": {"label": "Anthropic", "color": "#d97757"},
     "anthropic": {"label": "Anthropic", "color": "#d97757"},
     "gemini": {"label": "Google DeepMind", "color": "#4285f4"},
+    "deepseek": {"label": "DeepSeek", "color": "#4d6bfe"},
+    "moonshot": {"label": "Moonshot AI", "color": "#6f69f7"},
+    "kimi": {"label": "Moonshot AI", "color": "#6f69f7"},
+    "glm": {"label": "Z.ai (GLM)", "color": "#0ea5a3"},
+    "qwen": {"label": "Alibaba (Qwen)", "color": "#eab308"},
+    "minimax": {"label": "MiniMax", "color": "#dc2626"},
+    "meta": {"label": "Meta", "color": "#0668e1"},
+    "mistral": {"label": "Mistral AI", "color": "#f97316"},
+    "xai": {"label": "xAI", "color": "#111827"},
+    "perplexity": {"label": "Perplexity", "color": "#20b8cd"},
+    "ai2": {"label": "Ai2", "color": "#e8478b"},
     "azure": {"label": "Azure AI Foundry", "color": "#8b5cf6"},
     "openrouter": {"label": "OpenRouter", "color": "#f59e0b"},
-    "perplexity": {"label": "Perplexity", "color": "#20b8cd"},
 }
 
 DISPLAY_NAMES = {
@@ -103,6 +116,118 @@ def provider_meta(provider: str) -> dict[str, str]:
     return PROVIDER_META.get(
         provider.lower(), {"label": provider.title(), "color": "#94a3b8"}
     )
+
+
+# Model-name substrings mapped to a logomark key, so a model is badged (and,
+# via resolve_family() below, labelled and coloured) by the lab that
+# actually built it rather than whichever API host happens to serve it —
+# e.g. a DeepSeek model called via Azure still reads as DeepSeek, and a
+# Kimi/GLM/Qwen model called through OpenRouter still reads as its own lab.
+_ICON_HINTS: list[tuple[str, str]] = [
+    ("deepseek", "deepseek"),
+    ("claude", "anthropic"),
+    ("opus", "anthropic"),
+    ("sonnet", "anthropic"),
+    ("haiku", "anthropic"),
+    ("gemini", "gemini"),
+    ("grok", "xai"),
+    ("llama", "meta"),
+    ("mistral", "mistral"),
+    ("qwen", "qwen"),
+    ("kimi", "kimi"),
+    ("glm", "glm"),
+    ("minimax", "minimax"),
+    ("tulu", "ai2"),
+    ("gpt", "openai"),
+]
+
+
+def resolve_icon(model: str, provider: str) -> str:
+    m = model.lower()
+    for hint, icon in _ICON_HINTS:
+        if hint in m:
+            return icon
+    if re.match(r"^o[0-9](-|$|-mini)", m):
+        return "openai"
+    return provider.lower()
+
+
+def resolve_family(model: str, provider: str) -> dict[str, str]:
+    """Which lab actually built a model — inferred from its *name*, not
+    whichever API host happens to be serving it this month (an aggregator
+    like OpenRouter or Azure AI Foundry can front models from any lab, e.g.
+    Kimi/GLM/Qwen via OpenRouter, or DeepSeek via Azure).
+
+    This reuses resolve_icon()'s name-hint list, so it needs zero code
+    changes when a new model shows up: "gpt-6" already contains "gpt" and
+    is classified as OpenAI the moment its first result lands, same as
+    "gpt-5.1" and "gpt-5.6-sol" are today.
+    """
+    key = resolve_icon(model, provider)
+    meta = provider_meta(key)
+    return {"key": key, "label": meta["label"], "color": meta["color"]}
+
+
+# --------------------------------------------------------------------------- #
+# paper-release baselines
+# --------------------------------------------------------------------------- #
+# Numbers from the SciConBench paper's own evaluation run, hand-transcribed
+# here rather than pulled from the tracking DB: unlike the monthly pipeline,
+# this was a one-off snapshot (some models graded in Jan 2026, others in Jul
+# 2026) that isn't itself continuously re-run. Some model names overlap with
+# the live roster (e.g. DeepSeek-V4-Pro) — those are deliberately kept as a
+# separate point so the site can show how much a score moved since the paper.
+PAPER_BASELINES: list[dict[str, Any]] = [
+    {"group": "Models", "model": "gpt-5.1", "display_name": "GPT-5.1", "provider": "openai",
+     "precision": 0.294, "precision_std": 0.017, "recall": 0.408, "recall_std": 0.065, "f1": 0.300, "f1_std": 0.024},
+    {"group": "Models", "model": "claude-sonnet-4.5", "display_name": "Claude Sonnet 4.5", "provider": "anthropic",
+     "precision": 0.350, "precision_std": 0.020, "recall": 0.329, "recall_std": 0.057, "f1": 0.297, "f1_std": 0.030},
+    {"group": "Models", "model": "gemini-3-pro", "display_name": "Gemini 3 Pro", "provider": "gemini",
+     "precision": 0.294, "precision_std": 0.034, "recall": 0.206, "recall_std": 0.042, "f1": 0.194, "f1_std": 0.029},
+    {"group": "Models", "model": "sonar-reasoning-pro", "display_name": "Sonar Reasoning Pro", "provider": "perplexity",
+     "precision": 0.384, "precision_std": 0.032, "recall": 0.205, "recall_std": 0.044, "f1": 0.220, "f1_std": 0.035},
+    {"group": "Models", "model": "deepseek-v4-pro-paper", "display_name": "DeepSeek-V4-Pro", "provider": "deepseek",
+     "precision": 0.3995, "precision_std": 0.0236, "recall": 0.3437, "recall_std": 0.0553, "f1": 0.3258, "f1_std": 0.0323},
+    {"group": "Models", "model": "kimi-k3-paper", "display_name": "Kimi K3", "provider": "moonshot",
+     "precision": 0.3212, "precision_std": 0.0154, "recall": 0.4014, "recall_std": 0.0559, "f1": 0.3079, "f1_std": 0.0230},
+    {"group": "Models", "model": "qwen3.5-9b-paper", "display_name": "Qwen3.5 9B", "provider": "openrouter",
+     "precision": 0.3932, "precision_std": 0.0280, "recall": 0.2469, "recall_std": 0.0462, "f1": 0.2482, "f1_std": 0.0306},
+    {"group": "Models", "model": "glm-5.2-paper", "display_name": "GLM-5.2", "provider": "openrouter",
+     "precision": 0.3179, "precision_std": 0.0178, "recall": 0.4025, "recall_std": 0.0663, "f1": 0.3198, "f1_std": 0.0295},
+    {"group": "DR", "model": "dr-tulu", "display_name": "DR Tulu", "provider": "ai2",
+     "precision": 0.259, "precision_std": 0.038, "recall": 0.168, "recall_std": 0.034, "f1": 0.145, "f1_std": 0.023},
+    {"group": "DR", "model": "sonar-deep-research", "display_name": "Sonar Deep Research", "provider": "perplexity",
+     "precision": 0.357, "precision_std": 0.036, "recall": 0.243, "recall_std": 0.047, "f1": 0.237, "f1_std": 0.034},
+    {"group": "DR", "model": "o4-mini-deep-research", "display_name": "o4-mini Deep Research", "provider": "openai",
+     "precision": 0.467, "precision_std": 0.028, "recall": 0.298, "recall_std": 0.051, "f1": 0.315, "f1_std": 0.039},
+    {"group": "DR", "model": "o3-deep-research", "display_name": "o3 Deep Research", "provider": "openai",
+     "precision": 0.441, "precision_std": 0.033, "recall": 0.342, "recall_std": 0.054, "f1": 0.337, "f1_std": 0.035},
+]
+
+
+def build_paper_baselines() -> list[dict[str, Any]]:
+    out = []
+    for b in PAPER_BASELINES:
+        meta = resolve_family(b["model"], b["provider"])
+        out.append(
+            {
+                "model": b["model"],
+                "display_name": b["display_name"],
+                "group": b["group"],
+                "provider": b["provider"],
+                "family": meta["key"],
+                "provider_label": meta["label"],
+                "color": meta["color"],
+                "icon": meta["key"],
+                "precision": b["precision"],
+                "precision_std": b.get("precision_std"),
+                "recall": b["recall"],
+                "recall_std": b.get("recall_std"),
+                "f1": b["f1"],
+                "f1_std": b.get("f1_std"),
+            }
+        )
+    return out
 
 
 def count_atomic_facts(pairs: Any) -> int:
@@ -370,6 +495,27 @@ def export_dataset(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
+def panel_key_of(panel_type: str | None, cohort_month: str | None) -> str | None:
+    """Slice key for the core-vs-rolling breakdown: 'core', 'rolling' (every
+    non-core review, regardless of which month's cohort it joined in — the
+    site only ever needs to filter core vs. rolling, not month by month),
+    or None if the DOI isn't classified."""
+    panel = (panel_type or "").upper()
+    if panel == "CORE":
+        return "core"
+    if panel == "ROLLING" and cohort_month:
+        return "rolling"
+    return None
+
+
+def panel_label_of(panel_key: str) -> str:
+    return "Core set" if panel_key == "core" else "Rolling set"
+
+
+def new_score_bucket() -> dict[str, Any]:
+    return {"precision": [], "recall": [], "f1": [], "responses": 0, "graded": 0, "dois": set()}
+
+
 def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
     """Aggregate per-(model, run_month) scores, cost, and tool-use statistics."""
     rows = conn.execute(
@@ -377,10 +523,12 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
         SELECT r.id, r.doi, r.model, r.provider, r.run_month, r.token_usage,
                p.factual_precision, p.total_llm_facts, p.supported_facts AS p_supported,
                p.contradicted_facts, p.not_supported_facts,
-               c.factual_recall, c.total_article_facts, c.supported_facts AS r_supported
+               c.factual_recall, c.total_article_facts, c.supported_facts AS r_supported,
+               d.panel_type, d.cohort_month
           FROM model_responses r
           LEFT JOIN factual_precision_results p ON p.model_response_id = r.id
           LEFT JOIN factual_recall_results   c ON c.model_response_id = r.id
+          LEFT JOIN doi_info d ON d.doi = r.doi
          WHERE r.config_label = ?
         """,
         (EVAL_CONFIG_LABEL,),
@@ -390,6 +538,10 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
     demo_baseline: dict[str, tuple[float, float]] = {}
 
     buckets: dict[tuple[str, str, str], dict[str, Any]] = {}
+    # Same aggregation, but sliced by core-set vs individual rolling cohort —
+    # powers the leaderboard's "core set vs rolling panel" filter.
+    panel_buckets: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    panel_keys_seen: set[str] = set()
     for row in rows:
         key = (row["model"], row["provider"], row["run_month"] or "unknown")
         bucket = buckets.setdefault(
@@ -405,6 +557,14 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
         )
         bucket["responses"] += 1
         bucket["dois"].add(row["doi"])
+
+        panel_key = panel_key_of(row["panel_type"], row["cohort_month"])
+        panel_bucket = None
+        if panel_key is not None:
+            panel_keys_seen.add(panel_key)
+            panel_bucket = panel_buckets.setdefault((*key, panel_key), new_score_bucket())
+            panel_bucket["responses"] += 1
+            panel_bucket["dois"].add(row["doi"])
 
         usage = load_json(row["token_usage"]) or {}
         if isinstance(usage, dict):
@@ -433,26 +593,36 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
             bucket["precision"].append(precision)
             bucket["model_facts"] += row["total_llm_facts"] or 0
             bucket["contradicted"] += row["contradicted_facts"] or 0
+            if panel_bucket is not None:
+                panel_bucket["precision"].append(precision)
         if recall is not None:
             bucket["recall"].append(recall)
             bucket["article_facts"] += row["total_article_facts"] or 0
             bucket["recovered_facts"] += row["r_supported"] or 0
+            if panel_bucket is not None:
+                panel_bucket["recall"].append(recall)
         if precision is not None and recall is not None:
             bucket["graded"] += 1
             denom = precision + recall
-            bucket["f1"].append(2 * precision * recall / denom if denom else 0.0)
+            f1 = 2 * precision * recall / denom if denom else 0.0
+            bucket["f1"].append(f1)
+            if panel_bucket is not None:
+                panel_bucket["graded"] += 1
+                panel_bucket["f1"].append(f1)
 
     entries = []
     for (model, provider, run_month), b in buckets.items():
-        meta = provider_meta(provider)
+        meta = resolve_family(model, provider)
         tools = sorted(b["tool_usage"].items(), key=lambda kv: -kv[1])
         entries.append(
             {
                 "model": model,
                 "display_name": display_name(model),
                 "provider": provider,
+                "family": meta["key"],
                 "provider_label": meta["label"],
                 "color": meta["color"],
+                "icon": meta["key"],
                 "run_month": run_month,
                 "run_month_label": month_label(run_month),
                 "responses": b["responses"],
@@ -469,11 +639,31 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
                 "avg_tool_calls": mean(b["tool_calls"]),
                 "avg_iterations": mean(b["iterations"]),
                 "tool_usage": [{"tool": t, "count": n} for t, n in tools],
+                "panels": {
+                    panel_key: {
+                        "precision": mean(pb["precision"]),
+                        "recall": mean(pb["recall"]),
+                        "f1": mean(pb["f1"]),
+                        "reviews": len(pb["dois"]),
+                        "responses": pb["responses"],
+                        "graded": pb["graded"],
+                    }
+                    for panel_key in panel_keys_seen
+                    if (pb := panel_buckets.get((model, provider, run_month, panel_key)))
+                },
             }
         )
 
     entries.sort(key=lambda e: (e["run_month"], e["model"]))
-    return {"entries": entries, "run_months": sorted({e["run_month"] for e in entries})}
+    panel_views = [{"key": "core", "label": panel_label_of("core")}] + [
+        {"key": k, "label": panel_label_of(k)}
+        for k in sorted(k for k in panel_keys_seen if k != "core")
+    ]
+    return {
+        "entries": entries,
+        "run_months": sorted({e["run_month"] for e in entries}),
+        "panel_views": panel_views if panel_keys_seen else [],
+    }
 
 
 def build_leaderboard(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -516,6 +706,18 @@ def build_series(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "precision": r["precision"],
                 "recall": r["recall"],
                 "reviews": r["reviews"],
+                # Per-panel (core vs. each rolling cohort) precision/recall/f1
+                # and sample counts, so the trend chart can both slice scores
+                # by panel and show "N samples (core vs. rolling)" on hover.
+                "panels": {
+                    k: {
+                        "precision": v["precision"],
+                        "recall": v["recall"],
+                        "f1": v["f1"],
+                        "reviews": v["reviews"],
+                    }
+                    for k, v in (r.get("panels") or {}).items()
+                },
             }
             for r in rows
         ]
@@ -524,8 +726,11 @@ def build_series(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 {
                     "model": model,
                     "display_name": rows[0]["display_name"],
+                    "provider": rows[0]["provider"],
+                    "family": rows[0]["family"],
                     "provider_label": rows[0]["provider_label"],
                     "color": rows[0]["color"],
+                    "icon": rows[0]["icon"],
                     "points": points,
                 }
             )
@@ -560,8 +765,9 @@ def main() -> None:
                 "model": row["name"],
                 "display_name": display_name(row["name"]),
                 "provider": row["provider"],
-                "provider_label": provider_meta(row["provider"])["label"],
-                "color": provider_meta(row["provider"])["color"],
+                "family": resolve_family(row["name"], row["provider"])["key"],
+                "provider_label": resolve_family(row["name"], row["provider"])["label"],
+                "color": resolve_family(row["name"], row["provider"])["color"],
                 "policy": roster.get(row["name"]),
                 "active": row["name"] in roster,
             }
@@ -597,7 +803,9 @@ def main() -> None:
         "benchmark": benchmark,
         "dataset": dataset,
         "leaderboard": leaderboard,
+        "panel_views": evaluations["panel_views"],
         "series": build_series(entries),
+        "paper_baselines": build_paper_baselines(),
         "entries": entries,
         "models": registry,
         "pipeline": parse_latest_run(),

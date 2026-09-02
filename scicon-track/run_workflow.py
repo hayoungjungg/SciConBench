@@ -1152,8 +1152,8 @@ async def task_run_queries(
 # repeat sequentially until you finish" for atomic facts; a single batch of
 # 2 for precision/recall, since those aren't grouped by model).
 FACTS_JUDGE_API_KEYS: list[tuple[str, str, str | None]] = [
-    ("SKYLOR_AZURE_OPENAI_KEY", "SKYLOR_OPENAI_BASE_URL", "OPENAI_API_VERSION"),
-    ("MEHAER_AZURE_OPENAI_KEY", "MEHAER__OPENAI_BASE_URL", "OPENAI_API_VERSION"),
+    ("AZURE_OPENAI_KEY", "OPENAI_BASE_URL", "OPENAI_API_VERSION"),
+    ("COCHRANE_DASHBOARD_OPENAI_KEY", "COCHRANE_DASHBOARD_BASE_URL", "OPENAI_API_VERSION"),
 ]
 FACTS_MODELS_PER_BATCH = 2
 FACTS_SHARD_CONCURRENCY = 4

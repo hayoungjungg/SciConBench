@@ -5,6 +5,10 @@ Uses the same Prefect task implementations as ``run_workflow.py``, but
 restricts pending items to a single model so partially complete models (e.g.
 an in-flight Qwen rerun) are not picked up.
 
+By default, response IDs are snapshotted at start so newly arriving query
+results mid-run do not break precision/recall leftover checks. Re-run the
+script later to grade any remaining samples.
+
 Example:
   python scripts/run_postquery_for_model.py --model z-ai/glm-5.3 --run-month 2026-07
 """
@@ -38,24 +42,35 @@ from run_workflow import (
 
 
 def _filter_responses(
-    responses: dict[int, dict[str, Any]], model: str
+    responses: dict[int, dict[str, Any]],
+    model: str,
+    allowed_ids: set[int] | None = None,
 ) -> dict[int, dict[str, Any]]:
-    return {
+    out = {
         response_id: data
         for response_id, data in responses.items()
         if data.get("model") == model
     }
+    if allowed_ids is not None:
+        out = {
+            response_id: data
+            for response_id, data in out.items()
+            if response_id in allowed_ids
+        }
+    return out
 
 
-def _install_model_filter(model: str) -> tuple[Any, Any]:
+def _install_model_filter(
+    model: str, allowed_ids: set[int] | None
+) -> tuple[Any, Any]:
     orig_unprocessed = db_utils.get_unprocessed_model_responses
     orig_all = db_utils.get_all_model_responses
 
     def filtered_unprocessed(run_month: str | None = None) -> dict[int, dict[str, Any]]:
-        return _filter_responses(orig_unprocessed(run_month), model)
+        return _filter_responses(orig_unprocessed(run_month), model, allowed_ids)
 
     def filtered_all(run_month: str | None = None) -> dict[int, dict[str, Any]]:
-        return _filter_responses(orig_all(run_month), model)
+        return _filter_responses(orig_all(run_month), model, allowed_ids)
 
     db_utils.get_unprocessed_model_responses = filtered_unprocessed
     db_utils.get_all_model_responses = filtered_all
@@ -81,16 +96,31 @@ def main() -> None:
         default=None,
         help="Run month partition (default: previous calendar month).",
     )
+    parser.add_argument(
+        "--no-snapshot",
+        action="store_true",
+        help="Do not freeze response IDs at start (include any that arrive mid-run).",
+    )
     args = parser.parse_args()
 
     run_month = args.run_month or previous_year_month()
     model = args.model
 
-    pending_facts = _filter_responses(
-        db_utils.get_unprocessed_model_responses(run_month), model
-    )
     all_responses = _filter_responses(
         db_utils.get_all_model_responses(run_month), model
+    )
+    if not all_responses:
+        raise SystemExit(f"No model responses found for {model!r} in {run_month}.")
+
+    allowed_ids: set[int] | None = None
+    if not args.no_snapshot:
+        allowed_ids = set(all_responses)
+        all_responses = {
+            rid: data for rid, data in all_responses.items() if rid in allowed_ids
+        }
+
+    pending_facts = _filter_responses(
+        db_utils.get_unprocessed_model_responses(run_month), model, allowed_ids
     )
     graded_precision = db_utils.get_graded_response_ids(precision=True)
     graded_recall = db_utils.get_graded_response_ids(precision=False)
@@ -103,15 +133,18 @@ def main() -> None:
 
     print("=" * 60)
     print(f"Post-query pipeline: model={model} run_month={run_month}")
+    if allowed_ids is not None:
+        print(f"  snapshot: {len(allowed_ids)} response ID(s) frozen at start")
     print(f"  atomic facts pending: {len(pending_facts)}/{len(all_responses)}")
     print(f"  precision pending:    {len(pending_precision)}/{len(all_responses)}")
     print(f"  recall pending:       {len(pending_recall)}/{len(all_responses)}")
     print("=" * 60)
 
-    if not all_responses:
-        raise SystemExit(f"No model responses found for {model!r} in {run_month}.")
+    if not pending_facts and not pending_precision and not pending_recall:
+        print("Nothing pending for this model/snapshot — exiting.")
+        return
 
-    orig_unprocessed, orig_all = _install_model_filter(model)
+    orig_unprocessed, orig_all = _install_model_filter(model, allowed_ids)
     try:
         if pending_facts:
             print("Stage 1/3: model-response atomic facts")
@@ -134,20 +167,20 @@ def main() -> None:
         _restore_model_filter(orig_unprocessed, orig_all)
 
     leftover_facts = _filter_responses(
-        db_utils.get_unprocessed_model_responses(run_month), model
+        db_utils.get_unprocessed_model_responses(run_month), model, allowed_ids
     )
     leftover_precision = [
         rid
-        for rid, _ in _filter_responses(
-            db_utils.get_all_model_responses(run_month), model
-        ).items()
+        for rid in _filter_responses(
+            db_utils.get_all_model_responses(run_month), model, allowed_ids
+        )
         if rid not in db_utils.get_graded_response_ids(precision=True)
     ]
     leftover_recall = [
         rid
-        for rid, _ in _filter_responses(
-            db_utils.get_all_model_responses(run_month), model
-        ).items()
+        for rid in _filter_responses(
+            db_utils.get_all_model_responses(run_month), model, allowed_ids
+        )
         if rid not in db_utils.get_graded_response_ids(precision=False)
     ]
 

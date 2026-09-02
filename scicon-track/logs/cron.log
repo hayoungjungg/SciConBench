@@ -1,0 +1,221 @@
+Prefect: PREFECT_HOME → /tmp/hj7206-prefect (default /u/hj7206/.prefect is on NFS; SQLite locks fail there).
+Running pipeline once (Prefect ephemeral server bypassed).
+Workflow log: /n/fs/hamcore/hayoung/SciConBench/data_track/logs/workflow-prod-202608-20260901-000016.log
+Email sent: [SciConBench-Track] Started — Tue, 01 Sep 2026 00:00:16 EST
+Pipeline closed-month for evals: 2026-08
+Email sent: [SciConBench-Track] Stage 1/12 done — Initialize database — Tue, 01 Sep 2026 00:00:16 EST
+Core set: 119 DOI(s) (finalized lock; never resampled).
+Email sent: [SciConBench-Track] Stage 2/12 done — Load core set — Tue, 01 Sep 2026 00:00:16 EST
+Generating test split:   0%|          | 0/9107 [00:00<?, ? examples/s]Generating test split: 9173 examples [00:00, 20578.95 examples/s]     Generating test split: 9173 examples [00:00, 10246.51 examples/s]
+00:01:12.455 | WARNING | data_collection.cochrane_discovery - Direct navigation to page 1 failed: Message:
+Stacktrace:
+RemoteError@chrome://remote/content/shared/RemoteError.sys.mjs:8:8
+WebDriverError@chrome://remote/content/shared/webdriver/Errors.sys.mjs:199:5
+NoSuchElementError@chrome://remote/content/shared/webdriver/Errors.sys.mjs:552:5
+dom.find/</<@chrome://remote/content/shared/DOM.sys.mjs:136:16
+
+00:01:12.464 | ERROR   | data_collection.cochrane_discovery - Failed to load first listing page.
+00:01:29.425 | WARNING | huggingface.uploader - Stale DOI 10.1002/14651858.CD007682.pub2 superseded by 10.1002/14651858.CD007682.pub3 — removing.
+00:01:29.425 | WARNING | huggingface.uploader - Stale DOI 10.1002/14651858.CD007876.pub2 superseded by 10.1002/14651858.CD007876.pub3 — removing.
+00:01:29.427 | WARNING | huggingface.uploader - Stale DOI 10.1002/14651858.CD011319.pub2 superseded by 10.1002/14651858.CD011319.pub3 — removing.
+Discovered 0 new DOI(s); 0 stale event(s).
+Email sent: [SciConBench-Track] Stage 3/12 done — Discover + prune — Tue, 01 Sep 2026 00:00:16 EST
+Email sent: [SciConBench-Track] Stage 4/12 done — Download PDFs — Tue, 01 Sep 2026 00:00:16 EST
+Email sent: [SciConBench-Track] Stage 5/12 done — Extract reference text — Tue, 01 Sep 2026 00:00:16 EST
+No DOIs need question generation.
+Email sent: [SciConBench-Track] Stage 6/12 done — Generate clinical questions — Tue, 01 Sep 2026 00:00:16 EST
+Email sent: [SciConBench-Track] Stage 7/12 done — Cochrane atomic facts — Tue, 01 Sep 2026 00:00:16 EST
+Processing Files (0 / 0)      : |          |  0.00B /  0.00B            
+New Data Upload               : |          |  0.00B /  0.00B            [A
+
+  ...sciconbench_track.parquet:   8%|▊         | 3.50MB / 41.9MB            [A[A
+
+  ...sciconbench_track.parquet:   8%|▊         | 3.50MB / 41.9MB            [A[AProcessing Files (0 / 1)      :   8%|▊         | 3.50MB / 41.9MB,  347kB/s  
+
+  ...sciconbench_track.parquet:  24%|██▍       | 10.2MB / 41.9MB            [A[AProcessing Files (0 / 1)      :  24%|██▍       | 10.2MB / 41.9MB, 1.01MB/s  
+
+  ...sciconbench_track.parquet:  39%|███▉      | 16.5MB / 41.9MB            [A[AProcessing Files (0 / 1)      :  39%|███▉      | 16.5MB / 41.9MB, 1.62MB/s  
+New Data Upload               :  20%|█▉        | 6.30MB / 31.6MB,  620kB/s  [A
+
+  ...sciconbench_track.parquet: 100%|█████████▉| 41.7MB / 41.9MB            [A[AProcessing Files (0 / 1)      : 100%|█████████▉| 41.7MB / 41.9MB, 4.06MB/s  
+New Data Upload               : 100%|█████████▉| 31.5MB / 31.6MB, 3.08MB/s  [A
+
+  ...sciconbench_track.parquet: 100%|█████████▉| 41.7MB / 41.9MB            [A[A
+
+  ...sciconbench_track.parquet: 100%|██████████| 41.9MB / 41.9MB            [A[AProcessing Files (1 / 1)      : 100%|██████████| 41.9MB / 41.9MB, 3.91MB/s  
+New Data Upload               : 100%|██████████| 31.6MB / 31.6MB, 2.97MB/s  [A
+
+  ...sciconbench_track.parquet: 100%|██████████| 41.9MB / 41.9MB            [A[A
+
+  ...sciconbench_track.parquet: 100%|██████████| 41.9MB / 41.9MB            [A[A
+
+  ...sciconbench_track.parquet: 100%|██████████| 41.9MB / 41.9MB            [A[AProcessing Files (1 / 1)      : 100%|██████████| 41.9MB / 41.9MB, 3.73MB/s  
+New Data Upload               : 100%|██████████| 31.6MB / 31.6MB, 2.83MB/s  
+  ...sciconbench_track.parquet: 100%|██████████| 41.9MB / 41.9MB            
+Traceback (most recent call last):
+  File "/usr/lib64/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib64/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/n/fs/hamcore/hayoung/SciConBench/sciconharness/mcp_server/main.py", line 8, in <module>
+    import dotenv
+Traceback (most recent call last):
+  File "/usr/lib64/python3.9/runpy.py", line 197, in _run_module_as_main
+ModuleNotFoundError: No module named 'dotenv'
+    return _run_code(code, main_globals, None,
+  File "/usr/lib64/python3.9/runpy.py", line 87, in _run_code
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/usr/lib64/python3.9/runpy.py", line 197, in _run_module_as_main
+    exec(code, run_globals)
+  File "/n/fs/hamcore/hayoung/SciConBench/sciconharness/mcp_server/main.py", line 8, in <module>
+  File "/usr/lib64/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib64/python3.9/runpy.py", line 87, in _run_code
+    return _run_code(code, main_globals, None,
+  File "/usr/lib64/python3.9/runpy.py", line 87, in _run_code
+    import dotenv
+ModuleNotFoundError: No module named 'dotenv'
+    exec(code, run_globals)
+  File "/n/fs/hamcore/hayoung/SciConBench/sciconharness/mcp_server/main.py", line 8, in <module>
+    exec(code, run_globals)
+  File "/n/fs/hamcore/hayoung/SciConBench/sciconharness/mcp_server/main.py", line 8, in <module>
+    import dotenv
+ModuleNotFoundError: No module named 'dotenv'
+    import dotenv
+ModuleNotFoundError: No module named 'dotenv'
+00:01:44.481 | ERROR   | asyncio - an error occurred during closing of asynchronous generator <async_generator object stdio_client at 0x7fb85c39cac0>
+asyncgen: <async_generator object stdio_client at 0x7fb85c39cac0>
+  + Exception Group Traceback (most recent call last):
+  |   File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 815, in __aexit__
+  |     raise BaseExceptionGroup(
+  | exceptiongroup.BaseExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/mcp/client/stdio/__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    | GeneratorExit
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/mcp/client/stdio/__init__.py", line 182, in stdio_client
+    async with (
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 821, in __aexit__
+    if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 464, in __exit__
+    raise RuntimeError(
+RuntimeError: Attempted to exit cancel scope in a different task than it was entered in
+00:01:44.524 | ERROR   | asyncio - an error occurred during closing of asynchronous generator <async_generator object stdio_client at 0x7fb85c39d4c0>
+asyncgen: <async_generator object stdio_client at 0x7fb85c39d4c0>
+  + Exception Group Traceback (most recent call last):
+  |   File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 815, in __aexit__
+  |     raise BaseExceptionGroup(
+  | exceptiongroup.BaseExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/mcp/client/stdio/__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    | GeneratorExit
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/mcp/client/stdio/__init__.py", line 182, in stdio_client
+    async with (
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 821, in __aexit__
+    if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 464, in __exit__
+    raise RuntimeError(
+RuntimeError: Attempted to exit cancel scope in a different task than it was entered in
+00:01:44.533 | ERROR   | asyncio - an error occurred during closing of asynchronous generator <async_generator object stdio_client at 0x7fb8d91ae340>
+asyncgen: <async_generator object stdio_client at 0x7fb8d91ae340>
+  + Exception Group Traceback (most recent call last):
+  |   File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 815, in __aexit__
+  |     raise BaseExceptionGroup(
+  | exceptiongroup.BaseExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/mcp/client/stdio/__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    | GeneratorExit
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/mcp/client/stdio/__init__.py", line 182, in stdio_client
+    async with (
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 821, in __aexit__
+    if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 464, in __exit__
+    raise RuntimeError(
+RuntimeError: Attempted to exit cancel scope in a different task than it was entered in
+00:01:44.536 | ERROR   | asyncio - an error occurred during closing of asynchronous generator <async_generator object stdio_client at 0x7fb85c39c440>
+asyncgen: <async_generator object stdio_client at 0x7fb85c39c440>
+  + Exception Group Traceback (most recent call last):
+  |   File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 815, in __aexit__
+  |     raise BaseExceptionGroup(
+  | exceptiongroup.BaseExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/mcp/client/stdio/__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    | GeneratorExit
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/mcp/client/stdio/__init__.py", line 182, in stdio_client
+    async with (
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 821, in __aexit__
+    if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/anyio/_backends/_asyncio.py", line 464, in __exit__
+    raise RuntimeError(
+RuntimeError: Attempted to exit cancel scope in a different task than it was entered in
+Production upload: https://huggingface.co/datasets/hayoungjung/SciConBench/commit/b0a91816d74a3652c68bfc9ed8fd363c5ddd234e; Hub README changelog updated for 2026-08.
+Email sent: [SciConBench-Track] Stage 8/12 done — Upload to HuggingFace — Tue, 01 Sep 2026 00:00:16 EST
+Eval universe: 152 DOI(s) with questions+facts (core + latest rolling cohorts through 2026-08; 118 core, 34 rolling total; 0 rolling held back as still-open).
+Running 4 query lane(s) concurrently (azure_openai: 3 model(s), azure_anthropic: 1 model(s), gemini: 1 model(s), openrouter: 5 model(s))...
+  [openrouter] sequential (1 OpenRouter request at a time); models=['z-ai/glm-5.3', 'qwen/qwen3.8-max', 'moonshotai/kimi-k3', 'qwen/qwen3.8-27b', 'minimax/minimax-m3']
+    - z-ai/glm-5.3 key=OPENROUTER_API_KEY_BASE_MODEL
+    - qwen/qwen3.8-max key=OPENROUTER_API_KEY_BASE_MODEL
+    - moonshotai/kimi-k3 key=OPENROUTER_API_KEY
+    - qwen/qwen3.8-27b key=OPENROUTER_API_KEY
+    - minimax/minimax-m3 key=OPENROUTER_API_KEY
+Query round 1/3: 305 pending DOI/model pair(s)...
+[azure_openai] openai/gpt-5.6-sol: 16 pending of 152 eval DOI(s) (policy=once)...
+[azure_anthropic] claude/claude-opus-5: 16 pending of 152 eval DOI(s) (policy=once)...
+[gemini] gemini/gemini-3.7-flash: 16 pending of 152 eval DOI(s) (policy=once)...
+[openrouter] openrouter/z-ai/glm-5.3: 16 pending of 152 eval DOI(s) (policy=once)...
+Email sent: [SciConBench-Track] FAILED @ 9. Query models — Tue, 01 Sep 2026 00:00:16 EST
+Workflow log written: /n/fs/hamcore/hayoung/SciConBench/data_track/logs/workflow-prod-202608-20260901-000016.log
+Traceback (most recent call last):
+  File "/n/fs/hamcore/hayoung/SciConBench/scicon-track/run_workflow.py", line 1936, in <module>
+    sciconbench_track_pipeline.fn(
+  File "/n/fs/hamcore/hayoung/SciConBench/scicon-track/run_workflow.py", line 1834, in sciconbench_track_pipeline
+    asyncio.run(_run_task_async(
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/n/fs/hamcore/hayoung/SciConBench/scicon-track/run_workflow.py", line 330, in _run_task_async
+    return await task.fn(*args, **kwargs)
+  File "/n/fs/hamcore/hayoung/SciConBench/scicon-track/run_workflow.py", line 1115, in task_run_queries
+    await asyncio.gather(*(
+  File "/n/fs/hamcore/hayoung/SciConBench/scicon-track/run_workflow.py", line 843, in _run_provider_lane
+    async with harness:
+  File "/n/fs/hamcore/hayoung/SciConBench/sciconharness/harness.py", line 298, in __aenter__
+    await self.connect()
+  File "/n/fs/hamcore/hayoung/SciConBench/sciconharness/harness.py", line 307, in connect
+    await self._mcp_client.connect_to_server()
+  File "/n/fs/hamcore/hayoung/SciConBench/sciconharness/mcp_client/mcp_client.py", line 138, in connect_to_server
+    await self.session.initialize()
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/mcp/client/session.py", line 183, in initialize
+    result = await self.send_request(
+  File "/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/mcp/shared/session.py", line 306, in send_request
+    raise McpError(response_or_error.error)
+mcp.shared.exceptions.McpError: Connection closed

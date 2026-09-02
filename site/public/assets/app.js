@@ -81,7 +81,6 @@
     const dataset = data.dataset;
 
     $("hero-tagline").textContent = site.tagline || "";
-    $("intro-lede").textContent = site.description || "";
 
     const links = site.links || {};
     const actions = [
@@ -144,11 +143,36 @@
    * leaderboard
    * ------------------------------------------------------------------ */
 
-  let boardState = { metric: "f1", rows: [] };
+  let boardState = { metric: "f1", panel: "all", includePaper: false, base: [], paper: [] };
+
+  // The exported leaderboard rows carry a blended precision/recall/f1 plus a
+  // per-panel breakdown (`row.panels[key]`). Swapping `boardState.panel`
+  // re-projects each row onto that slice — "all" leaves the blended score.
+  // Paper-release baselines (a one-off snapshot, not a monthly panel) only
+  // make sense alongside the blended view, so they're appended there.
+  function boardRows() {
+    let rows = boardState.panel === "all" ? boardState.base : boardState.base.map((row) => {
+      const slice = (row.panels || {})[boardState.panel];
+      return Object.assign({}, row, {
+        precision: slice ? slice.precision : null,
+        recall: slice ? slice.recall : null,
+        f1: slice ? slice.f1 : null,
+        reviews: slice ? slice.reviews : row.reviews,
+      });
+    });
+    if (boardState.includePaper && boardState.panel === "all") {
+      rows = rows.concat(
+        boardState.paper.map((b) =>
+          Object.assign({}, b, { run_month_label: "Preprint", reviews: null, is_paper: true })
+        )
+      );
+    }
+    return rows;
+  }
 
   function renderBoard() {
     const metric = boardState.metric;
-    const rows = boardState.rows.slice().sort((a, b) => {
+    const rows = boardRows().slice().sort((a, b) => {
       const av = a[metric], bv = b[metric];
       if (av === null && bv === null) return a.display_name.localeCompare(b.display_name);
       if (av === null) return 1;
@@ -199,21 +223,47 @@
           cell(row.recall, row.color, metric === "recall" && isBest) +
           cell(row.f1, row.color, metric === "f1" && isBest) +
           `<td class="col-num col-hide-sm">${fmtInt(row.reviews)}</td>` +
-          `<td class="col-num col-hide-sm"><span class="tag">${escape(
-            row.run_month_label
-          )}</span></td>` +
+          `<td class="col-num col-hide-sm"><span class="tag${
+            row.is_paper ? " tag--paper" : ""
+          }">${escape(row.run_month_label)}</span></td>` +
           `</tr>`
         );
       })
       .join("");
   }
 
+  function panelReviewCount(data, panelKey) {
+    if (panelKey === "all") return data.dataset.total_reviews;
+    if (panelKey === "core") return data.dataset.core_reviews;
+    if (panelKey === "rolling") return data.dataset.rolling_reviews;
+    return null;
+  }
+
+  function populatePanelSelect(data) {
+    const select = document.getElementById("panel-select");
+    if (!select) return;
+    const views = [{ key: "all", label: "All reviews" }, ...(data.panel_views || [])];
+    select.innerHTML = views
+      .map((v) => `<option value="${escape(v.key)}">${escape(v.label)}</option>`)
+      .join("");
+    select.value = boardState.panel;
+  }
+
   function renderLeaderboardMeta(data) {
     const summary = data.summary;
     const pending = summary.total_responses - summary.graded_responses;
 
+    const views = [{ key: "all", label: "All reviews" }, ...(data.panel_views || [])];
+    const active = views.find((v) => v.key === boardState.panel);
+    const count = panelReviewCount(data, boardState.panel);
+    const scope =
+      boardState.panel === "all"
+        ? `${fmtInt(count)} systematic reviews`
+        : `the ${active ? active.label : boardState.panel}` +
+          (count !== null ? ` (${fmtInt(count)} reviews)` : "");
+
     $("leaderboard-sub").innerHTML =
-      `Macro-averaged over ${fmtInt(data.dataset.total_reviews)} systematic reviews, ` +
+      `Macro-averaged over ${scope}, ` +
       `clean-room configuration (<code>${escape(data.eval_config)}</code>). ` +
       `Each model is shown at its most recent evaluated month.`;
 
@@ -228,6 +278,13 @@
       "Higher is better for every column. Precision penalizes claims the review contradicts; " +
         "recall measures how much of the expert conclusion the model recovered."
     );
+    if (boardState.includePaper) {
+      notes.push(
+        "Rows tagged <em>Preprint</em> are the SciConBench paper's own evaluation snapshot " +
+          "(some models graded Jan 2026, others Jul 2026) — a one-off run, not a monthly " +
+          "panel, so it only shows under \u201cAll reviews\u201d."
+      );
+    }
     $("board-footnote").innerHTML = notes.join(" ");
   }
 
@@ -235,77 +292,164 @@
    * trend
    * ------------------------------------------------------------------ */
 
+  let trendState = { metric: "f1", family: "all", panel: "all" };
+  const METRIC_LABEL = { f1: "Factual F1", precision: "Factual Precision", recall: "Factual Recall" };
+  const CONTROL_MODELS = new Set([
+    "DeepSeek-V4-Flash-0731",
+    "qwen/qwen3.8-27b",
+    "minimax/minimax-m3",
+  ]);
+  const CONTROL_MARK = "\u2020";
+  const CONTROL_COLOR = "#6b7280";
+  // The superscript "¹" ties this axis label to the matching footnote below
+  // the chart — it's baked into the label itself so it travels with it
+  // wherever the string is used (axis, tooltip date line, etc.).
+  const PAPER_LABEL = "Preprint Results (early-mid 2026)¹";
+
+  // "All models" plus one option per model family (lab) — e.g. selecting
+  // "OpenAI" shows every OpenAI model together (o3 Deep Research, GPT-5.1,
+  // GPT-5.6 Sol, ...), not one at a time. Family is decided by the model's
+  // *name* server-side (export_data.py's resolve_family), not by which API
+  // happened to host it, so this list needs no maintenance as new models
+  // land — a future "gpt-6" is already "OpenAI" the moment it has a score.
+  function trendFamilyOptions(data) {
+    const byKey = new Map();
+    (data.series || []).forEach((s) => byKey.set(s.family, s.provider_label));
+    (data.paper_baselines || []).forEach((b) => byKey.set(b.family, b.provider_label));
+    return Array.from(byKey.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  function populateTrendControls(data) {
+    const familySelect = document.getElementById("trend-model-select");
+    if (familySelect) {
+      familySelect.innerHTML =
+        `<option value="all">All models</option>` +
+        trendFamilyOptions(data)
+          .map((f) => `<option value="${escape(f.key)}">${escape(f.label)}</option>`)
+          .join("");
+      familySelect.value = trendState.family;
+    }
+    const panelToggle = document.getElementById("trend-panel-toggle");
+    if (panelToggle) {
+      const views = [{ key: "all", label: "All reviews" }, ...(data.panel_views || [])];
+      // "All reviews" is the only label long enough to need shortening now
+      // that rolling cohorts are just "Rolling set" — no month name to trim.
+      const short = (v) => (v.key === "all" ? "All" : v.label);
+      panelToggle.innerHTML = views
+        .map(
+          (v) =>
+            `<button data-panel="${escape(v.key)}" title="${escape(v.label)}" class="${
+              v.key === trendState.panel ? "is-active" : ""
+            }">${escape(short(v))}</button>`
+        )
+        .join("");
+    }
+  }
+
   function renderTrend(data) {
     const mount = $("trend-chart");
-    const series = (data.series || []).map((s) => ({
-      display_name: s.display_name,
-      color: s.color,
-      points: s.points.map((p) => ({
-        label: p.label,
-        value: p.f1,
-        note: `${p.reviews} reviews`,
-      })),
-    }));
+    const metric = trendState.metric;
+    const panel = trendState.panel;
+
+    const liveSeries = (data.series || []).map((s) => {
+      const isControl = CONTROL_MODELS.has(s.model);
+      return {
+        display_name: `${s.display_name}${isControl ? CONTROL_MARK : ""}`,
+        family: s.family,
+        provider_label: isControl ? `${s.provider_label} · control model` : s.provider_label,
+        color: isControl ? CONTROL_COLOR : s.color,
+        icon: s.icon,
+        control: isControl,
+        points: s.points.map((p) => {
+          const slice = panel === "all" ? null : (p.panels || {})[panel];
+          const value = panel === "all" ? p[metric] : slice ? slice[metric] : null;
+          return { label: p.label, value, panels: p.panels, note: `${p.reviews} reviews` };
+        }),
+      };
+    });
+
+    // Paper-release baselines are a fixed one-off snapshot (no core/rolling
+    // breakdown), so they only render under "All reviews" — and always as
+    // their own left-most column, never pinned to a live run month.
+    const paperSeries =
+      panel === "all"
+        ? (data.paper_baselines || []).map((b) => ({
+            display_name: b.display_name,
+            family: b.family,
+            provider_label: b.provider_label,
+            color: b.color,
+            icon: b.icon,
+            points: [
+              {
+                label: PAPER_LABEL,
+                value: b[metric],
+              },
+            ],
+          }))
+        : [];
+
+    // Chronological month labels, taken from the live series in the order
+    // they already appear (build_series sorts each model's own points by
+    // run month); "Paper" is pinned to the front regardless.
+    const monthLabels = [];
+    liveSeries.forEach((s) =>
+      s.points.forEach((p) => {
+        if (!monthLabels.includes(p.label)) monthLabels.push(p.label);
+      })
+    );
+
+    const series = paperSeries
+      .concat(liveSeries)
+      .filter((s) => trendState.family === "all" || s.family === trendState.family)
+      .filter((s) => s.points.some((p) => p.value !== null && p.value !== undefined));
+
+    document.querySelectorAll("#trend-metric-toggle button").forEach((b) => {
+      b.classList.toggle("is-active", b.dataset.metric === metric);
+    });
+    document.querySelectorAll("#trend-panel-toggle button").forEach((b) => {
+      b.classList.toggle("is-active", b.dataset.panel === panel);
+    });
+
+    const notes = [
+      "\u00b9 Results from preprint use a fixed N=268 subset, containing only reviews after " +
+        "the latest model knowledge cutoff (Jan 31, 2025 from Gemini 3 Pro); later models " +
+        "were evaluated on the same subset for comparability.",
+      `${CONTROL_MARK} Control models are shown in gray: DeepSeek-V4-Flash, Qwen3.8 27B, ` +
+        "and MiniMax M3. These fixed model versions remain unchanged across monthly runs, " +
+        "providing a stable baseline for gauging frontier-model progress and changes in " +
+        "benchmark difficulty.",
+    ];
+    if (panel !== "all") {
+      notes.push(
+        "Preprint results are a one-off snapshot with no core/rolling breakdown, " +
+          "so they only appear under \u201cAll reviews.\u201d"
+      );
+    }
+    $("trend-footnote").innerHTML = notes.map(escape).join("<br>");
 
     if (!series.length) {
       mount.innerHTML =
-        '<div class="empty"><strong>Not enough history yet</strong>' +
-        "F1 trends appear once the judging stages complete for at least one monthly run.</div>";
-      $("trend-legend").innerHTML = "";
+        '<div class="empty"><strong>No data for this selection</strong>' +
+        "Try a different model or panel filter.</div>";
       return;
     }
 
     Charts.lineChart(mount, series, {
-      yLabel: "F1",
+      height: 420,
+      yLabel: METRIC_LABEL[metric] || metric,
       format: (v) => (v * 100).toFixed(1),
       tick: (t) => (t * 100).toFixed(0),
+      yMin: 0,
+      yMax: 0.6,
+      tickCount: 7,
+      dashedLine: true,
+      endLabels: true,
+      frontier: true,
+      labelOrder: [PAPER_LABEL].concat(monthLabels),
+      leadingGapLabel: PAPER_LABEL,
     });
-
-    $("trend-legend").innerHTML = series
-      .map(
-        (s) =>
-          `<span><i style="background:${s.color}"></i>${escape(s.display_name)}</span>`
-      )
-      .join("");
-  }
-
-  /* ------------------------------------------------------------------ *
-   * pipeline
-   * ------------------------------------------------------------------ */
-
-  const STATE_LABEL = { ok: "done", running: "running", failed: "failed", pending: "queued" };
-
-  function renderPipeline(data) {
-    const pipeline = data.pipeline || {};
-    const stages = pipeline.stages || [];
-
-    const done = stages.filter((s) => s.status === "ok").length;
-    const running = stages.find((s) => s.status === "running");
-
-    if (pipeline.available) {
-      $("pipeline-sub").innerHTML =
-        `Run for cohort <strong>${escape(pipeline.target_month || "—")}</strong>, started ` +
-        `${escape(fmtDate(pipeline.started_at))} — ${done} of ${stages.length} stages complete` +
-        (running ? `, currently <strong>${escape(running.short)}</strong>.` : ".") +
-        " The pipeline runs unattended on the first of every month.";
-    } else {
-      $("pipeline-sub").textContent =
-        "The twelve stages of the monthly pipeline. Status appears here once a run has been logged.";
-    }
-
-    $("stages").innerHTML = stages
-      .map(
-        (s, i) =>
-          `<div class="stage" data-status="${s.status}">` +
-          `<div class="stage-top"><span class="stage-num">${String(i + 1).padStart(2, "0")}</span>` +
-          `<span class="stage-state">${STATE_LABEL[s.status] || s.status}</span></div>` +
-          `<div class="stage-name">${escape(s.short)}</div>` +
-          `<div class="stage-desc">${escape(s.description)}</div>` +
-          (s.detail ? `<div class="stage-detail">${escape(s.detail)}</div>` : "") +
-          `</div>`
-      )
-      .join("");
-
   }
 
   /* ------------------------------------------------------------------ *
@@ -346,18 +490,6 @@
       .map(
         ([k, v]) =>
           `<div><span class="k">${escape(k)}</span><span class="v">${escape(v)}</span></div>`
-      )
-      .join("");
-
-    const types = dataset.review_types || [];
-    const max = Math.max(1, ...types.map((t) => t.count));
-    $("review-types").innerHTML = types
-      .map(
-        (t) =>
-          `<div class="bar-row"><div class="bar-row-top"><span>${escape(
-            t.label
-          )}</span><span>${fmtInt(t.count)}</span></div>` +
-          `<div class="bar-track"><i style="width:${(t.count / max) * 100}%"></i></div></div>`
       )
       .join("");
   }
@@ -411,7 +543,10 @@
         (n) =>
           `<li><img class="news-icon" src="assets/logo.png" alt="" aria-hidden="true" /><time>[${escape(
             fmtDate(n.date)
-          )}]:</time> <span>${escape(n.text)}</span></li>`
+          )}]:</time> <span>${escape(n.text).replace(
+            /\*([^*]+)\*/g,
+            "<em>$1</em>"
+          )}</span></li>`
       )
       .join("");
 
@@ -439,11 +574,26 @@
       $("headline").hidden = false;
     }
 
+    const intro = Array.isArray(site.introduction)
+      ? site.introduction
+      : site.introduction
+      ? [site.introduction]
+      : [];
+    $("introduction-text").innerHTML = intro
+      .map(
+        (p) =>
+          `<p>${escape(p)
+            .replace(/\+\+([^+]+)\+\+/g, "<u>$1</u>")
+            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+            .replace(/\*([^*]+)\*/g, "<em>$1</em>")}</p>`
+      )
+      .join("");
+
     $("citation").textContent = site.citation || "";
 
     $("contact").textContent =
-      "For any inquiries, questions, or feedback, please contact us at " +
-      "hayoung [at] cs [dot] princeton [dot] edu!";
+      "\u2709\ufe0f For any inquiries, questions, or feedback, please contact us at " +
+      "hayoung [at] cs [dot] princeton [dot] edu";
 
     const ack = Array.isArray(site.acknowledgements)
       ? site.acknowledgements
@@ -506,7 +656,7 @@
    * boot
    * ------------------------------------------------------------------ */
 
-  function bindControls() {
+  function bindControls(data) {
     document.querySelectorAll("#metric-toggle button").forEach((button) => {
       button.addEventListener("click", () => {
         boardState.metric = button.dataset.metric;
@@ -520,6 +670,51 @@
         renderBoard();
       });
     });
+
+    const panelSelect = document.getElementById("panel-select");
+    if (panelSelect) {
+      panelSelect.addEventListener("change", () => {
+        boardState.panel = panelSelect.value;
+        renderBoard();
+        renderLeaderboardMeta(data);
+      });
+    }
+
+    const boardPaperToggle = document.getElementById("board-paper-toggle");
+    if (boardPaperToggle) {
+      boardPaperToggle.addEventListener("click", () => {
+        boardState.includePaper = !boardState.includePaper;
+        boardPaperToggle.classList.toggle("is-active", boardState.includePaper);
+        boardPaperToggle.setAttribute("aria-pressed", String(boardState.includePaper));
+        renderBoard();
+        renderLeaderboardMeta(data);
+      });
+    }
+
+    document.querySelectorAll("#trend-metric-toggle button").forEach((button) => {
+      button.addEventListener("click", () => {
+        trendState.metric = button.dataset.metric;
+        renderTrend(data);
+      });
+    });
+
+    const trendModelSelect = document.getElementById("trend-model-select");
+    if (trendModelSelect) {
+      trendModelSelect.addEventListener("change", () => {
+        trendState.family = trendModelSelect.value;
+        renderTrend(data);
+      });
+    }
+
+    const trendPanelToggle = document.getElementById("trend-panel-toggle");
+    if (trendPanelToggle) {
+      trendPanelToggle.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-panel]");
+        if (!button) return;
+        trendState.panel = button.dataset.panel;
+        renderTrend(data);
+      });
+    }
 
     const copyBtn = document.getElementById("copy-citation");
     if (copyBtn) {
@@ -546,16 +741,18 @@
     })
     .then((data) => {
       if (data.demo) $("demo-banner").hidden = false;
-      boardState.rows = data.leaderboard || [];
+      boardState.base = data.leaderboard || [];
+      boardState.paper = data.paper_baselines || [];
+      populatePanelSelect(data);
+      populateTrendControls(data);
       renderHero(data);
       renderLeaderboardMeta(data);
       renderBoard();
       renderTrend(data);
-      renderPipeline(data);
       renderDataset(data);
       renderEffort(data);
       renderContent(data);
-      bindControls();
+      bindControls(data);
     })
     .catch((error) => {
       $("hero-tagline").textContent =

@@ -17,6 +17,7 @@
 
   --accent:        #17356b;
   --accent-soft:   #1f4d99;
+  --princeton-orange: #e77500;
   --live:          #157f5b;
   --warn:          #9a6100;
   --bad:           #b3261e;
@@ -244,7 +245,13 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 
 .section { padding: 48px 0; }
 .section--tight { padding: 40px 0; }
-#news { padding-top: 0; }
+#news { padding-top: 0; padding-bottom: 16px; }
+#trend { padding-top: 12px; padding-bottom: 28px; }
+#introduction { padding-top: 28px; padding-bottom: 20px; }
+#data { padding-top: 20px; }
+#data .section-head { margin-bottom: 10px; }
+#faq-section { padding-bottom: 20px; }
+#cite { padding-top: 20px; }
 
 .section-head {
   display: flex;
@@ -263,6 +270,78 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   margin: 0;
 }
 
+.section-head--center {
+  justify-content: center;
+  text-align: center;
+}
+.section-head--center > div { width: 100%; }
+
+/* Reserved for section titles that should stand out as a new chapter of the
+   page — centered, a touch larger than a normal section title, with a short
+   accent-colored rule underneath rather than a plain browser underline.
+   Apply to new top-level sections. */
+.section-title--feature {
+  display: inline-block;
+  position: relative;
+  font-size: clamp(24px, 3.2vw, 30px);
+  font-weight: 700;
+  padding-bottom: 16px;
+}
+.section-title--feature::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 46px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft));
+}
+
+.intro-copy {
+  max-width: 860px;
+  margin: 0 auto;
+  text-align: justify;
+  text-align-last: left;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.intro-copy p + p { margin-top: 14px; }
+
+.teaser-figure {
+  max-width: 1020px;
+  margin: 24px auto 0;
+}
+.teaser-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.teaser-figure figcaption {
+  max-width: 96ch;
+  margin: 10px auto 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.progress-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  font-weight: 700;
+}
+.progress-title-logo {
+  width: 1.15em;
+  height: 1.15em;
+  object-fit: contain;
+  flex: none;
+}
+
 .section-sub {
   max-width: 72ch;
   color: var(--text-dim);
@@ -270,35 +349,20 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   font-size: 15px;
 }
 
-/* ─────────────────────────── the live loop ──────────────────────── */
+#trend .section-head {
+  justify-content: center;
+  text-align: center;
+}
+#trend .section-head > div {
+  width: 100%;
+}
+#trend .section-sub {
+  margin-left: auto;
+  margin-right: auto;
+}
 
-.loop { display: block; }
-.loop-copy p { color: var(--text-dim); font-size: 15px; }
-
-.loop-steps {
-  list-style: none;
-  margin: 24px 0 0;
-  padding: 0;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-.loop-steps li {
-  display: flex;
-  gap: 14px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line-soft);
-  font-size: 14.5px;
-}
-.loop-steps li:last-child { border-bottom: 0; }
-.loop-steps span {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--text-faint);
-  padding-top: 2px;
-}
-.loop-steps strong { display: block; font-weight: 600; }
-.loop-steps div { color: var(--text-dim); font-size: 13.5px; line-height: 1.5; }
+.dataset-details { margin-top: 34px; }
+.dataset-details .grid-2 { margin-top: 22px; }
 
 /* ────────────────────────────── cards ──────────────────────────── */
 
@@ -357,6 +421,90 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 
 /* ─────────────────────────── leaderboard ───────────────────────── */
 
+.chart-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.chart-toolbar-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Model Family sits right next to the panel buttons; keep it a touch
+   smaller than the standalone version so the whole toolbar has a better
+   chance of staying on one line. */
+.panel-select-wrap--compact {
+  gap: 5px;
+  font-size: 12.5px;
+  margin-left: 2px;
+}
+.panel-select-wrap--compact .panel-select {
+  padding: 6px 26px 6px 10px;
+  font-size: 12.5px;
+}
+
+.chart-footnote {
+  color: var(--text-faint);
+  max-width: 800px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-align: left;
+  margin: 12px auto 0;
+  min-height: 1px;
+}
+
+.pill-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.pill-toggle:hover { background: var(--bg-hover); color: var(--text); }
+.pill-toggle.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.board-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.panel-select-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.panel-select {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="%236b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+    no-repeat right 10px center;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 30px 7px 12px;
+  cursor: pointer;
+}
+.panel-select:hover { background-color: var(--bg-hover); }
+
 .metric-toggle {
   display: inline-flex;
   border: 1px solid var(--line);
@@ -379,6 +527,13 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .metric-toggle button:last-child { border-right: 0; }
 .metric-toggle button:hover { color: var(--text); background: var(--bg-hover); }
 .metric-toggle button.is-active { background: var(--accent); color: #fff; }
+
+/* The AI Agent Progress toolbar (trend chart) uses Princeton Orange for its
+   active toggle states instead of the site-wide navy accent, to tie the
+   chart controls visually to the university brand. Scoped to just this
+   chart's toolbar so the leaderboard's metric toggle stays navy. */
+#trend-metric-toggle button.is-active,
+#trend-panel-toggle button.is-active { background: var(--princeton-orange); color: #fff; }
 
 .table-wrap {
   border: 1px solid var(--line-soft);
@@ -442,6 +597,7 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   background: var(--bg-raised);
 }
 .tag--pending { border-color: #f0d9a8; color: var(--warn); background: #fff6e3; }
+.tag--paper { border-color: #c9d3f0; color: #4451a3; background: #eef0fc; }
 
 .footnote { color: var(--text-faint); font-size: 13px; margin: 12px 0 0; }
 
@@ -459,6 +615,8 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart .axis-line { stroke: var(--line); stroke-width: 1; }
 .chart .grid-line { stroke: var(--line-soft); stroke-width: 1; }
+.chart .axis-gap-label { fill: var(--text-faint); }
+.chart .axis-x-label { font-size: 12.5px; font-weight: 500; fill: var(--text-dim); }
 .chart text {
   font-family: var(--sans);
   font-size: 10px;
@@ -468,6 +626,47 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .chart .series-dot { stroke: #fff; stroke-width: 2; }
 .chart .bar { transition: opacity 0.15s; }
 .chart .bar:hover { opacity: 0.82; }
+
+/* Logo-badged points: white halo + colored circle + provider glyph/logo. */
+.chart .series-badge { cursor: pointer; }
+.chart .series-badge-halo { opacity: 0.9; }
+.chart .series-badge-dot { stroke: #fff; stroke-width: 1.5; }
+.chart .series-badge-visual {
+  transition: transform 0.12s ease;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.chart .series-badge:hover .series-badge-visual { transform: scale(1.12); }
+.chart .series-badge--control image { filter: grayscale(1); }
+.chart .series-badge-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.chart .series-badge-leader {
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  opacity: 0.55;
+}
+.chart .frontier-line {
+  fill: none;
+  stroke: #f59e0b;
+  stroke-width: 3.5;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+  opacity: 0.95;
+}
+.chart .frontier-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
 
 .legend {
   display: flex;
@@ -563,6 +762,7 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 /* ─────────────────────────────── faq ───────────────────────────── */
 
 .faq { margin-top: 28px; border-top: 1px solid var(--line-soft); }
+#faq-section .faq { margin-top: 0; }
 .faq details {
   border-bottom: 1px solid var(--line-soft);
   padding: 2px 0;
@@ -590,9 +790,17 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 
 /* ─────────────────────────────── news ─────────────────────────── */
 
-.news { list-style: none; margin: 14px 0 0; padding: 0; }
+.news-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.news { list-style: none; margin: 12px 0 0; padding: 0; }
 .news li {
-  padding: 5px 0;
+  padding: 4px 0;
   font-size: 13px;
   line-height: 1.5;
 }
@@ -606,6 +814,7 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 }
 .news time { font-weight: 600; color: var(--text-faint); }
 .news span { color: var(--text-dim); }
+.news em { font-style: italic; }
 
 .byline {
   display: flex;
@@ -745,9 +954,15 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 
 /* ───────────────────────── citation / team ────────────────────── */
 
-.cite {
+.cite-box {
+  position: relative;
   margin: 18px 0 0;
+}
+
+.cite {
+  margin: 0;
   padding: 16px;
+  padding-right: 92px;
   background: var(--bg-raised);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
@@ -772,14 +987,10 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   text-align: left;
 }
 
-.cite-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
 .copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
