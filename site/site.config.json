@@ -28,7 +28,7 @@
     },
     {
       "date": "2026-07-15",
-      "text": "July 2026 dataset release. The benchmark grows from 9.11K to 9.17K samples; superseded reviews are replaced with their latest editions."
+      "text": "July 2026 dataset release. The benchmark grows from 9.11K to 9.17K samples; superseded reviews are replaced with their latest editions. The benchmark is constantly growing and will be published on HuggingFace each month."
     },
     {
       "date": "2026-06-09",
@@ -37,28 +37,48 @@
   ],
   "faq": [
     {
-      "question": "Why does a benchmark need to be live?",
-      "answer": "Any static benchmark drawn from published literature is already inside the training data of the next model generation. Cochrane publishes new systematic reviews every month, so SciConBench continuously draws fresh questions whose reference conclusions postdate the models being tested. A score here reflects synthesis ability rather than recall of a memorized document."
+      "question": "What is SciConBench, and what task do the agents actually perform?",
+      "answer": "SciConBench is an agentic benchmark for *open-domain scientific conclusion synthesis*. Each question is derived from the *Objectives* of a Cochrane systematic review [[3]](https://www.cochranelibrary.com/), with the review’s expert-written *Authors’ Conclusions* as the reference answer. Agents must search the open web through clean-room tools that block benchmark answers, identify relevant evidence, assess its quality, reconcile conflicting findings, and synthesize an expert-level conclusion. Unlike simple fact retrieval, this is a long-horizon task that requires synthesizing evidence across many sources—work that systematic review teams can spend over two years completing [[4]](https://www.sciencedirect.com/science/article/abs/pii/S0895435620301244). SciConBench is also *live*, containing 9,000+ questions and growing monthly."
     },
     {
-      "question": "What stops an agent from just finding the answer online?",
-      "answer": "Every evaluation runs under SciConHarness, a clean-room protocol that proxies web search and page fetching. It filters out the target review, anything citing it, and any source published after the review's date, so the agent has to assemble the conclusion from primary evidence instead of retrieving it. The paper reports that clean-room conditions consistently lower scores relative to unconstrained evaluation, which is direct evidence that leakage inflates estimates of synthesis ability."
+      "question": "What questions is this dashboard designed to answer?",
+      "answer": "The dashboard is longitudinal: the same evaluation is run every month so scores can be read as trends rather than one-off snapshots. It is designed to address three questions.\n- **As frontier labs release new models, how does scientific conclusion synthesis performance change over time?** We evaluate the latest frontier model releases on both a fixed core set and the rolling panel to track longitudinal progress in scientific conclusion synthesis capability.\n- **How well do AI agents synthesize newly published scientific conclusions?** Each month, we evaluate frontier agents on newly released systematic reviews in the rolling panel to measure performance on the latest evidence.\n- **Are improvements driven by genuine gains in synthesis capability, or by models having seen benchmark answers during pretraining?** We compare performance on fresh rolling panels with the fixed, older core set; differences in their trends provide evidence for genuine capability gains versus possible pretraining leakage.\nAcross these analyses, three fixed control models—DeepSeek-V4-Flash, Qwen3.8 27B, and MiniMax M3—provide a stable baseline for distinguishing changes in model capability from changes in cohort difficulty."
     },
     {
       "question": "How are models scored?",
-      "answer": "Both the agent's conclusion and the expert conclusion are decomposed into atomic facts. Factual precision asks how many of the agent's claims the review supports, penalizing outright contradictions; factual recall measures how many of the expert's claims the agent recovered, treating the Authors' Conclusions section as the authoritative answer. F1 is their harmonic mean, macro-averaged over reviews."
+      "answer": "Long-form conclusions cannot be graded by string match, so we grade them fact by fact. Both the agent's conclusion and the expert conclusion are decomposed into atomic, individually checkable facts.\n- **Factual precision** measures *correctness*: the extent to which facts from the agent’s generated conclusions are supported by the full ground-truth review, with penalties for contradictions.\n- **Factual recall** measures *coverage*: how many facts from the expert conclusion are supported by the agent’s generated conclusion.\n- **Factual F1** is their harmonic mean, rewarding conclusions that are both correct and complete.\nAll metrics range from 0 to 1, with higher scores being better. Scores are macro-averaged across reviews, giving each review equal weight regardless of the number of facts it contains. Every atomic-fact judgment is made by an expert-validated LLM judge; see [Quantitative Results](#leaderboard) for the formulas.\n\nPerformance remains low: the best agent in our [preprint](https://arxiv.org/abs/2606.11337) reached 0.337 factual F1 under the clean-room protocol. The leaderboard shows relative model rankings and trends over time, while precision and recall scores reveal how correct and complete each model’s conclusions are in a more interpretable manner."
     },
     {
-      "question": "How does this dashboard relate to the benchmark on HuggingFace?",
-      "answer": "The HuggingFace release is the full benchmark: every Cochrane review the pipeline has processed, questions and atomic facts included. This dashboard reports the live evaluation panel, a much smaller set that every tracked model is re-run against each month. The panel combines a frozen core sample, which keeps month-to-month comparisons stable, with each new monthly cohort of freshly published reviews."
+      "question": "Why does the benchmark have to be live?",
+      "answer": "Any static benchmark drawn from published literature risks entering the pretraining corpus of future models, at which point a high score may reflect memorization of the reference answer encoded in the model’s weights rather than genuine synthesis capability. Cochrane publishes new reviews every month, so SciConBench continually adds questions whose reference conclusions were published after the tested models’ pretraining cutoffs. Comparing performance on these fresh rolling panels with performance on the older fixed core set helps distinguish genuine synthesis gains from gains driven by memorization."
+    },
+    {
+      "question": "What stops an agent from just looking up the answer online?",
+      "answer": "Every evaluation reported on this dashboard runs through **SciConHarness**, a clean-room harness that equips AI agents with web search, academic search, and browsing tools. Like a scientific clean room designed to prevent contamination, SciConHarness creates a controlled information environment free from benchmark-answer contamination. It blocks the target review, documents that discuss it (e.g., news coverage), and sources published after the review date, requiring agents to *synthesize* a conclusion from the underlying evidence rather than merely retrieve the answer directly. In our [preprint](https://arxiv.org/abs/2606.11337), performance under the clean-room protocol is consistently lower than under unconstrained retrieval conditions, where ground-truth answers may be accessible, showing that leakage can inflate estimates of synthesis ability."
+    },
+    {
+      "question": "What are the core set and the rolling panel, and why both?",
+      "answer": "They are the two cuts of data every AI agent is evaluated on, and they answer different questions. Use the **Panel** control on the Progress chart above to switch between them.\n- **Core set (N=119)** — a fixed sample of up to 10 eligible reviews per publication month from July 2025 through June 2026. Held constant across models and months, it provides a stable basis for comparing models and tracking performance over time, while also revealing potential gains from pretraining leakage to these reviews.\n- **Rolling panel (N≈15–30/month)** — newly published reviews continuously added to SciConBench each month. Because their conclusions postdate the tested models’ pretraining cutoffs, they measure genuine synthesis capability without leakage while expanding coverage to emerging topics."
+    },
+    {
+      "question": "Which models are evaluated, and how are they configured?",
+      "answer": "Each month we evaluate the latest frontier model from each of seven leading labs—OpenAI, Anthropic, Google DeepMind, DeepSeek, Moonshot AI, Z.ai, and Alibaba—alongside three control models.\n- Models run with their **default hyperparameters and highest available reasoning effort**.\n- For cost and fairness, each model answers every assigned review **exactly once**, with no score-based retries, best-of-*n* runs, or re-evaluations, since model improvements are typically released as new models rather than updates to existing ones.\n- When a lab releases a new model, we add it in the next monthly evaluation and run it on the core set plus the **four most recent monthly rolling panels**; thereafter, we evaluate it on each new rolling panel.\n- The **three open-weight control models are pinned to fixed versions**. Their month-to-month score changes therefore capture cohort difficulty and evaluation noise, providing a baseline against which improvements in frontier models are more indicative of genuine gains in synthesis capability."
+    },
+    {
+      "question": "How does the live benchmark infrastructure work, and where can I find it?",
+      "answer": "At the start of each month, an automated pipeline runs the full benchmark and evaluation workflow.\n- **Update:** Find newly published Cochrane reviews and replace superseded reviews with their latest editions.\n- **Construct and publish:** Convert each review’s *Objectives* into a scientific question, decompose its *Authors’ Conclusions* into atomic, checkable facts, and publish the live benchmark on Hugging Face.\n- **Evaluate:** Run the latest AI agents on the core set and eligible rolling panels through the clean-room SciConHarness.\n- **Score and report:** Decompose generated conclusions into atomic facts, compute factual precision, recall, and F1 with an expert-validated LLM judge, and refresh this dashboard.\nThe complete infrastructure—including monthly tracking, SciConHarness, scoring, and dashboard code—lives in the [sciconbench-track branch on GitHub](https://github.com/hayoungjungg/SciConBench/tree/sciconbench-track)."
+    },
+    {
+      "question": "How does this dashboard relate to the benchmark on Hugging Face?",
+      "answer": "The ++[Hugging Face release](https://huggingface.co/datasets/hayoungjung/SciConBench)++ is the full benchmark: every Cochrane review the pipeline has processed, with questions and atomic facts included. This longitudinal dashboard displays the live evaluation panel: a smaller set of samples that the latest frontier models are evaluated on each month, consisting of the fixed core set and rolling monthly panels."
     },
     {
       "question": "How do I get a model onto the leaderboard?",
-      "answer": "Open an issue or pull request on GitHub, or email us. Any model reachable through an OpenAI-, Anthropic-, Gemini-, or OpenRouter-compatible API can be added to the monthly roster in one config change."
+      "answer": "To add a model to our dashboard, please provide API access, evaluation funding, or—if you have already run SciConBench—agent trajectory logs, generated conclusions, and scores. Models accessible through OpenAI-, Anthropic-, Gemini-, or OpenRouter-compatible APIs can be added to the monthly roster with a single config change. Feel free to open an issue or pull request on [GitHub](https://github.com/hayoungjungg/SciConBench), or email us."
     },
     {
       "question": "Can I download the data?",
-      "answer": "Yes. The benchmark is on HuggingFace as hayoungjung/SciConBench, gated behind a contact-information agreement to keep crawlers from scraping and leaking it. Please do not reshare it in a crawlable format. Cochrane content remains copyrighted by its original authors and Cochrane, and its use is governed by Cochrane and Wiley terms."
+      "answer": "Yes. The benchmark is on [Hugging Face](https://huggingface.co/datasets/hayoungjung/SciConBench) as `hayoungjung/SciConBench`, gated to keep crawlers from scraping and leaking it. Please do not reshare it in a crawlable format. Cochrane content remains copyrighted by its original authors and Cochrane, and its use is governed by Cochrane and Wiley terms."
     }
   ],
   "introduction": [

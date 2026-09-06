@@ -296,8 +296,8 @@ def main() -> None:
         help="Max attempts per DOI if the response is not well-formatted (default: 4)",
     )
     parser.add_argument(
-        "--min-conclusion-length", type=int, default=20,
-        help="Min chars inside [[[...]]] to be well-formatted (default: 20)",
+        "--min-conclusion-length", type=int, default=50,
+        help="Min chars inside [[[...]]] to be well-formatted (default: 50)",
     )
     args = parser.parse_args()
 

@@ -226,10 +226,33 @@ def _require(condition: bool, message: str) -> None:
 
 
 def _extract_conclusion(text: str) -> str:
-    """Return the [[[...]]] conclusion, or '' if the markers are missing."""
+    """Return the best [[[...]]] conclusion from a harness response.
+
+    Models sometimes emit a short placeholder in their scratchpad before the
+    real answer (e.g. ``[[[conclusion paragraph]]]`` followed later by the
+    actual ``[[[...]]]``). Prefer the longest well-delimited block. If the
+    final ``[[[`` is still open (truncated mid-conclusion), treat that
+    trailing span as a candidate too so atomic-fact / recall stages can use
+    whatever conclusion text was produced.
+    """
     import re
-    m = re.search(r"\[\[\[(.*?)\]\]\]", text or "", re.DOTALL)
-    return m.group(1).strip() if m else ""
+    text = text or ""
+    candidates = [
+        m.group(1).strip()
+        for m in re.finditer(r"\[\[\[(.*?)\]\]\]", text, re.DOTALL)
+        if m.group(1).strip()
+    ]
+    # Truncated output: last [[[ has no matching ]]].
+    last_open = text.rfind("[[[")
+    if last_open != -1:
+        after = text[last_open + 3 :]
+        if "]]]" not in after:
+            trailing = after.strip()
+            if trailing:
+                candidates.append(trailing)
+    if not candidates:
+        return ""
+    return max(candidates, key=len)
 
 
 def _fact_count(pairs) -> int:

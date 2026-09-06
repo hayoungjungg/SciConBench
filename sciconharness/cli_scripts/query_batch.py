@@ -86,8 +86,8 @@ async def main() -> None:
                         help="Disable saving results to disk")
     parser.add_argument("--max-format-retries", type=int, default=3,
                         help="Max attempts if response is not well-formatted (default: 3)")
-    parser.add_argument("--min-conclusion-length", type=int, default=20,
-                        help="Min chars inside [[[...]]] to be well-formatted (default: 20)")
+    parser.add_argument("--min-conclusion-length", type=int, default=50,
+                        help="Min chars inside [[[...]]] to be well-formatted (default: 50)")
     parser.add_argument("--log-dir", type=str,
                         help="Custom base log/output directory")
     parser.add_argument("--temperature", type=float,

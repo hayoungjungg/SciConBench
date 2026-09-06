@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="48x48" href="/assets/favicon-48.png" />
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
-<link rel="stylesheet" href="assets/styles.css?v=202609011103" />
+<link rel="stylesheet" href="assets/styles.css?v=202609052029" />
 </head>
 <body>
 <div class="grain" aria-hidden="true"></div>
@@ -31,12 +31,12 @@
   </a>
   <ul>
     <li><a href="#trend" data-section="trend">AI Agent Progress on SciConBench</a></li>
+    <li><a href="#latest-news" data-section="latest-news">Latest News</a></li>
+    <li><a href="#faq-section" data-section="faq-section">FAQ</a></li>
     <li><a href="#introduction" data-section="introduction">Introduction</a></li>
     <li><a href="#data" data-section="data">Data + Method</a></li>
     <li><a href="#leaderboard" data-section="leaderboard">Quantitative Results</a></li>
     <li><a href="#effort" data-section="effort">Cost</a></li>
-    <li><a href="#method" data-section="method">Scoring</a></li>
-    <li><a href="#faq-section" data-section="faq-section">FAQ</a></li>
     <li><a href="#cite" data-section="cite">Citation</a></li>
   </ul>
 </nav>
@@ -46,8 +46,10 @@
   <!-- ───────────────────────────── hero ───────────────────────────── -->
   <section class="hero" id="overview">
     <div class="wrap">
-      <img class="hero-logo" src="assets/logo.png" width="84" height="84" alt="SciConBench logo" />
-      <h1 class="hero-title">SciConBench</h1>
+      <div class="hero-heading">
+        <img class="hero-logo" src="assets/logo.png" width="64" height="64" alt="SciConBench logo" />
+        <h1 class="hero-title">SciConBench</h1>
+      </div>
       <p class="hero-tagline" id="hero-tagline"></p>
 
       <div class="hero-actions" id="hero-actions"></div>
@@ -101,9 +103,24 @@
           </details>
         </div>
       </div>
-
-      <h2 class="section-title news-title">Latest News</h2>
-      <ul class="news" id="news-list"></ul>
+      <ul class="site-intro">
+        <li>
+          AI agents are increasingly used for the <em>long-horizon</em> task of
+          <em>synthesizing scientific conclusions</em> for consequential decisions,
+          particularly in high-stakes domains such as health and medicine
+          <sup class="intro-citations">[<a href="https://www.openevidence.com/about" target="_blank" rel="noopener">1</a>, <a href="https://cdn.openai.com/pdf/2cb29276-68cd-4ec6-a5f4-c01c5e7a36e9/OpenAI-AI-as-a-Healthcare-Ally-Jan-2026.pdf" target="_blank" rel="noopener">2</a>]</sup>.
+        </li>
+        <li>
+          SciConBench tests whether AI agents can synthesize factually correct, complete
+          expert-level scientific conclusions using SciConHarness, our clean-room harness
+          that blocks benchmark answers during web search and browsing.
+        </li>
+        <li>
+          Our preprint’s best agent reached just 0.337 factual F1.
+          <u>As SciConBench adds new samples monthly, this live dashboard tracks
+          frontier-model progress on fresh samples and a fixed core set.</u>
+        </li>
+      </ul>
     </div>
   </section>
 
@@ -127,16 +144,48 @@
             <button data-metric="recall">Factual Recall</button>
           </div>
           <div class="metric-toggle" id="trend-panel-toggle" role="group" aria-label="Panel"></div>
-          <label class="panel-select-wrap panel-select-wrap--compact">
-            <span class="panel-select-label">Model Family</span>
-            <select id="trend-model-select" class="panel-select" aria-label="Focus on a model family (lab)"></select>
-          </label>
+          <div class="panel-select-wrap panel-select-wrap--compact">
+            <span class="panel-select-label">Model Families</span>
+            <details class="family-picker" id="trend-family-picker">
+              <summary id="trend-family-summary">All models</summary>
+              <div class="family-picker-menu" id="trend-family-options" role="group" aria-label="Choose model families"></div>
+            </details>
+          </div>
         </div>
       </div>
       <div class="card card--chart">
         <div id="trend-chart" class="chart chart--badged" role="img" aria-label="Model score over monthly runs"></div>
         <p class="chart-footnote" id="trend-footnote"></p>
+        <div class="chart-actions">
+          <button class="chart-download-btn" id="trend-download" type="button" aria-label="Download chart as PNG">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3v12m0 0l4-4m-4 4l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <span>Download PNG</span>
+          </button>
+        </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────────── news ───────────────────────────── -->
+  <section class="section section--tight" id="latest-news">
+    <div class="wrap">
+      <h2 class="section-title news-title">Latest News</h2>
+      <ul class="news" id="news-list"></ul>
+    </div>
+  </section>
+
+  <!-- ───────────────────────────── faq ───────────────────────────── -->
+  <section class="section" id="faq-section">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title news-title">Frequently Asked Questions</h2>
+        </div>
+      </div>
+      <div class="faq" id="faq"></div>
     </div>
   </section>
 
@@ -149,22 +198,6 @@
         </div>
       </div>
       <div class="intro-copy" id="introduction-text"></div>
-      <figure class="teaser-figure">
-        <img
-          src="assets/teaser.png"
-          alt="Overview of the SciConBench benchmark, agentic synthesis task, clean-room harness, evaluation pipeline, and results"
-        />
-        <figcaption>
-          <a href="https://arxiv.org/abs/2606.11337" target="_blank" rel="noopener">Figure 1 from the preprint.</a>
-          (1) SciConBench launched with 9.11K questions paired with expert-written conclusions
-          and continues to grow as a live benchmark (9.19K samples as of August 2026!).
-          (2) Agents synthesize scientific conclusions using web tools.
-          (3) SciConHarness enforces clean-room evaluation by blocking ground-truth artifacts.
-          (4) An expert-validated pipeline decomposes generated and reference conclusions into
-          atomic facts and computes factual precision, recall, and F1. (5) Low clean-room
-          factual F1 scores show that reliable scientific conclusion synthesis remains difficult.
-        </figcaption>
-      </figure>
     </div>
   </section>
 
@@ -178,15 +211,28 @@
       </div>
       <div class="intro-copy">
         <p>
-          SciConBench contains more than 9,000 questions derived from Cochrane systematic
-          reviews, each paired with an expert-written conclusion. Conclusions are decomposed
-          into atomic, checkable facts so model responses can be evaluated (see
-          “Quantitative Results” below).
+          SciConBench is a live, agentic benchmark for scientific conclusion synthesis, pairing
+          9,000+ questions from the Cochrane Database of Systematic Reviews with expert-written
+          conclusions. At the start of every month, our pipeline finds newly published reviews,
+          replaces superseded reviews with their latest editions, converts reviews’
+          <em>Objectives</em> sections into scientific questions, breaks their
+          <em>Authors’ Conclusions</em> sections into atomic, checkable facts, and publishes
+          the growing benchmark on
+          <a href="https://huggingface.co/datasets/hayoungjung/SciConBench" target="_blank" rel="noopener">Hugging Face</a>.
         </p>
         <p>
-          The dashboard uses a live evaluation panel drawn from this benchmark: a fixed core
-          supports consistent comparisons, while monthly rolling cohorts add newly published
-          reviews. The full benchmark is available on Hugging Face.
+          This longitudinal dashboard tracks frontier AI agents’ ability to synthesize
+          scientific conclusions over time. Each month, we evaluate the latest frontier model
+          from each of seven leading labs alongside three fixed control models, across a
+          stable <strong>core set</strong> and a <strong>rolling panel</strong> of newly
+          published reviews. Agents search the web, find academic papers, and read pages
+          through <strong>SciConHarness</strong>, which blocks the target review and anything
+          that would give the answer away, so the task stays synthesis rather than lookup.
+        </p>
+        <p>
+          The <a href="#faq-section">FAQ</a> covers the evaluation protocol, the two panels,
+          and the clean-room harness in more detail; see
+          <a href="#leaderboard">Quantitative Results</a> for how conclusions are scored.
         </p>
       </div>
       <blockquote class="pullquote" id="headline" hidden></blockquote>
@@ -195,11 +241,7 @@
 
       <div class="dataset-details">
         <p class="section-sub" id="dataset-sub">
-          The full benchmark is published on HuggingFace. The figures below describe the
-          <em>live evaluation panel</em> — the subset every tracked model is re-run against
-          each month. A frozen <em>core</em> sample keeps month-to-month comparisons stable,
-          and each monthly <em>rolling</em> cohort adds reviews no model could have seen
-          during training.
+          The figures below show the current live evaluation panel.
         </p>
         <div class="grid-2">
           <div class="card card--chart">
@@ -216,6 +258,23 @@
           </div>
         </div>
       </div>
+
+      <figure class="teaser-figure">
+        <img
+          src="assets/teaser.png"
+          alt="Overview of the SciConBench benchmark, agentic synthesis task, clean-room harness, evaluation pipeline, and results"
+        />
+        <figcaption>
+          <a href="https://arxiv.org/abs/2606.11337" target="_blank" rel="noopener">Figure 1 from the preprint.</a>
+          (1) SciConBench launched with 9.11K questions paired with expert-written conclusions
+          and continues to grow as a live benchmark (9.19K samples as of August 2026!).
+          (2) Agents synthesize scientific conclusions using web tools.
+          (3) SciConHarness enforces clean-room evaluation by blocking ground-truth artifacts.
+          (4) An expert-validated pipeline decomposes generated and reference conclusions into
+          atomic facts and computes factual precision, recall, and F1. (5) Low clean-room
+          factual F1 scores show that reliable scientific conclusion synthesis remains difficult.
+        </figcaption>
+      </figure>
     </div>
   </section>
 
@@ -260,6 +319,48 @@
         </table>
       </div>
       <p class="footnote" id="board-footnote"></p>
+
+      <div class="scoring-block" id="method">
+        <div class="section-head">
+          <div>
+            <h3 class="section-title section-title--sub">How scoring works</h3>
+            <p class="section-sub">
+              Long-form conclusions can't be graded by string match. SciConBench grades them
+              fact by fact.
+            </p>
+          </div>
+        </div>
+        <div class="grid-3">
+          <div class="card card--metric">
+            <span class="metric-tag">Factual precision</span>
+            <p>
+              The agent's conclusion is decomposed into atomic facts, and a judge labels each one
+              <em>supported</em>, <em>contradicted</em>, or <em>not supported</em> against the full
+              review. Contradictions are penalized twice — once for not being supported, once for
+              being wrong.
+            </p>
+            <code class="formula">(supported / total) × ((total − contradicted) / total)</code>
+          </div>
+          <div class="card card--metric">
+            <span class="metric-tag">Factual recall</span>
+            <p>
+              The expert conclusion is decomposed the same way, and the judge checks how many of
+              those facts the agent's conclusion actually conveys. This is what separates a
+              confident-sounding summary from a complete one.
+            </p>
+            <code class="formula">supported expert facts / total expert facts</code>
+          </div>
+          <div class="card card--metric">
+            <span class="metric-tag">Factual F1</span>
+            <p>
+              The harmonic mean of precision and recall, macro-averaged across reviews so that
+              every review counts equally. A conclusion has to be both correct and complete to
+              score well on it.
+            </p>
+            <code class="formula">2 × (precision × recall) / (precision + recall)</code>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -293,63 +394,6 @@
     </div>
   </section>
 
-  <!-- ─────────────────────────── method ──────────────────────────── -->
-  <section class="section" id="method">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">How scoring works</h2>
-          <p class="section-sub">
-            Long-form conclusions can't be graded by string match. SciConBench grades them
-            fact by fact.
-          </p>
-        </div>
-      </div>
-      <div class="grid-3">
-        <div class="card card--metric">
-          <span class="metric-tag">Factual precision</span>
-          <p>
-            The agent's conclusion is decomposed into atomic facts, and a judge labels each one
-            <em>supported</em>, <em>contradicted</em>, or <em>not supported</em> against the full
-            review. Contradictions are penalized twice — once for not being supported, once for
-            being wrong.
-          </p>
-          <code class="formula">(supported / total) × ((total − contradicted) / total)</code>
-        </div>
-        <div class="card card--metric">
-          <span class="metric-tag">Factual recall</span>
-          <p>
-            The expert conclusion is decomposed the same way, and the judge checks how many of
-            those facts the agent's conclusion actually conveys. This is what separates a
-            confident-sounding summary from a complete one.
-          </p>
-          <code class="formula">supported expert facts / total expert facts</code>
-        </div>
-        <div class="card card--metric">
-          <span class="metric-tag">Clean room</span>
-          <p>
-            All retrieval is proxied. The harness blocks the target review, any document citing
-            it, and anything published after its date, across web search, academic search, and
-            page fetches — so the answer cannot simply be looked up.
-          </p>
-          <code class="formula">config: tools + filtering</code>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ───────────────────────────── faq ───────────────────────────── -->
-  <section class="section" id="faq-section">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">Frequently Asked Questions</h2>
-        </div>
-      </div>
-      <div class="faq" id="faq"></div>
-    </div>
-  </section>
-
   <!-- ────────────────────────── citation ─────────────────────────── -->
   <section class="section" id="cite">
     <div class="wrap">
@@ -371,7 +415,7 @@
 
 </main>
 
-<script src="assets/charts.js?v=202609021123"></script>
-<script src="assets/app.js?v=202609011103"></script>
+<script src="assets/charts.js?v=202609052029"></script>
+<script src="assets/app.js?v=202609061215"></script>
 </body>
 </html>

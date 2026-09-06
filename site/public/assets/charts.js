@@ -35,6 +35,13 @@
 
   /* Tooltip shared by every chart on the page. */
   let tip;
+  let activeTipNode = null;
+
+  function hideTip() {
+    if (tip) tip.style.opacity = "0";
+    activeTipNode = null;
+  }
+
   function tooltip() {
     if (!tip) {
       tip = document.createElement("div");
@@ -61,14 +68,13 @@
   function bindTip(node, html) {
     node.addEventListener("mouseenter", (event) => {
       const t = tooltip();
+      activeTipNode = node;
       t.innerHTML = html;
       t.style.opacity = "1";
       move(event);
     });
     node.addEventListener("mousemove", move);
-    node.addEventListener("mouseleave", () => {
-      tooltip().style.opacity = "0";
-    });
+    node.addEventListener("mouseleave", hideTip);
     function move(event) {
       const t = tooltip();
       const box = t.getBoundingClientRect();
@@ -78,6 +84,14 @@
       t.style.top = Math.max(12, event.clientY - box.height - 12) + "px";
     }
   }
+
+  // A chart redraw can remove the hovered SVG node before `mouseleave` fires.
+  // Hide the shared tooltip whenever the pointer is no longer over its owner.
+  document.addEventListener("mousemove", (event) => {
+    if (activeTipNode && !activeTipNode.contains(event.target)) hideTip();
+  }, true);
+  window.addEventListener("blur", hideTip);
+  window.addEventListener("scroll", hideTip, true);
 
   /* ---------------------------------------------------------------- *
    * Provider "logomarks" — small abstract glyphs drawn in a 16x16 box
@@ -238,22 +252,55 @@
   // rolling cohort) so that line can read "N samples (X core, Y rolling)";
   // points without one (e.g. paper-release baselines) fall back to `note`.
   function tooltipHtml(s, p, opts) {
-    const metricLine = `${opts.yLabel || "Value"}: ${opts.format(p.raw.value)}`;
+    const yLabel = opts.yLabel || "Value";
+    const metricValue = opts.format(p.raw.value);
+    const reasoning = s.reasoning_level ? ` (${s.reasoning_level})` : "";
+    // Give the score a gentle visual emphasis without overpowering the model.
+    const metricLine =
+      `<div style="margin-top:2px;font-size:13px;line-height:1.4">` +
+      `<span style="color:#4b5563">${yLabel}:</span> ` +
+      `<span style="font-weight:600">${metricValue}</span></div>`;
     let samplesLine = "";
     if (p.raw.panels && Object.keys(p.raw.panels).length) {
-      const core = (p.raw.panels.core && p.raw.panels.core.reviews) || 0;
-      const rolling = Object.keys(p.raw.panels)
-        .filter((k) => k !== "core")
-        .reduce((sum, k) => sum + ((p.raw.panels[k] && p.raw.panels[k].reviews) || 0), 0);
-      samplesLine = `${core + rolling} samples (${core} core · ${rolling} rolling)`;
+      const keys = Object.keys(p.raw.panels);
+      if (keys.length === 1) {
+        const key = keys[0];
+        const n = (p.raw.panels[key] && p.raw.panels[key].reviews) || 0;
+        // Rolling points are month-specific cohorts; "rolling" is implied by the
+        // filter, so name just the month panel (e.g. "July 2026 panel").
+        if (key === "core") {
+          samplesLine = `${n} samples (core set)`;
+        } else {
+          const MONTHS = {
+            Jan: "January", Feb: "February", Mar: "March", Apr: "April",
+            May: "May", Jun: "June", Jul: "July", Aug: "August",
+            Sep: "September", Oct: "October", Nov: "November", Dec: "December",
+          };
+          const raw = p.raw.label || "";
+          const month = raw.replace(
+            /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/,
+            (m) => MONTHS[m] || m
+          );
+          samplesLine = `${n} samples (${month || "rolling"} panel)`;
+        }
+      } else {
+        const core = (p.raw.panels.core && p.raw.panels.core.reviews) || 0;
+        const rolling = keys
+          .filter((k) => k !== "core")
+          .reduce((sum, k) => sum + ((p.raw.panels[k] && p.raw.panels[k].reviews) || 0), 0);
+        samplesLine = `${core + rolling} samples (${core} core · ${rolling} rolling)`;
+      }
     } else if (p.raw.note) {
       samplesLine = p.raw.note;
     }
     return (
-      `<b style="color:${s.color}">${s.display_name}</b><br>${p.raw.label}` +
+      `<b style="color:${s.color}">${s.display_name}${reasoning}</b><br>` +
+      `<span style="color:#6b7280">${p.raw.label}</span>` +
       `<hr style="margin:5px 0;border:none;border-top:1px solid #e5e7eb;">` +
       metricLine +
-      (samplesLine ? `<br>${samplesLine}` : "")
+      (samplesLine
+        ? `<div style="margin-top:2px;color:#6b7280;font-size:11px">${samplesLine}</div>`
+        : "")
     );
   }
 
@@ -265,7 +312,7 @@
     const opts = Object.assign(
       {
         height: 320, yLabel: "", yMax: null, yMin: null,
-        format: (v) => v.toFixed(3), badgeRadius: 12, dashedLine: false,
+        format: (v) => v.toFixed(3), badgeRadius: 12,
         endLabels: false, tickCount: 5, labelOrder: null, leadingGapLabel: null, frontier: false,
       },
       options
@@ -295,13 +342,16 @@
 
     const pad = {
       top: opts.badgeRadius + 8,
-      right: opts.endLabels ? 148 : 20,
+      right: 8,
       bottom: 44,
       left: 46,
     };
-    const W = 860;
+    const IDEAL_COL_STEP = 145;
+    const W = Math.max(
+      860,
+      pad.left + 80 + Math.max(0, labels.length - 1) * IDEAL_COL_STEP + pad.right
+    );
     const H = opts.height;
-    const innerW = W - pad.left - pad.right;
     const innerH = H - pad.top - pad.bottom;
 
     let lo = opts.yMin !== null ? opts.yMin : Math.min(...values);
@@ -328,13 +378,12 @@
     // at a "last column" edge that has no real meaning yet. Only once
     // enough months accumulate to outgrow the chart does spacing shrink
     // below that ideal step, so everything still fits.
-    const IDEAL_COL_STEP = 130;
     const colStep = (count, span) => (count > 1 ? Math.min(IDEAL_COL_STEP, span / (count - 1)) : 0);
     let x;
     let leadX, restStart, restCount, colX;
     if (hasGap) {
       leadX = pad.left + 90;
-      restStart = leadX + 170;
+      restStart = leadX + 160;
       restCount = labels.length - 1;
       colX = (rs, i) => rs + (i - 1) * colStep(restCount, W - pad.right - rs);
       x = (i) => (i === 0 ? leadX : colX(restStart, i));
@@ -349,6 +398,7 @@
     const y = (v) => pad.top + innerH - ((v - lo) / (hi - lo)) * innerH;
 
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" });
+    if (W > 860) svg.style.width = `${W}px`;
 
     const R = opts.badgeRadius;
     const clipId = `badge-clip-${Math.random().toString(36).slice(2, 9)}`;
@@ -412,7 +462,7 @@
     }));
 
     // Several models landing on nearly the same score, in the same column,
-    // fan out horizontally so their badges don't fully stack. A badge's y
+    // fan out horizontally with a small, controlled overlap. A badge's y
     // is never touched — it has to read correctly against the gridlines —
     // only x moves. Since y is fixed per badge, two badges only need to
     // satisfy: dx^2 + dy^2 >= minDist^2 — i.e. exactly enough x separation
@@ -421,11 +471,9 @@
     // so even a tightly packed knot of a dozen badges always fully
     // resolves instead of falling back to overlap once a fixed search
     // budget runs out.
-    // Well under 2R on purpose — badges that land close in score are
-    // allowed to overlap a fair bit so a crowded column stays compact
-    // instead of fanning out wide; visually they're still clearly two
-    // separate, clickable dots, just closer together.
-    const minDist = R * 1.3;
+    // A 1.55R center distance leaves a narrow edge overlap while keeping each
+    // logo's central mark visible and the month cluster compact.
+    const minDist = R * 1.55;
     const columnGroups = new Map();
     seriesPoints.forEach(({ points }) =>
       points.forEach((p) => {
@@ -444,7 +492,7 @@
         .forEach((p, k) => {
           p.x += (k % 2 === 0 ? -1 : 1) * (Math.floor(k / 2) + 1) * 0.001;
         });
-      for (let iter = 0; iter < 80; iter++) {
+      for (let iter = 0; iter < 120; iter++) {
         let moved = false;
         for (let i = 0; i < group.length; i++) {
           for (let j = i + 1; j < group.length; j++) {
@@ -483,7 +531,7 @@
       if (col0.length && col1.length) {
         const col0MaxEdge = Math.max(...col0.map((p) => p.x)) + R;
         const col1MinEdge = Math.min(...col1.map((p) => p.x)) - R;
-        const minGap = R * 3.2;
+        const minGap = R * 2.7;
         const shortfall = minGap - (col1MinEdge - col0MaxEdge);
         if (shortfall > 0) {
           const oldRestStart = restStart;
@@ -544,19 +592,13 @@
       }
     }
 
+    // Own layer so hovered badges can be re-appended to the top of the
+    // paint order without jumping past end-labels that are drawn after.
+    const badgesLayer = el("g", { class: "series-badges" });
+    svg.appendChild(badgesLayer);
+
     seriesPoints.forEach(({ s, points }) => {
       if (!points.length) return;
-
-      if (points.length > 1) {
-        svg.appendChild(
-          el("path", {
-            class: "series-line",
-            stroke: s.color,
-            "stroke-dasharray": opts.dashedLine ? "6 5" : null,
-            d: points.map((p, k) => `${k ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(""),
-          })
-        );
-      }
 
       const imgSrc = ICON_IMAGES[(s.icon || "").toLowerCase()];
 
@@ -588,7 +630,9 @@
           drawIcon(visual, s.icon, s.provider_label || s.display_name);
         }
         bindTip(badge, tooltipHtml(s, p, opts));
-        svg.appendChild(badge);
+        // SVG has no z-index among siblings — last child paints on top.
+        badge.addEventListener("mouseenter", () => badgesLayer.appendChild(badge));
+        badgesLayer.appendChild(badge);
       });
     });
 
@@ -711,5 +755,138 @@
     mount.appendChild(svg);
   }
 
-  global.Charts = { lineChart, stackedBars };
+  /* ---------------------------------------------------------------- *
+   * Export the live SVG chart as a PNG (white background, inlined
+   * styles + logo images) so the download matches what the page shows.
+   * ---------------------------------------------------------------- */
+  const CHART_EXPORT_CSS = `
+    text {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      fill: #7c8592;
+    }
+    .axis-line { stroke: #dfe3e8; stroke-width: 1; }
+    .grid-line { stroke: #eaedf1; stroke-width: 1; }
+    .axis-gap-label { fill: #7c8592; }
+    .axis-x-label { font-size: 12.5px; font-weight: 500; fill: #4d5560; }
+    .series-badge-halo { opacity: 0.9; }
+    .series-badge-dot { stroke: #fff; stroke-width: 1.5; }
+    .series-badge--control image { filter: grayscale(1); }
+    .frontier-line {
+      fill: none;
+      stroke: #f59e0b;
+      stroke-width: 3.5;
+      stroke-dasharray: 2 6;
+      stroke-linecap: round;
+      opacity: 0.95;
+    }
+    .frontier-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 3px;
+      stroke-linejoin: round;
+    }
+  `;
+
+  function fetchAsDataUrl(url) {
+    return fetch(url, { cache: "force-cache" })
+      .then((response) => {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.blob();
+      })
+      .then(
+        (blob) =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          })
+      );
+  }
+
+  function downloadChartPng(mount, filename) {
+    const svg = mount && mount.querySelector("svg");
+    if (!svg) return Promise.reject(new Error("No chart to download"));
+
+    const clone = svg.cloneNode(true);
+    const vb = (svg.getAttribute("viewBox") || "0 0 860 420").split(/[\s,]+/).map(Number);
+    const width = vb[2] || 860;
+    const height = vb[3] || 420;
+    clone.setAttribute("xmlns", NS);
+    clone.setAttribute("width", String(width));
+    clone.setAttribute("height", String(height));
+    clone.removeAttribute("style");
+
+    const style = el("style");
+    style.textContent = CHART_EXPORT_CSS;
+    clone.insertBefore(style, clone.firstChild);
+    clone.insertBefore(
+      el("rect", { x: 0, y: 0, width, height, fill: "#ffffff" }),
+      clone.firstChild
+    );
+
+    const imageNodes = Array.from(clone.querySelectorAll("image"));
+    return Promise.all(
+      imageNodes.map((img) => {
+        const href = img.getAttribute("href") || img.getAttribute("xlink:href");
+        if (!href || href.startsWith("data:")) return Promise.resolve();
+        return fetchAsDataUrl(href)
+          .then((dataUrl) => {
+            img.setAttribute("href", dataUrl);
+            img.removeAttribute("xlink:href");
+          })
+          .catch(() => {
+            /* Keep the relative href if a logo fails to inline. */
+          });
+      })
+    ).then(() => {
+      const xml = new XMLSerializer().serializeToString(clone);
+      const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
+      const svgUrl = URL.createObjectURL(blob);
+      const scale = 2;
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(width * scale);
+            canvas.height = Math.round(height * scale);
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(svgUrl);
+            canvas.toBlob((pngBlob) => {
+              if (!pngBlob) {
+                reject(new Error("PNG encode failed"));
+                return;
+              }
+              const url = URL.createObjectURL(pngBlob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = filename || "sciconbench-progress.png";
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+              resolve();
+            }, "image/png");
+          } catch (err) {
+            URL.revokeObjectURL(svgUrl);
+            reject(err);
+          }
+        };
+        image.onerror = () => {
+          URL.revokeObjectURL(svgUrl);
+          reject(new Error("Could not rasterize chart"));
+        };
+        image.src = svgUrl;
+      });
+    });
+  }
+
+  global.Charts = { lineChart, stackedBars, downloadChartPng };
 })(window);

@@ -50,6 +50,85 @@
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[c]));
 
+  const linkHtml = (text, href) =>
+    href.startsWith("#")
+      ? `<a href="${href}">${text}</a>`
+      : `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+
+  const inlineMd = (s) =>
+    escape(s)
+      .replace(/\+\+([^+]+)\+\+/g, "<u>$1</u>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      // Double brackets preserve visible scholarly citation brackets:
+      // [[1]](url) renders the entire "[1]" as a superscript link, matching
+      // the numbered citations in the page introduction.
+      .replace(/\[\[([^\]]+)\]\]\(([^)\s]+)\)/g, (_, text, href) =>
+        `<sup class="intro-citations">${linkHtml(`[${text}]`, href)}</sup>`
+      )
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, text, href) => linkHtml(text, href));
+
+  // Blank lines separate paragraphs; runs of lines starting with "- " become
+  // a bullet list.
+  function prose(text) {
+    const out = [];
+    let para = [];
+    let bullets = [];
+    const flush = () => {
+      if (para.length) {
+        out.push(`<p>${inlineMd(para.join(" "))}</p>`);
+        para = [];
+      }
+      if (bullets.length) {
+        out.push(
+          `<ul class="prose-list">${bullets
+            .map((b) => `<li>${inlineMd(b)}</li>`)
+            .join("")}</ul>`
+        );
+        bullets = [];
+      }
+    };
+
+    String(text)
+      .split("\n")
+      .forEach((raw) => {
+        const line = raw.trim();
+        if (!line) return flush();
+        if (line.startsWith("- ")) {
+          if (para.length) flush();
+          bullets.push(line.slice(2));
+        } else {
+          if (bullets.length) flush();
+          para.push(line);
+        }
+      });
+
+    flush();
+    return out.join("");
+  }
+
+  const REASONING_LABELS = new Set([
+    "max", "high", "xhigh", "reasoning", "thinking", "extended thinking", "fixed reasoning",
+  ]);
+
+  function modelNameParts(displayName) {
+    const match = String(displayName).match(/^(.*) \(([^()]+)\)$/);
+    if (!match || !REASONING_LABELS.has(match[2].toLowerCase())) {
+      return { name: String(displayName), reasoning: null };
+    }
+    return { name: match[1], reasoning: match[2] };
+  }
+
+  function modelNameHtml(displayName) {
+    const { name, reasoning } = modelNameParts(displayName);
+    if (!reasoning) return `<span class="model-name">${escape(name)}</span>`;
+    return (
+      `<span class="model-name model-name--reasoning" tabindex="0">${escape(name)}` +
+      `<span class="model-reasoning"> (${escape(reasoning)})</span></span>`
+    );
+  }
+
   // Brand marks for the hero action buttons — each is the real logo art
   // (arXiv's own logomark, GitHub's Octocat badge, HuggingFace's emoji
   // mark) rather than a flattened single-color redraw.
@@ -158,6 +237,7 @@
         recall: slice ? slice.recall : null,
         f1: slice ? slice.f1 : null,
         reviews: slice ? slice.reviews : row.reviews,
+        run_month_label: slice ? slice.run_month_label : row.run_month_label,
       });
     });
     if (boardState.includePaper && boardState.panel === "all") {
@@ -217,7 +297,7 @@
           `<td class="col-rank">${rank}</td>` +
           `<td class="col-model"><span class="model-cell">` +
           `<span class="model-dot" style="background:${row.color};color:${row.color}"></span>` +
-          `<span><span class="model-name">${escape(row.display_name)}</span>` +
+          `<span>${modelNameHtml(row.display_name)}` +
           `<span class="model-provider">${escape(row.provider_label)}</span></span></span></td>` +
           cell(row.precision, row.color, metric === "precision" && isBest) +
           cell(row.recall, row.color, metric === "recall" && isBest) +
@@ -236,7 +316,8 @@
     if (panelKey === "all") return data.dataset.total_reviews;
     if (panelKey === "core") return data.dataset.core_reviews;
     if (panelKey === "rolling") return data.dataset.rolling_reviews;
-    return null;
+    const view = (data.panel_views || []).find((v) => v.key === panelKey);
+    return view && view.reviews !== undefined ? view.reviews : null;
   }
 
   function populatePanelSelect(data) {
@@ -292,7 +373,7 @@
    * trend
    * ------------------------------------------------------------------ */
 
-  let trendState = { metric: "f1", family: "all", panel: "all" };
+  let trendState = { metric: "f1", families: new Set(), panel: "all" };
   const METRIC_LABEL = { f1: "Factual F1", precision: "Factual Precision", recall: "Factual Recall" };
   const CONTROL_MODELS = new Set([
     "DeepSeek-V4-Flash-0731",
@@ -321,21 +402,39 @@
       .sort((a, b) => a.label.localeCompare(b.label));
   }
 
+  function updateTrendFamilySummary(data) {
+    const summary = document.getElementById("trend-family-summary");
+    if (!summary) return;
+    const families = trendFamilyOptions(data);
+    const selected = families.filter((family) => trendState.families.has(family.key));
+    if (selected.length === families.length) summary.textContent = "All models";
+    else if (!selected.length) summary.textContent = "No models";
+    else if (selected.length === 1) summary.textContent = selected[0].label;
+    else summary.textContent = `${selected.length} families`;
+  }
+
   function populateTrendControls(data) {
-    const familySelect = document.getElementById("trend-model-select");
-    if (familySelect) {
-      familySelect.innerHTML =
-        `<option value="all">All models</option>` +
-        trendFamilyOptions(data)
-          .map((f) => `<option value="${escape(f.key)}">${escape(f.label)}</option>`)
+    const familyOptions = document.getElementById("trend-family-options");
+    if (familyOptions) {
+      const families = trendFamilyOptions(data);
+      trendState.families = new Set(families.map((family) => family.key));
+      familyOptions.innerHTML =
+        '<label class="family-picker-option family-picker-option--all">' +
+        '<input type="checkbox" value="all" checked> All models</label>' +
+        families
+          .map(
+            (family) =>
+              `<label class="family-picker-option"><input type="checkbox" ` +
+              `value="${escape(family.key)}" checked> ${escape(family.label)}</label>`
+          )
           .join("");
-      familySelect.value = trendState.family;
+      updateTrendFamilySummary(data);
     }
     const panelToggle = document.getElementById("trend-panel-toggle");
     if (panelToggle) {
       const views = [{ key: "all", label: "All reviews" }, ...(data.panel_views || [])];
       // "All reviews" is the only label long enough to need shortening now
-      // that rolling cohorts are just "Rolling set" — no month name to trim.
+      // that rolling cohorts are just "Rolling panel" — no month name to trim.
       const short = (v) => (v.key === "all" ? "All" : v.label);
       panelToggle.innerHTML = views
         .map(
@@ -348,6 +447,36 @@
     }
   }
 
+  function trendPointsForPanel(series, panel, metric) {
+    return series.points.map((point) => {
+      const slice = panel === "all" ? null : (point.panels || {})[panel];
+      const value = panel === "all" ? point[metric] : slice ? slice[metric] : null;
+      const visiblePanels = {};
+      if (panel === "all") {
+        const cumulativePanels = point.all_panels || point.panels || {};
+        ["core", "rolling"].forEach((key) => {
+          if (cumulativePanels[key]) visiblePanels[key] = cumulativePanels[key];
+        });
+      } else if (slice) {
+        // Panel filter: only the active slice, so the hover count matches
+        // the plotted score (e.g. 20 rolling, not 119+20).
+        visiblePanels[panel] = slice;
+      }
+      const reviews =
+        panel === "all"
+          ? point.reviews
+          : slice && slice.reviews != null
+            ? slice.reviews
+            : null;
+      return {
+        label: point.label,
+        value,
+        panels: visiblePanels,
+        note: reviews != null ? `${reviews} samples` : undefined,
+      };
+    });
+  }
+
   function renderTrend(data) {
     const mount = $("trend-chart");
     const metric = trendState.metric;
@@ -355,18 +484,16 @@
 
     const liveSeries = (data.series || []).map((s) => {
       const isControl = CONTROL_MODELS.has(s.model);
+      const { name, reasoning } = modelNameParts(s.display_name);
       return {
-        display_name: `${s.display_name}${isControl ? CONTROL_MARK : ""}`,
+        display_name: `${name}${isControl ? CONTROL_MARK : ""}`,
+        reasoning_level: reasoning,
         family: s.family,
         provider_label: isControl ? `${s.provider_label} · control model` : s.provider_label,
         color: isControl ? CONTROL_COLOR : s.color,
         icon: s.icon,
         control: isControl,
-        points: s.points.map((p) => {
-          const slice = panel === "all" ? null : (p.panels || {})[panel];
-          const value = panel === "all" ? p[metric] : slice ? slice[metric] : null;
-          return { label: p.label, value, panels: p.panels, note: `${p.reviews} reviews` };
-        }),
+        points: trendPointsForPanel(s, panel, metric),
       };
     });
 
@@ -375,19 +502,23 @@
     // their own left-most column, never pinned to a live run month.
     const paperSeries =
       panel === "all"
-        ? (data.paper_baselines || []).map((b) => ({
-            display_name: b.display_name,
-            family: b.family,
-            provider_label: b.provider_label,
-            color: b.color,
-            icon: b.icon,
-            points: [
-              {
-                label: PAPER_LABEL,
-                value: b[metric],
-              },
-            ],
-          }))
+        ? (data.paper_baselines || []).map((b) => {
+            const { name, reasoning } = modelNameParts(b.display_name);
+            return {
+              display_name: name,
+              reasoning_level: reasoning,
+              family: b.family,
+              provider_label: b.provider_label,
+              color: b.color,
+              icon: b.icon,
+              points: [
+                {
+                  label: PAPER_LABEL,
+                  value: b[metric],
+                },
+              ],
+            };
+          })
         : [];
 
     // Chronological month labels, taken from the live series in the order
@@ -402,7 +533,7 @@
 
     const series = paperSeries
       .concat(liveSeries)
-      .filter((s) => trendState.family === "all" || s.family === trendState.family)
+      .filter((s) => trendState.families.has(s.family))
       .filter((s) => s.points.some((p) => p.value !== null && p.value !== undefined));
 
     document.querySelectorAll("#trend-metric-toggle button").forEach((b) => {
@@ -416,23 +547,19 @@
       "\u00b9 Results from preprint use a fixed N=268 subset, containing only reviews after " +
         "the latest model knowledge cutoff (Jan 31, 2025 from Gemini 3 Pro); later models " +
         "were evaluated on the same subset for comparability.",
-      `${CONTROL_MARK} Control models are shown in gray: DeepSeek-V4-Flash, Qwen3.8 27B, ` +
+      `${CONTROL_MARK} Control open-weight models are shown in gray: DeepSeek-V4-Flash, Qwen3.8 27B, ` +
         "and MiniMax M3. These fixed model versions remain unchanged across monthly runs, " +
         "providing a stable baseline for gauging frontier-model progress and changes in " +
         "benchmark difficulty.",
     ];
-    if (panel !== "all") {
-      notes.push(
-        "Preprint results are a one-off snapshot with no core/rolling breakdown, " +
-          "so they only appear under \u201cAll reviews.\u201d"
-      );
-    }
     $("trend-footnote").innerHTML = notes.map(escape).join("<br>");
 
     if (!series.length) {
       mount.innerHTML =
         '<div class="empty"><strong>No data for this selection</strong>' +
         "Try a different model or panel filter.</div>";
+      const downloadBtn = document.getElementById("trend-download");
+      if (downloadBtn) downloadBtn.disabled = true;
       return;
     }
 
@@ -444,12 +571,13 @@
       yMin: 0,
       yMax: 0.6,
       tickCount: 7,
-      dashedLine: true,
       endLabels: true,
       frontier: true,
       labelOrder: [PAPER_LABEL].concat(monthLabels),
       leadingGapLabel: PAPER_LABEL,
     });
+    const downloadBtn = document.getElementById("trend-download");
+    if (downloadBtn) downloadBtn.disabled = false;
   }
 
   /* ------------------------------------------------------------------ *
@@ -517,7 +645,7 @@
           `<tr>` +
           `<td class="col-model"><span class="model-cell">` +
           `<span class="model-dot" style="background:${row.color};color:${row.color}"></span>` +
-          `<span class="model-name">${escape(row.display_name)}</span></span></td>` +
+          `${modelNameHtml(row.display_name)}</span></td>` +
           `<td class="col-num">${row.avg_tool_calls === null ? "—" : row.avg_tool_calls.toFixed(1)}</td>` +
           `<td class="col-num">${row.avg_iterations === null ? "—" : row.avg_iterations.toFixed(1)}</td>` +
           `<td class="col-num">${fmtCompact(row.avg_input_tokens)}</td>` +
@@ -552,10 +680,10 @@
 
     $("faq").innerHTML = (site.faq || [])
       .map(
-        (f, i) =>
-          `<details${i === 0 ? " open" : ""}><summary>${escape(
+        (f) =>
+          `<details><summary>${escape(
             f.question
-          )}</summary><p>${escape(f.answer)}</p></details>`
+          )}</summary><div class="faq-body">${prose(f.answer)}</div></details>`
       )
       .join("");
 
@@ -580,13 +708,7 @@
       ? [site.introduction]
       : [];
     $("introduction-text").innerHTML = intro
-      .map(
-        (p) =>
-          `<p>${escape(p)
-            .replace(/\+\+([^+]+)\+\+/g, "<u>$1</u>")
-            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-            .replace(/\*([^*]+)\*/g, "<em>$1</em>")}</p>`
-      )
+      .map((p) => `<p>${inlineMd(p)}</p>`)
       .join("");
 
     $("citation").textContent = site.citation || "";
@@ -698,10 +820,26 @@
       });
     });
 
-    const trendModelSelect = document.getElementById("trend-model-select");
-    if (trendModelSelect) {
-      trendModelSelect.addEventListener("change", () => {
-        trendState.family = trendModelSelect.value;
+    const trendFamilyMenu = document.getElementById("trend-family-options");
+    if (trendFamilyMenu) {
+      trendFamilyMenu.addEventListener("change", (event) => {
+        const changed = event.target.closest('input[type="checkbox"]');
+        if (!changed) return;
+        const all = trendFamilyMenu.querySelector('input[value="all"]');
+        const familyInputs = Array.from(
+          trendFamilyMenu.querySelectorAll('input[type="checkbox"]:not([value="all"])')
+        );
+        if (changed.value === "all") {
+          familyInputs.forEach((input) => {
+            input.checked = changed.checked;
+          });
+        } else {
+          all.checked = familyInputs.every((input) => input.checked);
+        }
+        trendState.families = new Set(
+          familyInputs.filter((input) => input.checked).map((input) => input.value)
+        );
+        updateTrendFamilySummary(data);
         renderTrend(data);
       });
     }
@@ -713,6 +851,24 @@
         if (!button) return;
         trendState.panel = button.dataset.panel;
         renderTrend(data);
+      });
+    }
+
+    const trendDownload = document.getElementById("trend-download");
+    if (trendDownload) {
+      trendDownload.addEventListener("click", () => {
+        const mount = $("trend-chart");
+        const metric = trendState.metric || "f1";
+        const panel = trendState.panel || "all";
+        const filename = `sciconbench-progress-${metric}-${panel}.png`;
+        trendDownload.disabled = true;
+        Charts.downloadChartPng(mount, filename)
+          .catch(() => {
+            /* Silent fail — button re-enables below. */
+          })
+          .finally(() => {
+            trendDownload.disabled = !mount.querySelector("svg");
+          });
       });
     }
 

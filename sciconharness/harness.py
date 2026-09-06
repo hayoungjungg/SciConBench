@@ -146,7 +146,7 @@ class SciConHarness:
         ``[[[...]]]``.  Default 3 (matches ``query_batch.py``).
     min_conclusion_length : int
         Minimum character count inside ``[[[...]]]`` to be considered
-        well-formatted.  Default 20.
+        well-formatted.  Default 50.
 
     save_results : bool
         Whether to save the query result to a ``result.json`` file under ``logs/<model>_[tools]_[filter]/<doi>/``.
@@ -177,7 +177,7 @@ class SciConHarness:
         max_tool_calls: int = 30,
         # Batch-specific
         max_format_retries: int = 3,
-        min_conclusion_length: int = 20,
+        min_conclusion_length: int = 50,
         # Output
         save_results: bool = True,
         log_dir: Optional[Path] = None,

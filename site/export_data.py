@@ -84,19 +84,21 @@ PROVIDER_META = {
     "openrouter": {"label": "OpenRouter", "color": "#f59e0b"},
 }
 
+# Reasoning levels match what the live track actually ran (provider defaults /
+# auto-discovered highest effort). MiniMax has reasoning on but no effort tier.
 DISPLAY_NAMES = {
-    "gpt-5.6-sol": "GPT-5.6 Sol",
-    "claude-opus-5": "Claude Opus 5",
-    "gemini-3.7-flash": "Gemini 3.7 Flash",
-    "DeepSeek-V4-Pro": "DeepSeek-V4-Pro",
-    "DeepSeek-V4-Flash-0731": "DeepSeek-V4-Flash",
-    "moonshotai/kimi-k3": "Kimi K3",
-    "z-ai/glm-5.3": "GLM-5.3",
+    "gpt-5.6-sol": "GPT-5.6 Sol (max)",
+    "claude-opus-5": "Claude Opus 5 (max)",
+    "gemini-3.7-flash": "Gemini 3.7 Flash (high)",
+    "DeepSeek-V4-Pro": "DeepSeek-V4-Pro (max)",
+    "DeepSeek-V4-Flash-0731": "DeepSeek-V4-Flash (max)",
+    "moonshotai/kimi-k3": "Kimi K3 (max)",
+    "z-ai/glm-5.3": "GLM-5.3 (max)",
     "z-ai/glm-5.2": "GLM-5.2",
-    "qwen/qwen3.8-max": "Qwen3.8-Max",
-    "qwen/qwen3.8-27b": "Qwen3.8 27B",
+    "qwen/qwen3.8-max": "Qwen3.8-Max (xhigh)",
+    "qwen/qwen3.8-27b": "Qwen3.8 27B (xhigh)",
     "qwen/qwen3.7-max": "Qwen3.7-Max",
-    "minimax/minimax-m3": "MiniMax M3",
+    "minimax/minimax-m3": "MiniMax M3 (reasoning)",
 }
 
 
@@ -177,30 +179,33 @@ def resolve_family(model: str, provider: str) -> dict[str, str]:
 # 2026) that isn't itself continuously re-run. Some model names overlap with
 # the live roster (e.g. DeepSeek-V4-Pro) — those are deliberately kept as a
 # separate point so the site can show how much a score moved since the paper.
+# Every preprint system used its highest supported reasoning setting. Show each
+# provider's concrete setting; "(fixed reasoning)" means the agent exposes no
+# user-configurable reasoning effort or token-budget control.
 PAPER_BASELINES: list[dict[str, Any]] = [
-    {"group": "Models", "model": "gpt-5.1", "display_name": "GPT-5.1", "provider": "openai",
+    {"group": "Models", "model": "gpt-5.1", "display_name": "GPT-5.1 (high)", "provider": "openai",
      "precision": 0.294, "precision_std": 0.017, "recall": 0.408, "recall_std": 0.065, "f1": 0.300, "f1_std": 0.024},
-    {"group": "Models", "model": "claude-sonnet-4.5", "display_name": "Claude Sonnet 4.5", "provider": "anthropic",
+    {"group": "Models", "model": "claude-sonnet-4.5", "display_name": "Claude Sonnet 4.5 (extended thinking)", "provider": "anthropic",
      "precision": 0.350, "precision_std": 0.020, "recall": 0.329, "recall_std": 0.057, "f1": 0.297, "f1_std": 0.030},
-    {"group": "Models", "model": "gemini-3-pro", "display_name": "Gemini 3 Pro", "provider": "gemini",
+    {"group": "Models", "model": "gemini-3-pro", "display_name": "Gemini 3 Pro (high)", "provider": "gemini",
      "precision": 0.294, "precision_std": 0.034, "recall": 0.206, "recall_std": 0.042, "f1": 0.194, "f1_std": 0.029},
-    {"group": "Models", "model": "sonar-reasoning-pro", "display_name": "Sonar Reasoning Pro", "provider": "perplexity",
+    {"group": "Models", "model": "sonar-reasoning-pro", "display_name": "Sonar Reasoning Pro (high)", "provider": "perplexity",
      "precision": 0.384, "precision_std": 0.032, "recall": 0.205, "recall_std": 0.044, "f1": 0.220, "f1_std": 0.035},
-    {"group": "Models", "model": "deepseek-v4-pro-paper", "display_name": "DeepSeek-V4-Pro", "provider": "deepseek",
+    {"group": "Models", "model": "deepseek-v4-pro-paper", "display_name": "DeepSeek-V4-Pro (max)", "provider": "deepseek",
      "precision": 0.3995, "precision_std": 0.0236, "recall": 0.3437, "recall_std": 0.0553, "f1": 0.3258, "f1_std": 0.0323},
-    {"group": "Models", "model": "kimi-k3-paper", "display_name": "Kimi K3", "provider": "moonshot",
+    {"group": "Models", "model": "kimi-k3-paper", "display_name": "Kimi K3 (max)", "provider": "moonshot",
      "precision": 0.3212, "precision_std": 0.0154, "recall": 0.4014, "recall_std": 0.0559, "f1": 0.3079, "f1_std": 0.0230},
-    {"group": "Models", "model": "qwen3.5-9b-paper", "display_name": "Qwen3.5 9B", "provider": "openrouter",
+    {"group": "Models", "model": "qwen3.5-9b-paper", "display_name": "Qwen3.5 9B (thinking)", "provider": "openrouter",
      "precision": 0.3932, "precision_std": 0.0280, "recall": 0.2469, "recall_std": 0.0462, "f1": 0.2482, "f1_std": 0.0306},
-    {"group": "Models", "model": "glm-5.2-paper", "display_name": "GLM-5.2", "provider": "openrouter",
+    {"group": "Models", "model": "glm-5.2-paper", "display_name": "GLM-5.2 (max)", "provider": "openrouter",
      "precision": 0.3179, "precision_std": 0.0178, "recall": 0.4025, "recall_std": 0.0663, "f1": 0.3198, "f1_std": 0.0295},
     {"group": "DR", "model": "dr-tulu", "display_name": "DR Tulu", "provider": "ai2",
      "precision": 0.259, "precision_std": 0.038, "recall": 0.168, "recall_std": 0.034, "f1": 0.145, "f1_std": 0.023},
-    {"group": "DR", "model": "sonar-deep-research", "display_name": "Sonar Deep Research", "provider": "perplexity",
+    {"group": "DR", "model": "sonar-deep-research", "display_name": "Sonar Deep Research (high)", "provider": "perplexity",
      "precision": 0.357, "precision_std": 0.036, "recall": 0.243, "recall_std": 0.047, "f1": 0.237, "f1_std": 0.034},
-    {"group": "DR", "model": "o4-mini-deep-research", "display_name": "o4-mini Deep Research", "provider": "openai",
+    {"group": "DR", "model": "o4-mini-deep-research", "display_name": "o4-mini Deep Research (high)", "provider": "openai",
      "precision": 0.467, "precision_std": 0.028, "recall": 0.298, "recall_std": 0.051, "f1": 0.315, "f1_std": 0.039},
-    {"group": "DR", "model": "o3-deep-research", "display_name": "o3 Deep Research", "provider": "openai",
+    {"group": "DR", "model": "o3-deep-research", "display_name": "o3 Deep Research (high)", "provider": "openai",
      "precision": 0.441, "precision_std": 0.033, "recall": 0.342, "recall_std": 0.054, "f1": 0.337, "f1_std": 0.035},
 ]
 
@@ -495,25 +500,69 @@ def export_dataset(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-def panel_key_of(panel_type: str | None, cohort_month: str | None) -> str | None:
-    """Slice key for the core-vs-rolling breakdown: 'core', 'rolling' (every
-    non-core review, regardless of which month's cohort it joined in — the
-    site only ever needs to filter core vs. rolling, not month by month),
-    or None if the DOI isn't classified."""
+def panel_keys_of(
+    panel_type: str | None,
+    cohort_month: str | None,
+) -> list[str]:
+    """Slice keys for the aggregate core and rolling dashboard views."""
     panel = (panel_type or "").upper()
     if panel == "CORE":
-        return "core"
+        return ["core"]
     if panel == "ROLLING" and cohort_month:
-        return "rolling"
-    return None
+        return ["rolling"]
+    return []
 
 
 def panel_label_of(panel_key: str) -> str:
-    return "Core set" if panel_key == "core" else "Rolling set"
+    return "Core set" if panel_key == "core" else "Rolling panel"
 
 
 def new_score_bucket() -> dict[str, Any]:
     return {"precision": [], "recall": [], "f1": [], "responses": 0, "graded": 0, "dois": set()}
+
+
+def _finalize_panel_bucket(pb: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "precision": mean(pb["precision"]),
+        "recall": mean(pb["recall"]),
+        "f1": mean(pb["f1"]),
+        "reviews": len(pb["dois"]),
+        "responses": pb["responses"],
+        "graded": pb["graded"],
+    }
+
+
+def _add_score_to_bucket(
+    bucket: dict[str, Any],
+    *,
+    doi: str,
+    precision: float | None,
+    recall: float | None,
+) -> None:
+    bucket["responses"] += 1
+    bucket["dois"].add(doi)
+    if precision is not None:
+        bucket["precision"].append(precision)
+    if recall is not None:
+        bucket["recall"].append(recall)
+    if precision is not None and recall is not None:
+        bucket["graded"] += 1
+        denom = precision + recall
+        bucket["f1"].append(2 * precision * recall / denom if denom else 0.0)
+
+
+def _weighted_metric(rows: list[dict[str, Any]], field: str) -> float | None:
+    """Re-average a metric across monthly entries, weighted by graded count."""
+    total_w = 0
+    total = 0.0
+    for row in rows:
+        value = row.get(field)
+        weight = int(row.get("graded") or 0)
+        if value is None or weight <= 0:
+            continue
+        total += float(value) * weight
+        total_w += weight
+    return total / total_w if total_w else None
 
 
 def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
@@ -538,12 +587,18 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
     demo_baseline: dict[str, tuple[float, float]] = {}
 
     buckets: dict[tuple[str, str, str], dict[str, Any]] = {}
-    # Same aggregation, but sliced by core-set vs individual rolling cohort —
-    # powers the leaderboard's "core set vs rolling panel" filter.
-    panel_buckets: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    # Rolling stays scoped to the run_month (each monthly edition's new cohort).
+    # Core is cumulative under the once-policy: a replacement graded in a later
+    # month still belongs to the shared core panel, so later months see the
+    # full core set rather than only that month's newly added core DOI.
+    rolling_buckets: dict[tuple[str, str, str], dict[str, Any]] = {}
+    core_events: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     panel_keys_seen: set[str] = set()
+    panel_dois: dict[str, set[str]] = defaultdict(set)
+
     for row in rows:
-        key = (row["model"], row["provider"], row["run_month"] or "unknown")
+        run_month = row["run_month"] or "unknown"
+        key = (row["model"], row["provider"], run_month)
         bucket = buckets.setdefault(
             key,
             {
@@ -557,14 +612,6 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
         )
         bucket["responses"] += 1
         bucket["dois"].add(row["doi"])
-
-        panel_key = panel_key_of(row["panel_type"], row["cohort_month"])
-        panel_bucket = None
-        if panel_key is not None:
-            panel_keys_seen.add(panel_key)
-            panel_bucket = panel_buckets.setdefault((*key, panel_key), new_score_bucket())
-            panel_bucket["responses"] += 1
-            panel_bucket["dois"].add(row["doi"])
 
         usage = load_json(row["token_usage"]) or {}
         if isinstance(usage, dict):
@@ -593,27 +640,65 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
             bucket["precision"].append(precision)
             bucket["model_facts"] += row["total_llm_facts"] or 0
             bucket["contradicted"] += row["contradicted_facts"] or 0
-            if panel_bucket is not None:
-                panel_bucket["precision"].append(precision)
         if recall is not None:
             bucket["recall"].append(recall)
             bucket["article_facts"] += row["total_article_facts"] or 0
             bucket["recovered_facts"] += row["r_supported"] or 0
-            if panel_bucket is not None:
-                panel_bucket["recall"].append(recall)
         if precision is not None and recall is not None:
             bucket["graded"] += 1
             denom = precision + recall
-            f1 = 2 * precision * recall / denom if denom else 0.0
-            bucket["f1"].append(f1)
-            if panel_bucket is not None:
-                panel_bucket["graded"] += 1
-                panel_bucket["f1"].append(f1)
+            bucket["f1"].append(2 * precision * recall / denom if denom else 0.0)
+
+        for panel_key in panel_keys_of(row["panel_type"], row["cohort_month"]):
+            panel_keys_seen.add(panel_key)
+            panel_dois[panel_key].add(row["doi"])
+            if panel_key == "core":
+                core_events[(row["model"], row["provider"])].append(
+                    {
+                        "run_month": run_month,
+                        "doi": row["doi"],
+                        "precision": precision,
+                        "recall": recall,
+                    }
+                )
+            else:
+                rb = rolling_buckets.setdefault(
+                    (row["model"], row["provider"], run_month), new_score_bucket()
+                )
+                _add_score_to_bucket(
+                    rb, doi=row["doi"], precision=precision, recall=recall
+                )
+
+    # Precompute cumulative core panels per (model, provider, as_of_month).
+    # Under the once-policy a core replacement may be graded in a later run
+    # month; still attribute the full current core set to every monthly point
+    # so July/August both report the complete 119-core panel.
+    all_run_months = sorted({rm for _, _, rm in buckets})
+    cumulative_core: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for (model, provider), events in core_events.items():
+        full = new_score_bucket()
+        for event in events:
+            _add_score_to_bucket(
+                full,
+                doi=event["doi"],
+                precision=event["precision"],
+                recall=event["recall"],
+            )
+        for as_of in all_run_months:
+            if full["responses"]:
+                cumulative_core[(model, provider, as_of)] = full
 
     entries = []
     for (model, provider, run_month), b in buckets.items():
         meta = resolve_family(model, provider)
         tools = sorted(b["tool_usage"].items(), key=lambda kv: -kv[1])
+        panels: dict[str, Any] = {}
+        core_pb = cumulative_core.get((model, provider, run_month))
+        if core_pb:
+            panels["core"] = _finalize_panel_bucket(core_pb)
+        rolling_pb = rolling_buckets.get((model, provider, run_month))
+        if rolling_pb:
+            panels["rolling"] = _finalize_panel_bucket(rolling_pb)
         entries.append(
             {
                 "model": model,
@@ -639,25 +724,20 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
                 "avg_tool_calls": mean(b["tool_calls"]),
                 "avg_iterations": mean(b["iterations"]),
                 "tool_usage": [{"tool": t, "count": n} for t, n in tools],
-                "panels": {
-                    panel_key: {
-                        "precision": mean(pb["precision"]),
-                        "recall": mean(pb["recall"]),
-                        "f1": mean(pb["f1"]),
-                        "reviews": len(pb["dois"]),
-                        "responses": pb["responses"],
-                        "graded": pb["graded"],
-                    }
-                    for panel_key in panel_keys_seen
-                    if (pb := panel_buckets.get((model, provider, run_month, panel_key)))
-                },
+                "panels": panels,
             }
         )
 
     entries.sort(key=lambda e: (e["run_month"], e["model"]))
-    panel_views = [{"key": "core", "label": panel_label_of("core")}] + [
-        {"key": k, "label": panel_label_of(k)}
-        for k in sorted(k for k in panel_keys_seen if k != "core")
+    ordered_panel_keys = ["core", "rolling"]
+    panel_views = [
+        {
+            "key": key,
+            "label": panel_label_of(key),
+            "reviews": len(panel_dois[key]),
+        }
+        for key in ordered_panel_keys
+        if key in panel_keys_seen
     ]
     return {
         "entries": entries,
@@ -667,20 +747,71 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
 
 
 def build_leaderboard(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """One row per model, using its most recent run month that has data.
+    """One row per model spanning all monthly runs under the once-policy.
 
-    Open-weight and proprietary models default to an ``once`` policy, so a
-    model's newest row may be older than the current run month; showing each
-    model's latest available evaluation keeps them comparable instead of
-    silently dropping them.
+    Overall scores pool every graded response. Panel slices keep the latest
+    cumulative core view and the union of rolling cohorts (via the latest
+    month's cumulative-style panels where available, else a weighted merge).
     """
-    latest: dict[str, dict[str, Any]] = {}
+    by_model: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for entry in entries:
-        current = latest.get(entry["model"])
-        if current is None or entry["run_month"] > current["run_month"]:
-            latest[entry["model"]] = entry
+        by_model[entry["model"]].append(entry)
 
-    board = list(latest.values())
+    board = []
+    for model, rows in by_model.items():
+        rows.sort(key=lambda e: e["run_month"])
+        latest = rows[-1]
+        # Unique reviews across months (once-policy: DOIs are not re-queried).
+        all_reviews = sum(int(r.get("reviews") or 0) for r in rows)
+        all_responses = sum(int(r.get("responses") or 0) for r in rows)
+        all_graded = sum(int(r.get("graded") or 0) for r in rows)
+
+        panels: dict[str, Any] = {}
+        # Core: use the latest cumulative core panel (includes replacements).
+        for row in reversed(rows):
+            core = (row.get("panels") or {}).get("core")
+            if core:
+                panels["core"] = {
+                    **core,
+                    "run_month": row["run_month"],
+                    "run_month_label": row["run_month_label"],
+                }
+                break
+        # Rolling: weighted merge across monthly rolling cohorts.
+        rolling_rows = [
+            {
+                **panel,
+                "run_month": row["run_month"],
+                "run_month_label": row["run_month_label"],
+            }
+            for row in rows
+            if (panel := (row.get("panels") or {}).get("rolling"))
+        ]
+        if rolling_rows:
+            panels["rolling"] = {
+                "precision": _weighted_metric(rolling_rows, "precision"),
+                "recall": _weighted_metric(rolling_rows, "recall"),
+                "f1": _weighted_metric(rolling_rows, "f1"),
+                "reviews": sum(int(r.get("reviews") or 0) for r in rolling_rows),
+                "responses": sum(int(r.get("responses") or 0) for r in rolling_rows),
+                "graded": sum(int(r.get("graded") or 0) for r in rolling_rows),
+                "run_month": rolling_rows[-1]["run_month"],
+                "run_month_label": rolling_rows[-1]["run_month_label"],
+            }
+
+        board.append(
+            {
+                **latest,
+                "responses": all_responses,
+                "reviews": all_reviews,
+                "graded": all_graded,
+                "precision": _weighted_metric(rows, "precision"),
+                "recall": _weighted_metric(rows, "recall"),
+                "f1": _weighted_metric(rows, "f1"),
+                "panels": panels,
+            }
+        )
+
     board.sort(
         key=lambda e: (e["f1"] is None, -(e["f1"] or 0), -(e["precision"] or 0))
     )
@@ -690,7 +821,13 @@ def build_leaderboard(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def build_series(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Per-model time series of F1 across run months, for the trend chart."""
+    """Per-model time series of F1 across run months, for the trend chart.
+
+    The blended ``All`` view is cumulative: each point combines the full core
+    set with every rolling cohort evaluated by that model through that month.
+    Individual panel views remain unchanged, so ``Rolling`` still compares
+    each monthly cohort on its own.
+    """
     by_model: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for entry in entries:
         by_model[entry["model"]].append(entry)
@@ -698,14 +835,34 @@ def build_series(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     series = []
     for model, rows in by_model.items():
         rows.sort(key=lambda e: e["run_month"])
-        points = [
-            {
+        points = []
+        rolling_so_far: list[dict[str, Any]] = []
+        for r in rows:
+            panels = r.get("panels") or {}
+            if rolling := panels.get("rolling"):
+                rolling_so_far.append(rolling)
+
+            cumulative_panels: dict[str, Any] = {}
+            if core := panels.get("core"):
+                cumulative_panels["core"] = core
+            if rolling_so_far:
+                cumulative_panels["rolling"] = {
+                    "precision": _weighted_metric(rolling_so_far, "precision"),
+                    "recall": _weighted_metric(rolling_so_far, "recall"),
+                    "f1": _weighted_metric(rolling_so_far, "f1"),
+                    "reviews": sum(int(p.get("reviews") or 0) for p in rolling_so_far),
+                    "responses": sum(int(p.get("responses") or 0) for p in rolling_so_far),
+                    "graded": sum(int(p.get("graded") or 0) for p in rolling_so_far),
+                }
+
+            cumulative_slices = list(cumulative_panels.values())
+            points.append({
                 "month": r["run_month"],
                 "label": r["run_month_label"],
-                "f1": r["f1"],
-                "precision": r["precision"],
-                "recall": r["recall"],
-                "reviews": r["reviews"],
+                "f1": _weighted_metric(cumulative_slices, "f1"),
+                "precision": _weighted_metric(cumulative_slices, "precision"),
+                "recall": _weighted_metric(cumulative_slices, "recall"),
+                "reviews": sum(int(p.get("reviews") or 0) for p in cumulative_slices),
                 # Per-panel (core vs. each rolling cohort) precision/recall/f1
                 # and sample counts, so the trend chart can both slice scores
                 # by panel and show "N samples (core vs. rolling)" on hover.
@@ -716,11 +873,20 @@ def build_series(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         "f1": v["f1"],
                         "reviews": v["reviews"],
                     }
-                    for k, v in (r.get("panels") or {}).items()
+                    for k, v in panels.items()
                 },
-            }
-            for r in rows
-        ]
+                # The All tooltip must describe the same cumulative population
+                # used for its score, not only the current rolling cohort.
+                "all_panels": {
+                    k: {
+                        "precision": v["precision"],
+                        "recall": v["recall"],
+                        "f1": v["f1"],
+                        "reviews": v["reviews"],
+                    }
+                    for k, v in cumulative_panels.items()
+                },
+            })
         if any(p["f1"] is not None for p in points):
             series.append(
                 {

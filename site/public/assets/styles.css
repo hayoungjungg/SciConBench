@@ -141,14 +141,21 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 /* ────────────────────────────── hero ────────────────────────────── */
 
 /* The hero is the one fully centered block, matching the reference layout. */
-.hero { padding: 64px 0 32px; text-align: center; }
+.hero { padding: 32px 0 24px; text-align: center; }
+
+.hero-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
 
 .hero-logo {
   display: block;
-  width: 84px;
-  height: 84px;
+  width: 64px;
+  height: 64px;
   object-fit: contain;
-  margin: 0 auto;
+  flex: none;
 }
 
 .hero-title {
@@ -156,7 +163,7 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   font-size: clamp(34px, 6vw, 48px);
   line-height: 1.1;
   letter-spacing: -0.02em;
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--text);
 }
 
@@ -250,7 +257,8 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 #introduction { padding-top: 28px; padding-bottom: 20px; }
 #data { padding-top: 20px; }
 #data .section-head { margin-bottom: 10px; }
-#faq-section { padding-bottom: 20px; }
+#faq-section { padding-top: 16px; padding-bottom: 20px; }
+#latest-news { padding-top: 18px; padding-bottom: 16px; }
 #cite { padding-top: 20px; }
 
 .section-head {
@@ -309,6 +317,8 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   line-height: 1.6;
 }
 .intro-copy p + p { margin-top: 14px; }
+.intro-copy a { color: var(--accent); text-underline-offset: 2px; }
+.intro-copy strong { color: var(--text); }
 
 .teaser-figure {
   max-width: 1020px;
@@ -347,6 +357,15 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   color: var(--text-dim);
   margin: 8px 0 0;
   font-size: 15px;
+}
+
+/* "How scoring works" now sits inside Quantitative Results rather than in a
+   section of its own, so its heading steps down a level. */
+.scoring-block { margin-top: 40px; }
+.scoring-block .section-head { margin-bottom: 20px; }
+.section-title--sub {
+  font-size: 19px;
+  font-weight: 600;
 }
 
 #trend .section-head {
@@ -435,6 +454,37 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   flex-wrap: wrap;
   gap: 8px;
 }
+.chart-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.chart-download-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.chart-download-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.chart-download-btn svg { flex: none; }
+.chart-actions {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 800px;
+  margin: 9px auto 0;
+}
 
 /* Model Family sits right next to the panel buttons; keep it a touch
    smaller than the standalone version so the whole toolbar has a better
@@ -448,6 +498,67 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   padding: 6px 26px 6px 10px;
   font-size: 12.5px;
 }
+
+.family-picker { position: relative; }
+.family-picker summary {
+  min-width: 118px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 28px 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.family-picker summary::-webkit-details-marker { display: none; }
+.family-picker summary::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--text-faint);
+  border-bottom: 1.5px solid var(--text-faint);
+  transform: translateY(-65%) rotate(45deg);
+}
+.family-picker[open] summary::after { transform: translateY(-30%) rotate(225deg); }
+.family-picker-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 5px);
+  right: 0;
+  min-width: 210px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.14);
+}
+.family-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.family-picker-option:hover { background: var(--bg-hover); color: var(--text); }
+.family-picker-option--all {
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 5px 5px 0 0;
+  color: var(--text);
+  font-weight: 600;
+}
+.family-picker-option input { accent-color: var(--princeton-orange); }
 
 .chart-footnote {
   color: var(--text-faint);
@@ -578,6 +689,15 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .model-cell { display: flex; align-items: center; gap: 10px; }
 .model-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .model-name { font-weight: 500; }
+.model-name--reasoning { cursor: help; }
+.model-reasoning {
+  display: none;
+  color: var(--text-faint);
+  font-weight: 400;
+}
+.model-name--reasoning:hover .model-reasoning,
+.model-name--reasoning:focus .model-reasoning { display: inline; }
+.model-name--reasoning:focus { outline: 1px dotted var(--text-faint); outline-offset: 2px; }
 .model-provider { display: block; font-size: 12px; color: var(--text-faint); }
 
 /* Score cell: number over a thin proportional bar. */
@@ -612,6 +732,7 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 /* ───────────────────────────── charts ──────────────────────────── */
 
 .chart { width: 100%; }
+.chart--badged { overflow-x: auto; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart .axis-line { stroke: var(--line); stroke-width: 1; }
 .chart .grid-line { stroke: var(--line-soft); stroke-width: 1; }
@@ -622,7 +743,6 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   font-size: 10px;
   fill: var(--text-faint);
 }
-.chart .series-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .chart .series-dot { stroke: #fff; stroke-width: 2; }
 .chart .bar { transition: opacity 0.15s; }
 .chart .bar:hover { opacity: 0.82; }
@@ -786,15 +906,56 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 }
 .faq details[open] summary::after { content: "−"; }
 .faq summary:hover { color: var(--accent-soft); }
-.faq p { margin: 0 0 18px; color: var(--text-dim); font-size: 15px; max-width: 78ch; }
+.faq-body {
+  padding-bottom: 18px;
+  max-width: 78ch;
+  text-align: justify;
+  text-align-last: left;
+  hyphens: auto;
+}
+.faq-body > :first-child { margin-top: 0; }
+.faq-body > :last-child { margin-bottom: 0; }
+.faq p { margin: 0 0 12px; color: var(--text-dim); font-size: 15px; }
+.faq a { color: var(--accent); text-underline-offset: 2px; }
+.faq code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  color: var(--text);
+}
+
+.prose-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+.prose-list li {
+  position: relative;
+  padding-left: 17px;
+  line-height: 1.6;
+}
+.prose-list li + li { margin-top: 7px; }
+.prose-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--princeton-orange);
+}
+.prose-list strong { color: var(--text); }
 
 /* ─────────────────────────────── news ─────────────────────────── */
 
 .news-title {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  text-transform: none;
   color: var(--text);
 }
 
@@ -816,13 +977,60 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .news span { color: var(--text-dim); }
 .news em { font-style: italic; }
 
+/* Logos + pills sit together as one plain centered row — that's the part
+   that needs to visually read as centered. The pills' own midpoint is
+   necessarily right of the row's midpoint (the logos add width only on the
+   left), so the opened panel compensates by that same fixed offset when
+   centering itself, landing back on the section's true center instead of
+   drifting to match the pills alone. --marks-width is the rendered width of
+   the Princeton + CITP lockup at height:38px — effectively a constant since
+   it comes from two fixed-aspect-ratio image assets, not page width. */
 .byline {
+  --toggle-gap: 16px;
+  --toggle-col: 11.25rem; /* wide enough for the Acknowledgement pill */
+  --toggles-width: calc(var(--toggle-col) * 2 + var(--toggle-gap));
+  /* Opened panels are wider than the pill pair itself — wide enough for the
+     author list to lay out 3 names / 3 names / 2 names per row instead of
+     wrapping awkwardly — but stay centered on the same midpoint as the pills. */
+  --panel-width: min(44rem, calc(100vw - 48px));
+  --marks-width: 271px;
+  --row-gap: 24px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--row-gap);
   margin: 0 0 28px;
   text-align: center;
+}
+
+.site-intro {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.site-intro li {
+  position: relative;
+  padding-left: 24px;
+}
+.site-intro li + li { margin-top: 9px; }
+.intro-citations { white-space: nowrap; }
+.intro-citations a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.intro-citations a:hover { text-decoration: underline; }
+.site-intro li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.35em;
+  width: 14px;
+  height: 14px;
+  background: url("logo.png") center / contain no-repeat;
 }
 
 .institution-marks {
@@ -841,16 +1049,13 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 }
 
 .byline-toggles {
-  --toggle-gap: 16px;
-  --toggle-col: 11.25rem; /* wide enough for the Acknowledgement pill */
-  --toggles-width: calc(var(--toggle-col) * 2 + var(--toggle-gap));
   container-type: inline-size;
   display: grid;
   grid-template-columns: var(--toggle-col) var(--toggle-col);
   justify-content: center;
   column-gap: var(--toggle-gap);
   align-items: start;
-  width: 100%;
+  width: var(--toggles-width);
 }
 
 /* Fixed-width slots: opening a panel only grows height, never shifts the pills. */
@@ -887,18 +1092,23 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 }
 .team-toggle[open] .chevron { transform: rotate(180deg); }
 
-/* Full content-column width, centered under the button pair */
+/* Wider than the pill pair, centered on the row's true midpoint (which sits
+   --marks-width/2 + --row-gap/2 to the left of the pills' own midpoint). */
 .toggle-panel {
   box-sizing: border-box;
-  width: 100cqw;
+  width: var(--panel-width);
   margin: 16px 0 0;
-  margin-left: calc((var(--toggles-width) - 100cqw) / 2);
+  margin-left: calc(
+    (var(--toggles-width) - var(--panel-width)) / 2
+    - (var(--marks-width) + var(--row-gap)) / 2
+  );
   text-align: center;
 }
 
 #ack .toggle-panel {
   margin-left: calc(
-    (var(--toggles-width) - 100cqw) / 2
+    (var(--toggles-width) - var(--panel-width)) / 2
+    - (var(--marks-width) + var(--row-gap)) / 2
     - var(--toggle-col)
     - var(--toggle-gap)
   );
@@ -1042,8 +1252,22 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 
 @media (max-width: 640px) {
   .wrap, .nav-inner { padding: 0 18px; }
-  .hero { padding: 40px 0 36px; }
-  .hero-logo { width: 68px; height: 68px; }
+  .hero { padding: 24px 0 16px; }
+  .hero-heading { gap: 10px; }
+  .hero-logo { width: 44px; height: 44px; }
+  /* Too narrow for the logos + pills to share a row without squeezing —
+     stack them in a plain centered column instead. Once stacked, the pills
+     are already centered on their own, so the panel no longer needs the
+     marks-width compensation that keeps it aligned with the row above. */
+  .byline { flex-direction: column; align-items: center; gap: 20px; }
+  .toggle-panel { margin-left: calc((var(--toggles-width) - var(--panel-width)) / 2); }
+  #ack .toggle-panel {
+    margin-left: calc(
+      (var(--toggles-width) - var(--panel-width)) / 2
+      - var(--toggle-col)
+      - var(--toggle-gap)
+    );
+  }
   .section { padding: 40px 0; }
   .col-hide-sm { display: none; }
   .board { font-size: 13.5px; }

@@ -56,7 +56,7 @@ class QueryBatchConfig(BaseModel):
     # DOI up to this many times if the response is missing a well-formed
     # ``[[[...]]]`` conclusion of at least ``min_conclusion_length`` chars.
     max_format_retries: int = 4
-    min_conclusion_length: int = 20
+    min_conclusion_length: int = 50
     # Per-turn output cap for every provider. Provider adapters map this to
     # their native max_tokens / max_output_tokens field.
     max_tokens: Optional[int] = 8192

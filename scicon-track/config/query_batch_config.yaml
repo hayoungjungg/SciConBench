@@ -12,7 +12,7 @@ enable_filtering: true
 # this many times if the response is missing a well-formed [[[...]]]
 # conclusion of at least min_conclusion_length characters.
 max_format_retries: 4
-min_conclusion_length: 20
+min_conclusion_length: 50
 
 # Per-turn output cap for every configured provider (mapped to
 # max_output_tokens for GPT/Gemini and max_tokens elsewhere). Also bounds
