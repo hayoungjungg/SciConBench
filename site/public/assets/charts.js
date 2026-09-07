@@ -466,7 +466,7 @@
     let leadX, restStart, restCount, colX;
     if (hasGap) {
       leadX = pad.left + 90;
-      restStart = leadX + 160;
+      restStart = leadX + 175;
       restCount = labels.length - 1;
       colX = (rs, i) => rs + (i - 1) * colStep(restCount, W - pad.right - rs);
       x = (i) => (i === 0 ? leadX : colX(restStart, i));
@@ -627,6 +627,31 @@
           restStart = newRestStart;
         }
       }
+    }
+
+    if (hasGap) {
+      const gapX = leadX + (restStart - leadX) / 2;
+      const axisY = pad.top + innerH;
+      svg.appendChild(
+        el("rect", {
+          class: "timeline-axis-break-mask",
+          x: gapX - 16,
+          y: axisY - 9,
+          width: 32,
+          height: 18,
+        })
+      );
+      [-6, 6].forEach((offset) => {
+        svg.appendChild(
+          el("line", {
+            class: "timeline-axis-break",
+            x1: gapX + offset - 4,
+            x2: gapX + offset + 4,
+            y1: axisY + 7,
+            y2: axisY - 7,
+          })
+        );
+      });
     }
 
     labels.forEach((label, i) => {
@@ -868,6 +893,8 @@
     .axis-line { stroke: #dfe3e8; stroke-width: 1; }
     .grid-line { stroke: #eaedf1; stroke-width: 1; }
     .axis-gap-label { fill: #7c8592; }
+    .timeline-axis-break-mask { fill: #fff; }
+    .timeline-axis-break { stroke: #4d5560; stroke-width: 2.5; stroke-linecap: round; }
     .axis-x-label { font-size: 12.5px; font-weight: 500; fill: #4d5560; }
     .stacked-x-label { font-size: 16px; font-weight: 600; fill: #4d5560; }
     .stacked-y-label { font-size: 14px; font-weight: 500; fill: #4d5560; }

@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
 <title>SciConBench</title>
 <meta name="description" content="SciConBench is a live benchmark that continuously evaluates frontier AI agents on scientific conclusion synthesis, using newly published Cochrane systematic reviews under a clean-room retrieval protocol." />
 <meta property="og:title" content="SciConBench" />
@@ -22,7 +23,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="48x48" href="/assets/favicon-48.png" />
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
-<link rel="stylesheet" href="assets/styles.css?v=202609071625" />
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem("sciconbench-theme");
+      var theme = saved || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.dataset.theme = theme;
+    } catch (_) {}
+  })();
+</script>
+<link rel="stylesheet" href="assets/styles.css?v=202609071919" />
 </head>
 <body>
 <div class="grain" aria-hidden="true"></div>
@@ -31,6 +41,16 @@
   <strong>Preview build.</strong> Scores on this page are synthetic placeholders generated with
   <code>--demo</code> while the judging stages finish. Do not cite them.
 </div>
+
+<button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
+  <svg class="theme-icon theme-icon--moon" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+  </svg>
+  <svg class="theme-icon theme-icon--sun" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="1.8" />
+    <path d="M12 2v2.2M12 19.8V22M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2 12h2.2M19.8 12H22M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+  </svg>
+</button>
 
 <nav class="side-nav" aria-label="Page sections">
   <a class="side-nav-brand" href="#overview">
@@ -121,9 +141,9 @@
           <sup class="intro-citations">[<a href="https://www.openevidence.com/about" target="_blank" rel="noopener">1</a>, <a href="https://cdn.openai.com/pdf/2cb29276-68cd-4ec6-a5f4-c01c5e7a36e9/OpenAI-AI-as-a-Healthcare-Ally-Jan-2026.pdf" target="_blank" rel="noopener">2</a>]</sup>.
         </li>
         <li>
-          SciConBench tests whether AI agents can synthesize factually correct, complete
-          expert-level scientific conclusions using SciConHarness, our clean-room harness
-          that blocks benchmark answers during web search and browsing.
+          SciConBench tests whether AI agents can synthesize factually correct, complete scientific
+          conclusions using SciConHarness, a clean-room harness
+          that prevents access to benchmark answers from open-web search and browsing.
         </li>
         <li>
           Our preprint’s best agent reached just 0.337 factual F1.
@@ -507,7 +527,7 @@
 
 </main>
 
-<script src="assets/charts.js?v=202609071615"></script>
-<script src="assets/app.js?v=202609071623"></script>
+<script src="assets/charts.js?v=202609071910"></script>
+<script src="assets/app.js?v=202609071919"></script>
 </body>
 </html>

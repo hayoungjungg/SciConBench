@@ -149,6 +149,38 @@
     blog: '<img src="assets/icon-blog.png" alt="" />',
   };
 
+  // Real provider marks, vendored with the site so model tables never need
+  // third-party image requests. Unknown future providers get a neutral
+  // monogram rather than an arbitrary series-colour dot.
+  const MODEL_LOGOS = {
+    openai: "assets/logos/openai.png",
+    anthropic: "assets/logos/anthropic.jpg",
+    gemini: "assets/logos/gemini.png",
+    perplexity: "assets/logos/perplexity.png",
+    deepseek: "assets/logos/deepseek.svg",
+    kimi: "assets/logos/kimi.svg",
+    qwen: "assets/logos/qwen.svg",
+    glm: "assets/logos/glm.svg",
+    ai2: "assets/logos/ai2.jpg",
+    minimax: "assets/logos/minimax.svg",
+  };
+
+  function modelLogoHtml(row) {
+    const key = String(row.icon || row.family || "").toLowerCase();
+    const src = MODEL_LOGOS[key];
+    if (src) {
+      return (
+        `<span class="model-logo"><img src="${src}" alt="" ` +
+        `title="${escape(row.provider_label)}" loading="lazy"></span>`
+      );
+    }
+    const initial = String(row.provider_label || row.display_name || "?").trim().slice(0, 1);
+    return (
+      `<span class="model-logo model-logo--fallback" ` +
+      `title="${escape(row.provider_label || "Model provider")}">${escape(initial)}</span>`
+    );
+  }
+
   /* ------------------------------------------------------------------ *
    * hero
    * ------------------------------------------------------------------ */
@@ -238,13 +270,31 @@
       return;
     }
 
-    const cell = (value, color, isBest) => {
+    // Use the metric's absolute 0–1 scale: 0 is red, 0.5 is amber, and 1 is
+    // blue. Colours therefore retain the same meaning across panels and runs.
+    const performanceColor = (value) => {
+      const position = Math.max(0, Math.min(1, value));
+      const stops = [
+        [194, 65, 59],
+        [217, 154, 34],
+        [37, 99, 235],
+      ];
+      const segment = position <= 0.5 ? 0 : 1;
+      const amount = position <= 0.5 ? position * 2 : (position - 0.5) * 2;
+      const rgb = stops[segment].map((channel, index) =>
+        Math.round(channel + (stops[segment + 1][index] - channel) * amount)
+      );
+      return `rgb(${rgb.join(",")})`;
+    };
+
+    const cell = (value, isBest) => {
       const pct = fmtPct(value);
       if (pct === null) return '<td class="col-num"><span class="tag tag--pending">pending</span></td>';
+      const color = performanceColor(value);
       return (
-        `<td class="col-num"><span class="score">` +
+        `<td class="col-num"><span class="score" style="--score-color:${color}">` +
         `<span class="score-value${isBest ? " score-value--lead" : ""}">${pct}</span>` +
-        `<span class="score-bar"><i style="width:${(value * 100).toFixed(1)}%;background:${color}"></i></span>` +
+        `<span class="score-bar"><i style="width:${(value * 100).toFixed(1)}%"></i></span>` +
         `</span></td>`
       );
     };
@@ -274,13 +324,13 @@
           `<tr>` +
           `<td class="col-rank">${rank}</td>` +
           `<td class="col-model"><span class="model-cell">` +
-          `<span class="model-dot" style="background:${row.color};color:${row.color}"></span>` +
+          modelLogoHtml(row) +
           `<span><span class="model-label">${modelNameHtml(row.display_name)}</span>` +
           `<span class="model-provider">${escape(row.provider_label)}` +
           `${row.is_paper ? '<span class="tag tag--paper">Preprint</span>' : ""}</span></span></span></td>` +
-          cell(row.precision, row.color, metric === "precision" && isBest) +
-          cell(row.recall, row.color, metric === "recall" && isBest) +
-          cell(row.f1, row.color, metric === "f1" && isBest) +
+          cell(row.precision, metric === "precision" && isBest) +
+          cell(row.recall, metric === "recall" && isBest) +
+          cell(row.f1, metric === "f1" && isBest) +
           `</tr>`
         );
       })
@@ -479,6 +529,11 @@
       .concat(liveSeries)
       .filter((s) => trendState.families.has(s.family))
       .filter((s) => s.points.some((p) => p.value !== null && p.value !== undefined));
+    const showsPaper = series.some((s) =>
+      s.points.some(
+        (p) => p.label === PAPER_LABEL && p.value !== null && p.value !== undefined
+      )
+    );
 
     document.querySelectorAll("#trend-metric-toggle button").forEach((b) => {
       b.classList.toggle("is-active", b.dataset.metric === metric);
@@ -487,16 +542,21 @@
       b.classList.toggle("is-active", b.dataset.panel === panel);
     });
 
-    const notes = [
-      "\u00b9 Results from preprint use a fixed N=268 subset, containing only reviews after " +
-        "the latest model knowledge cutoff (Jan 31, 2025 from Gemini 3 Pro); later models " +
-        "were evaluated on the same subset for comparability.",
-      `${CONTROL_MARK} Control open-weight models are shown in gray: DeepSeek-V4-Flash, Qwen3.8 27B, ` +
+    const notes = [];
+    if (showsPaper) {
+      notes.push(
+        "\u00b9 Preprint results use a fixed N=268 subset published after the latest model knowledge " +
+        'cutoff (Gemini 3 Pro, Jan 31, 2025); later models were evaluated on the same subset for comparability. <span class="axis-break-key" role="img" ' +
+        'aria-label="Axis break"></span> marks the longer gap to July 2026; subsequent intervals are monthly.'
+      );
+    }
+    notes.push(
+      escape(`${CONTROL_MARK} Control open-weight models are shown in gray: DeepSeek-V4-Flash, Qwen3.8 27B, ` +
         "and MiniMax M3. These fixed model versions remain unchanged across monthly runs, " +
         "providing a stable baseline for gauging frontier-model progress and changes in " +
-        "benchmark difficulty.",
-    ];
-    $("trend-footnote").innerHTML = notes.map(escape).join("<br>");
+        "benchmark difficulty.")
+    );
+    $("trend-footnote").innerHTML = notes.join("<br>");
 
     if (!series.length) {
       mount.innerHTML =
@@ -589,7 +649,7 @@
 
     const modelCell = (row) =>
       `<td class="col-model"><span class="model-cell">` +
-      `<span class="model-dot" style="background:${row.color};color:${row.color}"></span>` +
+      modelLogoHtml(row) +
       `${modelNameHtml(row.display_name)}</span></td>`;
 
     const issueCell = (count, rate, evaluated) => {
@@ -676,7 +736,7 @@
           `<tr>` +
           `<td class="col-rank">${index + 1}</td>` +
           `<td class="col-model"><span class="model-cell">` +
-          `<span class="model-dot" style="background:${row.color};color:${row.color}"></span>` +
+          modelLogoHtml(row) +
           `${modelNameHtml(row.display_name)}</span></td>` +
           `<td class="col-num">${row.avg_tool_calls === null ? "—" : row.avg_tool_calls.toFixed(1)}</td>` +
           `<td class="col-num">${row.avg_iterations === null ? "—" : row.avg_iterations.toFixed(1)}</td>` +
@@ -870,8 +930,49 @@
     observer.observe(overview);
   }
 
+  function setupThemeToggle() {
+    const button = document.getElementById("theme-toggle");
+    if (!button) return;
+    const root = document.documentElement;
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const applyTheme = (theme) => {
+      const dark = theme === "dark";
+      root.dataset.theme = dark ? "dark" : "light";
+      button.setAttribute("aria-pressed", String(dark));
+      button.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+      button.title = dark ? "Switch to light mode" : "Switch to dark mode";
+    };
+
+    applyTheme(root.dataset.theme || (systemTheme.matches ? "dark" : "light"));
+    button.addEventListener("click", () => {
+      const next = root.dataset.theme === "dark" ? "light" : "dark";
+      applyTheme(next);
+      try {
+        localStorage.setItem("sciconbench-theme", next);
+      } catch (_) {
+        /* The selected theme still applies when storage is unavailable. */
+      }
+    });
+
+    const followSystemTheme = (event) => {
+      try {
+        if (localStorage.getItem("sciconbench-theme")) return;
+      } catch (_) {
+        /* Follow the system preference when storage is unavailable. */
+      }
+      applyTheme(event.matches ? "dark" : "light");
+    };
+    if (typeof systemTheme.addEventListener === "function") {
+      systemTheme.addEventListener("change", followSystemTheme);
+    } else if (typeof systemTheme.addListener === "function") {
+      systemTheme.addListener(followSystemTheme);
+    }
+  }
+
   setupScrollSpy();
   setupSideNavReveal();
+  setupThemeToggle();
 
   /* ------------------------------------------------------------------ *
    * boot
