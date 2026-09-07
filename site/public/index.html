@@ -10,11 +10,19 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://sciconbench.cs.princeton.edu" />
 <meta property="og:image" content="https://sciconbench.cs.princeton.edu/assets/logo.png" />
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-6TKTDCPXN2"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag("js", new Date());
+  gtag("config", "G-6TKTDCPXN2");
+</script>
 <link rel="icon" href="/favicon.ico" sizes="any" />
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="48x48" href="/assets/favicon-48.png" />
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
-<link rel="stylesheet" href="assets/styles.css?v=202609052029" />
+<link rel="stylesheet" href="assets/styles.css?v=202609071625" />
 </head>
 <body>
 <div class="grain" aria-hidden="true"></div>
@@ -36,7 +44,6 @@
     <li><a href="#introduction" data-section="introduction">Introduction</a></li>
     <li><a href="#data" data-section="data">Data + Method</a></li>
     <li><a href="#leaderboard" data-section="leaderboard">Quantitative Results</a></li>
-    <li><a href="#effort" data-section="effort">Cost</a></li>
     <li><a href="#cite" data-section="cite">Citation</a></li>
   </ul>
 </nav>
@@ -86,12 +93,15 @@
                   <span>Manoel Horta Ribeiro <sup>*1</sup></span>
                 </li>
               </ul>
+              <!-- One span per affiliation, with the "·" separators drawn by CSS
+                   rather than typed between them, so a phone can stack the list
+                   one-per-line without leaving stray dots at the line ends. -->
               <p class="team-toggle-legend">
-                <sup>1</sup>&nbsp;Princeton University &nbsp;·&nbsp;
-                <sup>2</sup>&nbsp;Universidade Federal de Minas Gerais &nbsp;·<br />
-                <sup>3</sup>&nbsp;Stony Brook University &nbsp;·&nbsp;
-                <sup>4</sup>&nbsp;Hackensack Meridian School of Medicine &nbsp;·<br />
-                <sup>*</sup>&#8201;Jointly advised this work
+                <span class="affil"><sup>1</sup>&nbsp;Princeton University</span>
+                <span class="affil"><sup>2</sup>&nbsp;Universidade Federal de Minas Gerais</span><br />
+                <span class="affil"><sup>3</sup>&nbsp;Stony Brook University</span>
+                <span class="affil"><sup>4</sup>&nbsp;Hackensack Meridian School of Medicine</span><br />
+                <span class="affil"><sup>*</sup>&#8201;Jointly advised this work</span>
               </p>
             </div>
           </details>
@@ -198,6 +208,22 @@
         </div>
       </div>
       <div class="intro-copy" id="introduction-text"></div>
+      <figure class="teaser-figure">
+        <img
+          src="assets/teaser.png"
+          alt="Overview of the SciConBench benchmark, agentic synthesis task, clean-room harness, evaluation pipeline, and results"
+        />
+        <figcaption>
+          <a href="https://arxiv.org/abs/2606.11337" target="_blank" rel="noopener">Figure 1 from the preprint.</a>
+          (1) SciConBench launched with 9.11K questions paired with expert-written conclusions
+          and continues to grow as a live benchmark (9.19K samples as of August 2026!).
+          (2) Agents synthesize scientific conclusions using web tools.
+          (3) SciConHarness enforces clean-room evaluation by blocking ground-truth artifacts.
+          (4) An expert-validated pipeline decomposes generated and reference conclusions into
+          atomic facts and computes factual precision, recall, and F1. (5) Low clean-room
+          factual F1 scores show that reliable scientific conclusion synthesis remains difficult.
+        </figcaption>
+      </figure>
     </div>
   </section>
 
@@ -221,35 +247,39 @@
           <a href="https://huggingface.co/datasets/hayoungjung/SciConBench" target="_blank" rel="noopener">Hugging Face</a>.
         </p>
         <p>
-          This longitudinal dashboard tracks frontier AI agents’ ability to synthesize
-          scientific conclusions over time. Each month, we evaluate the latest frontier model
-          from each of seven leading labs alongside three fixed control models, across a
-          stable <strong>core set</strong> and a <strong>rolling panel</strong> of newly
-          published reviews. Agents search the web, find academic papers, and read pages
-          through <strong>SciConHarness</strong>, which blocks the target review and anything
-          that would give the answer away, so the task stays synthesis rather than lookup.
+          This longitudinal dashboard tracks frontier AI agents’ scientific conclusion synthesis
+          over time. Each month, we evaluate the latest model from seven leading labs alongside
+          three fixed controls on a stable <strong>core set</strong> and <strong>rolling
+          panels</strong> of newly published reviews. Agents use <strong>SciConHarness</strong>
+          to search the web, find papers, and browse pages while blocking the target review and
+          answer-revealing sources, ensuring the task requires synthesis rather than lookup. Each
+          rolling panel is grouped by its publication month and finalized only after that month
+          ends. Newly released models are evaluated on the core set and up to four of the most recent
+          rolling panels, then on each new panel as it is introduced on the dashboard.
         </p>
         <p>
-          The <a href="#faq-section">FAQ</a> covers the evaluation protocol, the two panels,
-          and the clean-room harness in more detail; see
-          <a href="#leaderboard">Quantitative Results</a> for how conclusions are scored.
+          For details, see why <a href="#faq-why-live">the benchmark has to be live</a>,
+          how <a href="#faq-clean-room">SciConHarness prevents answer lookup</a>,
+          <a href="#faq-model-evaluation">which models are evaluated and how they are configured</a>,
+          and <a href="#faq-evaluation-sets">why we employ both the core set and rolling panels</a>.
+          See <a href="#leaderboard">Quantitative Results</a> below for how conclusions are scored.
         </p>
       </div>
+
       <blockquote class="pullquote" id="headline" hidden></blockquote>
 
-      <dl class="hero-stats" id="hero-stats"></dl>
-
       <div class="dataset-details">
-        <p class="section-sub" id="dataset-sub">
-          The figures below show the current live evaluation panel.
-        </p>
         <div class="grid-2">
           <div class="card card--chart">
-            <h3 class="card-title">Reviews in the benchmark</h3>
-            <div id="growth-chart" class="chart" role="img" aria-label="Cumulative reviews by cohort month"></div>
+            <h3 class="card-title">Evaluation set size over time.</h3>
+            <p class="chart-context">
+              Fixed core set plus all rolling panels included each month.
+            </p>
+            <div id="growth-chart" class="chart" role="img" aria-label="Evaluation set size by cohort month"></div>
             <div class="legend legend--static">
-              <span><i style="background:#5b8def"></i>Core panel</span>
-              <span><i style="background:#39d0a0"></i>Rolling cohorts</span>
+              <span><i style="background:#5b8def"></i>Core Set</span>
+              <span><i style="background:#8bdcc4"></i>Existing Rolling Panels</span>
+              <span><i style="background:#159a70"></i>New This Month</span>
             </div>
           </div>
           <div class="card">
@@ -259,137 +289,199 @@
         </div>
       </div>
 
-      <figure class="teaser-figure">
-        <img
-          src="assets/teaser.png"
-          alt="Overview of the SciConBench benchmark, agentic synthesis task, clean-room harness, evaluation pipeline, and results"
-        />
-        <figcaption>
-          <a href="https://arxiv.org/abs/2606.11337" target="_blank" rel="noopener">Figure 1 from the preprint.</a>
-          (1) SciConBench launched with 9.11K questions paired with expert-written conclusions
-          and continues to grow as a live benchmark (9.19K samples as of August 2026!).
-          (2) Agents synthesize scientific conclusions using web tools.
-          (3) SciConHarness enforces clean-room evaluation by blocking ground-truth artifacts.
-          (4) An expert-validated pipeline decomposes generated and reference conclusions into
-          atomic facts and computes factual precision, recall, and F1. (5) Low clean-room
-          factual F1 scores show that reliable scientific conclusion synthesis remains difficult.
-        </figcaption>
-      </figure>
+      <section class="question-examples" id="question-examples" aria-labelledby="question-examples-title">
+        <div class="question-examples-head">
+          <div>
+            <h3 id="question-examples-title">Sample SciConBench questions</h3>
+            <p>Eight examples across diverse areas of health and medicine.</p>
+          </div>
+          <div class="question-examples-nav">
+            <span id="question-examples-counter" aria-live="polite"></span>
+            <button id="question-examples-prev" type="button" aria-label="Show previous examples">←</button>
+            <button id="question-examples-next" type="button" aria-label="Show next examples">→</button>
+          </div>
+        </div>
+        <div
+          class="question-examples-grid"
+          id="question-examples-grid"
+          aria-live="polite"
+          aria-atomic="true"
+        ></div>
+      </section>
+
     </div>
   </section>
 
   <!-- ───────────────────────── leaderboard ────────────────────────── -->
   <section class="section" id="leaderboard">
     <div class="wrap">
-      <div class="section-head">
+      <div class="section-head section-head--center">
         <div>
-          <h2 class="section-title">Quantitative Results</h2>
-          <p class="section-sub" id="leaderboard-sub"></p>
+          <h2 class="section-title section-title--feature">Quantitative Results</h2>
         </div>
-        <div class="board-controls">
-          <label class="panel-select-wrap">
-            <span class="panel-select-label">Panel</span>
-            <select id="panel-select" class="panel-select" aria-label="Filter scores by panel"></select>
-          </label>
-          <div class="metric-toggle" id="metric-toggle" role="group" aria-label="Sort metric">
-            <button data-metric="f1" class="is-active">Factual F1</button>
-            <button data-metric="precision">Factual Precision</button>
-            <button data-metric="recall">Factual Recall</button>
+      </div>
+
+      <div class="results-grid">
+        <aside class="metrics-column" id="method" aria-labelledby="metrics-title">
+          <div class="result-column-head">
+            <h3 class="section-title section-title--sub" id="metrics-title">Metrics</h3>
+            <p class="section-sub metrics-intro">
+              Agent-generated and expert conclusions are decomposed into atomic, checkable facts
+              and graded fact by fact using an expert-validated LLM judge.
+            </p>
           </div>
-          <button type="button" class="pill-toggle" id="board-paper-toggle" aria-pressed="false">
-            + Paper baselines
-          </button>
+          <div class="metrics-stack">
+            <div class="card card--metric">
+              <span class="metric-tag">Factual precision</span>
+              <p>
+                Measures <em>correctness</em>: the proportion of agent-generated facts supported by
+                the ground-truth review, with an additional penalty for contradictions, applied
+                by multiplying by the proportion of agent-generated facts that do not contradict the review.
+              </p>
+              <code class="metric-equation">
+                <span class="fraction"><span>supported agent facts</span><span>all agent facts</span></span>
+                <span>×</span>
+                <span class="equation-group">
+                  <span>(1 −</span>
+                  <span class="fraction"><span>contradicted agent facts</span><span>all agent facts</span></span>
+                  <span>)</span>
+                </span>
+              </code>
+            </div>
+            <div class="card card--metric">
+              <span class="metric-tag">Factual recall</span>
+              <p>
+                Measures <em>completeness</em>: the proportion of facts in the expert conclusion
+                supported by the agent-generated conclusion.
+              </p>
+              <code class="metric-equation">
+                <span class="fraction"><span>supported expert facts</span><span>expert facts</span></span>
+              </code>
+            </div>
+            <div class="card card--metric">
+              <span class="metric-tag">Factual F1</span>
+              <p>
+                A composite score of factual precision and factual recall using their
+                harmonic mean.
+              </p>
+              <code class="metric-equation">
+                <span class="fraction"><span>2 × precision × recall</span><span>precision + recall</span></span>
+              </code>
+            </div>
+          </div>
+        </aside>
+
+        <div class="leaderboard-column">
+          <div class="result-column-head result-column-head--board">
+            <div>
+              <h3 class="section-title section-title--sub">Leaderboard</h3>
+              <p class="section-sub leaderboard-caption">
+                Scores range from 0 to 1, with higher scores indicating better precision,
+                recall, and F1. Metrics are macro-averaged over the selected evaluation sample
+                (i.e. core set, rolling panels, all reviews). All model evaluation uses the
+                clean-room protocol.
+              </p>
+            </div>
+            <div class="board-controls">
+              <label class="panel-select-wrap">
+                <span class="panel-select-label">Panel</span>
+                <select id="panel-select" class="panel-select" aria-label="Filter scores by panel"></select>
+              </label>
+              <div class="metric-toggle" id="metric-toggle" role="group" aria-label="Sort metric">
+                <button data-metric="f1" class="is-active">F1</button>
+                <button data-metric="precision">Precision</button>
+                <button data-metric="recall">Recall</button>
+              </div>
+              <button type="button" class="pill-toggle" id="board-paper-toggle" aria-pressed="false">
+                + Preprint Results
+              </button>
+            </div>
+          </div>
+          <div class="preprint-notice" id="board-preprint-notice" aria-live="polite" hidden>
+            <strong>Preprint results:</strong> Rows tagged <em>Preprint</em> are evaluation
+            results from the SciConBench preprint (some models graded Jan 2026, others Jul 2026).
+            These were one-time evaluations, not a monthly panel, so it only shows under
+            “All reviews”.
+          </div>
+          <div class="table-wrap">
+            <table class="board" id="board">
+              <thead>
+                <tr>
+                  <th class="col-rank">#</th>
+                  <th class="col-model">Model</th>
+                  <th class="col-num" data-metric="precision">Precision <span class="arrow">↑</span></th>
+                  <th class="col-num" data-metric="recall">Recall <span class="arrow">↑</span></th>
+                  <th class="col-num" data-metric="f1">F1 <span class="arrow">↑</span></th>
+                </tr>
+              </thead>
+              <tbody id="board-body"></tbody>
+            </table>
+          </div>
+          <p class="footnote" id="board-footnote" aria-live="polite"></p>
         </div>
       </div>
 
-      <div class="table-wrap">
-        <table class="board" id="board">
-          <thead>
-            <tr>
-              <th class="col-rank">#</th>
-              <th class="col-model">Model</th>
-              <th class="col-num" data-metric="precision">Factual Precision <span class="arrow">↑</span></th>
-              <th class="col-num" data-metric="recall">Factual Recall <span class="arrow">↑</span></th>
-              <th class="col-num" data-metric="f1">Factual F1 <span class="arrow">↑</span></th>
-              <th class="col-num col-hide-sm">Reviews</th>
-              <th class="col-num col-hide-sm">Evaluated</th>
-            </tr>
-          </thead>
-          <tbody id="board-body"></tbody>
-        </table>
-      </div>
-      <p class="footnote" id="board-footnote"></p>
-
-      <div class="scoring-block" id="method">
+      <div class="quantitative-subsection" id="fact-diagnostics">
         <div class="section-head">
           <div>
-            <h3 class="section-title section-title--sub">How scoring works</h3>
-            <p class="section-sub">
-              Long-form conclusions can't be graded by string match. SciConBench grades them
-              fact by fact.
+            <h3 class="section-title section-title--sub">How Often Do AI-Synthesized Conclusions Contradict Expert-Written Systematic Reviews?</h3>
+            <p class="section-sub" id="contradiction-summary">
+              Across models, a high proportion of AI-synthesized conclusions contain at least one
+              fact that contradicts the expert-written Cochrane systematic review. Rows are sorted
+              from highest to lowest contradiction rate; lower is better.
             </p>
           </div>
         </div>
-        <div class="grid-3">
-          <div class="card card--metric">
-            <span class="metric-tag">Factual precision</span>
-            <p>
-              The agent's conclusion is decomposed into atomic facts, and a judge labels each one
-              <em>supported</em>, <em>contradicted</em>, or <em>not supported</em> against the full
-              review. Contradictions are penalized twice — once for not being supported, once for
-              being wrong.
-            </p>
-            <code class="formula">(supported / total) × ((total − contradicted) / total)</code>
-          </div>
-          <div class="card card--metric">
-            <span class="metric-tag">Factual recall</span>
-            <p>
-              The expert conclusion is decomposed the same way, and the judge checks how many of
-              those facts the agent's conclusion actually conveys. This is what separates a
-              confident-sounding summary from a complete one.
-            </p>
-            <code class="formula">supported expert facts / total expert facts</code>
-          </div>
-          <div class="card card--metric">
-            <span class="metric-tag">Factual F1</span>
-            <p>
-              The harmonic mean of precision and recall, macro-averaged across reviews so that
-              every review counts equally. A conclusion has to be both correct and complete to
-              score well on it.
-            </p>
-            <code class="formula">2 × (precision × recall) / (precision + recall)</code>
-          </div>
+        <div class="table-wrap table-wrap--contradictions">
+          <table class="board board--compact response-diagnostics-table">
+            <thead>
+              <tr>
+                <th class="col-model">Model</th>
+                <th class="col-num is-sorted">At least one contradicted fact <span class="arrow">↓</span></th>
+              </tr>
+            </thead>
+            <tbody id="response-diagnostics-body"></tbody>
+          </table>
         </div>
       </div>
-    </div>
-  </section>
 
-  <!-- ─────────────────────────── effort ──────────────────────────── -->
-  <section class="section" id="effort">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">What it costs to answer</h2>
-          <p class="section-sub">
-            Synthesis is a long-horizon task: models search, read, and re-read before
-            committing to a conclusion. Averages are per review, from the latest run of each model.
-          </p>
+      <div class="quantitative-subsection" id="effort">
+        <div class="section-head">
+          <div>
+            <h3 class="section-title section-title--sub">Tool Usage</h3>
+            <p class="section-sub">
+              SciConHarness provides three tools: <code>google_search</code> via Serper,
+              <code>web_browse</code> via Jina, and <code>paper_search</code> via Semantic
+              Scholar. All tool calls pass through the clean-room protocol, which blocks access
+              to ground-truth answers on the open web. For each model, the table reports average
+              tool calls and agent turns per review across all reviews it has evaluated. Tool
+              distribution shows each tool’s share of that model’s total tool calls, with the
+              model’s most-used tool bolded.
+            </p>
+          </div>
         </div>
-      </div>
-      <div class="table-wrap">
-        <table class="board board--compact" id="effort-table">
-          <thead>
-            <tr>
-              <th class="col-model">Model</th>
-              <th class="col-num">Tool calls</th>
-              <th class="col-num">Agent turns</th>
-              <th class="col-num">Input tokens</th>
-              <th class="col-num">Output tokens</th>
-              <th class="col-num col-hide-sm">Most used tool</th>
-            </tr>
-          </thead>
-          <tbody id="effort-body"></tbody>
-        </table>
+        <div class="table-wrap">
+          <table class="board board--compact" id="effort-table">
+            <thead>
+              <tr>
+                <th class="col-rank">#</th>
+                <th class="col-model">Model</th>
+                <th class="col-num is-sorted" aria-sort="descending">
+                  <button class="table-sort-button" type="button" data-effort-sort="tool_calls">
+                    Avg. tool calls
+                  </button>
+                </th>
+                <th class="col-num">
+                  <button class="table-sort-button" type="button" data-effort-sort="agent_turns">
+                    Avg. agent turns
+                  </button>
+                </th>
+                <th class="col-tools">Tool distribution</th>
+              </tr>
+            </thead>
+            <tbody id="effort-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </section>
@@ -415,7 +507,7 @@
 
 </main>
 
-<script src="assets/charts.js?v=202609052029"></script>
-<script src="assets/app.js?v=202609061215"></script>
+<script src="assets/charts.js?v=202609071615"></script>
+<script src="assets/app.js?v=202609071623"></script>
 </body>
 </html>

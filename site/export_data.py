@@ -20,13 +20,14 @@ Reads (all read-only):
 from __future__ import annotations
 
 import argparse
+import calendar
 import json
 import os
 import random
 import re
 import sqlite3
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -430,19 +431,35 @@ def connect() -> sqlite3.Connection:
 
 
 def export_dataset(conn: sqlite3.Connection) -> dict[str, Any]:
+    current_month = datetime.now(timezone.utc).strftime("%Y-%m")
     panels: dict[str, int] = defaultdict(int)
     cohorts: dict[str, int] = defaultdict(int)
     statuses: dict[str, int] = defaultdict(int)
     for row in conn.execute("SELECT panel_type, cohort_month, processing_status FROM doi_info"):
         panel = (row["panel_type"] or "").lower()
+        cohort = row["cohort_month"]
+        if panel == "rolling" and (not cohort or cohort >= current_month):
+            continue
         panels[panel] += 1
         statuses[(row["processing_status"] or "").lower()] += 1
-        if panel == "rolling" and row["cohort_month"]:
-            cohorts[row["cohort_month"]] += 1
+        if panel == "rolling":
+            cohorts[cohort] += 1
+
+    eligible_where = """
+        LOWER(d.panel_type) = 'core'
+        OR (LOWER(d.panel_type) = 'rolling' AND d.cohort_month < ?)
+    """
 
     review_types: dict[str, int] = defaultdict(int)
     for row in conn.execute(
-        "SELECT review_type, COUNT(*) n FROM review_metadata GROUP BY review_type"
+        f"""
+        SELECT r.review_type, COUNT(*) n
+        FROM review_metadata r
+        JOIN doi_info d ON d.doi = r.doi
+        WHERE {eligible_where}
+        GROUP BY r.review_type
+        """,
+        (current_month,),
     ):
         label = (row["review_type"] or "Unspecified").replace("Review - ", "")
         review_types[label] += row["n"]
@@ -450,15 +467,32 @@ def export_dataset(conn: sqlite3.Connection) -> dict[str, Any]:
     total_facts = 0
     reviews_with_facts = 0
     for row in conn.execute(
-        "SELECT atomic_facts_pairs FROM atomic_facts WHERE LOWER(source) = 'cochrane'"
+        f"""
+        SELECT a.atomic_facts_pairs
+        FROM atomic_facts a
+        JOIN doi_info d ON d.doi = a.doi
+        WHERE LOWER(a.source) = 'cochrane' AND ({eligible_where})
+        """,
+        (current_month,),
     ):
         n = count_atomic_facts(row["atomic_facts_pairs"])
         total_facts += n
         reviews_with_facts += 1 if n else 0
 
     dates = conn.execute(
-        "SELECT MIN(publication_date) lo, MAX(publication_date) hi FROM review_metadata"
+        f"""
+        SELECT MIN(r.publication_date) lo, MAX(r.publication_date) hi
+        FROM review_metadata r
+        JOIN doi_info d ON d.doi = r.doi
+        WHERE {eligible_where}
+        """,
+        (current_month,),
     ).fetchone()
+
+    publication_to = dates["hi"]
+    if cohorts:
+        year, month = map(int, max(cohorts).split("-"))
+        publication_to = date(year, month, calendar.monthrange(year, month)[1]).isoformat()
 
     core = panels.get("core", 0)
     # Cumulative dataset size after each monthly cohort lands.
@@ -480,11 +514,19 @@ def export_dataset(conn: sqlite3.Connection) -> dict[str, Any]:
         "total_reviews": sum(panels.values()),
         "core_reviews": core,
         "rolling_reviews": panels.get("rolling", 0),
-        "questions": conn.execute("SELECT COUNT(*) FROM questions").fetchone()[0],
+        "questions": conn.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM questions q
+            JOIN doi_info d ON d.doi = q.doi
+            WHERE {eligible_where}
+            """,
+            (current_month,),
+        ).fetchone()[0],
         "atomic_facts": total_facts,
         "reviews_with_facts": reviews_with_facts,
         "facts_per_review": round(total_facts / reviews_with_facts, 1) if reviews_with_facts else None,
-        "publication_range": {"from": dates["lo"], "to": dates["hi"]},
+        "publication_range": {"from": dates["lo"], "to": publication_to},
         "cohorts": [
             {"month": m, "label": month_label(m), "count": cohorts[m]} for m in sorted(cohorts)
         ],
@@ -565,6 +607,20 @@ def _weighted_metric(rows: list[dict[str, Any]], field: str) -> float | None:
     return total / total_w if total_w else None
 
 
+def _weighted_response_average(rows: list[dict[str, Any]], field: str) -> float | None:
+    """Average a per-response field across runs, weighted by response count."""
+    total_w = 0
+    total = 0.0
+    for row in rows:
+        value = row.get(field)
+        weight = int(row.get("responses") or 0)
+        if value is None or weight <= 0:
+            continue
+        total += float(value) * weight
+        total_w += weight
+    return total / total_w if total_w else None
+
+
 def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
     """Aggregate per-(model, run_month) scores, cost, and tool-use statistics."""
     rows = conn.execute(
@@ -607,7 +663,9 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
                 "input_tokens": [], "output_tokens": [], "tool_calls": [],
                 "iterations": [], "tool_usage": defaultdict(int),
                 "contradicted": 0, "model_facts": 0, "article_facts": 0,
-                "recovered_facts": 0,
+                "precision_supported": 0, "precision_not_supported": 0,
+                "precision_evaluated": 0, "responses_with_contradiction": 0,
+                "responses_with_not_supported": 0, "recovered_facts": 0,
             },
         )
         bucket["responses"] += 1
@@ -639,7 +697,14 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
         if precision is not None:
             bucket["precision"].append(precision)
             bucket["model_facts"] += row["total_llm_facts"] or 0
+            bucket["precision_supported"] += row["p_supported"] or 0
             bucket["contradicted"] += row["contradicted_facts"] or 0
+            bucket["precision_not_supported"] += row["not_supported_facts"] or 0
+            bucket["precision_evaluated"] += 1
+            if (row["contradicted_facts"] or 0) > 0:
+                bucket["responses_with_contradiction"] += 1
+            if (row["not_supported_facts"] or 0) > 0:
+                bucket["responses_with_not_supported"] += 1
         if recall is not None:
             bucket["recall"].append(recall)
             bucket["article_facts"] += row["total_article_facts"] or 0
@@ -724,6 +789,24 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
                 "avg_tool_calls": mean(b["tool_calls"]),
                 "avg_iterations": mean(b["iterations"]),
                 "tool_usage": [{"tool": t, "count": n} for t, n in tools],
+                "fact_stats": {
+                    "precision": {
+                        "total": b["model_facts"],
+                        "supported": b["precision_supported"],
+                        "not_supported": b["precision_not_supported"],
+                        "contradicted": b["contradicted"],
+                    },
+                    "recall": {
+                        "total": b["article_facts"],
+                        "supported": b["recovered_facts"],
+                        "not_supported": b["article_facts"] - b["recovered_facts"],
+                    },
+                    "responses": {
+                        "evaluated": b["precision_evaluated"],
+                        "with_contradiction": b["responses_with_contradiction"],
+                        "with_not_supported": b["responses_with_not_supported"],
+                    },
+                },
                 "panels": panels,
             }
         )
@@ -799,6 +882,36 @@ def build_leaderboard(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "run_month_label": rolling_rows[-1]["run_month_label"],
             }
 
+        fact_stats = {
+            "precision": {
+                field: sum(int(r["fact_stats"]["precision"][field]) for r in rows)
+                for field in ("total", "supported", "not_supported", "contradicted")
+            },
+            "recall": {
+                field: sum(int(r["fact_stats"]["recall"][field]) for r in rows)
+                for field in ("total", "supported", "not_supported")
+            },
+            "responses": {
+                field: sum(int(r["fact_stats"]["responses"][field]) for r in rows)
+                for field in ("evaluated", "with_contradiction", "with_not_supported")
+            },
+        }
+        evaluated = fact_stats["responses"]["evaluated"]
+        fact_stats["responses"]["with_contradiction_rate"] = (
+            fact_stats["responses"]["with_contradiction"] / evaluated if evaluated else None
+        )
+        fact_stats["responses"]["with_not_supported_rate"] = (
+            fact_stats["responses"]["with_not_supported"] / evaluated if evaluated else None
+        )
+        all_tool_usage: dict[str, int] = defaultdict(int)
+        for row in rows:
+            for tool in row.get("tool_usage") or []:
+                all_tool_usage[tool["tool"]] += int(tool["count"])
+        tool_usage = [
+            {"tool": tool, "count": count}
+            for tool, count in sorted(all_tool_usage.items(), key=lambda item: -item[1])
+        ]
+
         board.append(
             {
                 **latest,
@@ -808,6 +921,10 @@ def build_leaderboard(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "precision": _weighted_metric(rows, "precision"),
                 "recall": _weighted_metric(rows, "recall"),
                 "f1": _weighted_metric(rows, "f1"),
+                "avg_tool_calls": _weighted_response_average(rows, "avg_tool_calls"),
+                "avg_iterations": _weighted_response_average(rows, "avg_iterations"),
+                "tool_usage": tool_usage,
+                "fact_stats": fact_stats,
                 "panels": panels,
             }
         )

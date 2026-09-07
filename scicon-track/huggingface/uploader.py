@@ -71,6 +71,7 @@ _PREVIOUS_UPDATES_HEADING_RE = re.compile(
 )
 _DETAILS_OPEN_RE = re.compile(r"^<details>\s*$", re.IGNORECASE)
 _DETAILS_CLOSE_RE = re.compile(r"^</details>\s*$", re.IGNORECASE)
+_CARD_SPACER_RE = re.compile(r"^<br\s*/?>\s*$", re.IGNORECASE)
 _PREVIOUS_SUMMARY_RE = re.compile(
     r"^<summary>\s*Previous updates\s*</summary>\s*$",
     re.IGNORECASE,
@@ -215,6 +216,15 @@ def _split_update_preamble(text: str) -> tuple[list[str], str]:
     prior, i = _consume_previous_entries(lines, i)
     updates.extend(prior)
 
+    # Consume the explicit visual spacer inserted by _render_changelog so
+    # idempotent monthly re-runs replace it instead of accumulating <br>s.
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    if i < len(lines) and _CARD_SPACER_RE.match(lines[i]):
+        i += 1
+        while i < len(lines) and not lines[i].strip():
+            i += 1
+
     rest = "\n".join(lines[i:])
     return updates, rest
 
@@ -232,6 +242,8 @@ def _render_changelog(latest_line: str, prior_lines: list[str], rest: str) -> st
         )
         parts.append(prior_block)
     if rest.strip():
+        if prior_lines:
+            parts.append("<br>")
         parts.append(rest.lstrip("\n"))
     return "\n\n".join(parts) + "\n"
 

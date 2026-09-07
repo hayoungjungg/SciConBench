@@ -32,7 +32,11 @@
 
 * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* iOS inflates body text in landscape unless this is pinned. */
+  -webkit-text-size-adjust: 100%;
+}
 
 body {
   margin: 0;
@@ -214,49 +218,16 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   object-fit: contain;
 }
 
-.hero-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0;
-  margin: 34px 0 0;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-  overflow: hidden;
-  text-align: left;
-}
-
-.hero-stats > div {
-  padding: 14px 16px;
-  border-right: 1px solid var(--line-soft);
-}
-.hero-stats > div:last-child { border-right: 0; }
-.hero-stats dt {
-  font-size: 12px;
-  color: var(--text-faint);
-}
-.hero-stats dd {
-  margin: 4px 0 0;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-}
-.hero-stats .stat-note {
-  display: block;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--text-faint);
-}
-
 /* ───────────────────────────── sections ─────────────────────────── */
 
 .section { padding: 48px 0; }
 .section--tight { padding: 40px 0; }
 #news { padding-top: 0; padding-bottom: 16px; }
 #trend { padding-top: 12px; padding-bottom: 28px; }
-#introduction { padding-top: 28px; padding-bottom: 20px; }
-#data { padding-top: 20px; }
+#introduction { padding-top: 28px; padding-bottom: 8px; }
+#data { padding-top: 12px; padding-bottom: 22px; }
 #data .section-head { margin-bottom: 10px; }
+#leaderboard { padding-top: 30px; padding-bottom: 20px; }
 #faq-section { padding-top: 16px; padding-bottom: 20px; }
 #latest-news { padding-top: 18px; padding-bottom: 16px; }
 #cite { padding-top: 20px; }
@@ -321,8 +292,9 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .intro-copy strong { color: var(--text); }
 
 .teaser-figure {
-  max-width: 1020px;
-  margin: 24px auto 0;
+  max-width: 96ch;
+  margin: 39px auto 15px;
+  font-size: 12px;
 }
 .teaser-figure img {
   display: block;
@@ -330,11 +302,11 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   height: auto;
 }
 .teaser-figure figcaption {
-  max-width: 96ch;
   margin: 10px auto 0;
   color: var(--text-faint);
-  font-size: 12px;
   line-height: 1.5;
+  text-align: justify;
+  text-align-last: left;
 }
 
 .progress-title {
@@ -359,13 +331,100 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   font-size: 15px;
 }
 
-/* "How scoring works" now sits inside Quantitative Results rather than in a
-   section of its own, so its heading steps down a level. */
-.scoring-block { margin-top: 40px; }
-.scoring-block .section-head { margin-bottom: 20px; }
 .section-title--sub {
   font-size: 19px;
   font-weight: 600;
+}
+
+#leaderboard .wrap { max-width: 1084px; }
+.results-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(580px, 1.65fr);
+  gap: 24px;
+  align-items: start;
+  margin-left: 112px;
+}
+.results-grid > * { min-width: 0; }
+#leaderboard p {
+  text-align: justify;
+  text-align-last: left;
+  hyphens: auto;
+}
+.result-column-head { margin-bottom: 14px; }
+.result-column-head--board {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.leaderboard-caption {
+  max-width: 64ch;
+}
+.metrics-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.metrics-column .card--metric { padding: 15px; }
+.metrics-column .card--metric p {
+  margin: 9px 0 12px;
+  line-height: 1.5;
+}
+.metrics-intro,
+.leaderboard-caption {
+  color: #68717d;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.metric-equation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: var(--bg-hover);
+  color: var(--text);
+  font-size: 10.5px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.fraction {
+  display: inline-grid;
+  grid-template-rows: auto auto;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.3;
+}
+.fraction > span:first-child {
+  padding: 0 4px 2px;
+  border-bottom: 1px solid currentColor;
+}
+.fraction > span:last-child { padding: 2px 4px 0; }
+.equation-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.quantitative-subsection {
+  width: calc(100% - 224px);
+  margin-top: 38px;
+  margin-left: 112px;
+  padding-top: 30px;
+  border-top: 1px solid var(--line-soft);
+}
+.quantitative-subsection .section-head { margin-bottom: 16px; }
+#fact-diagnostics .section-head > div,
+#fact-diagnostics .section-sub,
+#effort .section-head > div,
+#effort .section-sub {
+  width: 100%;
+  max-width: none;
 }
 
 #trend .section-head {
@@ -380,8 +439,149 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   margin-right: auto;
 }
 
-.dataset-details { margin-top: 34px; }
-.dataset-details .grid-2 { margin-top: 22px; }
+.dataset-details { margin-top: 28px; }
+.dataset-details .grid-2 { margin-top: 0; }
+.dataset-details .card-title {
+  font-size: 17px;
+  color: var(--text);
+}
+.chart-context {
+  margin: -8px 0 2px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+/* ─────────────────────── sample questions ──────────────────────── */
+
+.question-examples {
+  margin-top: 38px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line-soft);
+}
+.question-examples-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+.question-examples-head h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+.question-examples-head p {
+  margin: 4px 0 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.question-examples-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+#question-examples-counter {
+  margin-right: 4px;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.question-examples-nav button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--text);
+  font: 600 18px/1 var(--sans);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.question-examples-nav button:hover:not(:disabled) {
+  border-color: var(--accent-soft);
+  background: var(--bg-hover);
+  color: var(--accent-soft);
+}
+.question-examples-nav button:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+.question-examples-nav button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+.question-examples-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.question-example-card {
+  min-height: 290px;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(28, 31, 35, 0.04);
+}
+.question-example-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: #edf7f4;
+  color: var(--live);
+  font-size: 13px;
+  font-weight: 700;
+}
+.question-example-field span {
+  font-size: 12px;
+  line-height: 1;
+}
+.question-example-body {
+  flex: 1;
+  padding: 16px 2px 18px;
+}
+.question-example-body h4 {
+  margin: 0 0 7px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.question-example-body p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.question-example-card footer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 2px 1px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-faint);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.question-example-source {
+  display: flex;
+  justify-content: flex-start;
+  gap: 4px 12px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+.question-example-source a {
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
 
 /* ────────────────────────────── cards ──────────────────────────── */
 
@@ -404,16 +604,13 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .grid-2--wide-left { grid-template-columns: 1.3fr 1fr; gap: 36px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 
-/* Grid items default to min-width:auto, so a nowrap formula or a wide table
-   would stretch its column past the container and scroll the whole page. */
+/* Grid items default to min-width:auto, which can let wide content stretch
+   a column past the container and scroll the whole page. */
 .grid-2 > *, .grid-2--wide-left > *, .grid-3 > * { min-width: 0; }
 
-/* Flex column so the formula stays flush with the bottom of every card,
-   regardless of how much copy sits above it. */
 .card--metric { display: flex; flex-direction: column; align-items: flex-start; }
 .card--metric p { color: var(--text-dim); font-size: 14px; margin: 12px 0 16px; }
 .card--metric em { color: var(--text); font-style: normal; font-weight: 600; }
-.card--metric .formula { margin-top: auto; align-self: stretch; }
 
 .metric-tag {
   display: inline-block;
@@ -424,18 +621,6 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   border: 1px solid #ccd7e8;
   background: #f2f6fc;
   border-radius: 999px;
-}
-
-.formula {
-  display: block;
-  padding: 10px 12px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  color: var(--text-dim);
-  font-size: 12px;
-  overflow-x: auto;
-  white-space: nowrap;
 }
 
 /* ─────────────────────────── leaderboard ───────────────────────── */
@@ -652,11 +837,25 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   overflow-x: auto;
   background: #fff;
 }
+.table-wrap--contradictions {
+  max-width: 420px;
+  margin-right: auto;
+  margin-left: auto;
+}
 
 .board {
   width: 100%;
   border-collapse: collapse;
   font-size: 14.5px;
+}
+#board { table-layout: fixed; }
+#board .col-model { width: 46%; }
+#board .col-num {
+  width: 18%;
+  text-align: center;
+}
+#board .score {
+  align-items: center;
 }
 .board th {
   text-align: left;
@@ -672,6 +871,19 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .board th .arrow { opacity: 0.35; }
 .board th.is-sorted { color: var(--accent); }
 .board th.is-sorted .arrow { opacity: 1; }
+.table-sort-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
 
 .board td {
   padding: 12px 14px;
@@ -683,11 +895,36 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .board tbody tr:hover { background: var(--bg-hover); }
 
 .board--compact td, .board--compact th { padding: 9px 14px; }
+.col-tools { min-width: 220px; }
+.tool-distribution {
+  display: grid;
+  gap: 3px;
+}
+.tool-share {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.tool-share code {
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+.tool-share--top,
+.tool-share--top code {
+  color: var(--text);
+  font-weight: 700;
+}
 
 .col-rank { width: 42px; color: var(--text-faint); font-size: 13px; }
 
 .model-cell { display: flex; align-items: center; gap: 10px; }
 .model-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.model-label { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.model-label .tag { flex: none; white-space: nowrap; }
 .model-name { font-weight: 500; }
 .model-name--reasoning { cursor: help; }
 .model-reasoning {
@@ -698,7 +935,13 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .model-name--reasoning:hover .model-reasoning,
 .model-name--reasoning:focus .model-reasoning { display: inline; }
 .model-name--reasoning:focus { outline: 1px dotted var(--text-faint); outline-offset: 2px; }
-.model-provider { display: block; font-size: 12px; color: var(--text-faint); }
+.model-provider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
 
 /* Score cell: number over a thin proportional bar. */
 .score { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 62px; }
@@ -720,6 +963,20 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .tag--paper { border-color: #c9d3f0; color: #4451a3; background: #eef0fc; }
 
 .footnote { color: var(--text-faint); font-size: 13px; margin: 12px 0 0; }
+.preprint-notice {
+  display: block;
+  margin-bottom: 12px;
+  padding: 11px 13px;
+  border: 1px solid #c9d3f0;
+  border-left: 4px solid #5a67b8;
+  border-radius: 5px;
+  background: #f5f6ff;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.preprint-notice[hidden] { display: none; }
+.preprint-notice strong { color: #3f4b99; }
 
 .empty {
   padding: 38px 20px;
@@ -743,12 +1000,22 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   font-size: 10px;
   fill: var(--text-faint);
 }
+.chart .stacked-x-label {
+  font-size: 16px;
+  font-weight: 600;
+  fill: var(--text-dim);
+}
+.chart .stacked-y-label {
+  font-size: 14px;
+  font-weight: 500;
+  fill: var(--text-dim);
+}
 .chart .series-dot { stroke: #fff; stroke-width: 2; }
 .chart .bar { transition: opacity 0.15s; }
 .chart .bar:hover { opacity: 0.82; }
 
 /* Logo-badged points: white halo + colored circle + provider glyph/logo. */
-.chart .series-badge { cursor: pointer; }
+.chart .series-badge { cursor: pointer; touch-action: manipulation; }
 .chart .series-badge-halo { opacity: 0.9; }
 .chart .series-badge-dot { stroke: #fff; stroke-width: 1.5; }
 .chart .series-badge-visual {
@@ -887,6 +1154,7 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   border-bottom: 1px solid var(--line-soft);
   padding: 2px 0;
 }
+.faq details[id] { scroll-margin-top: 20px; }
 .faq summary {
   cursor: pointer;
   padding: 14px 32px 14px 2px;
@@ -1147,6 +1415,10 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   max-width: 62ch;
 }
 .team-toggle-legend sup { color: var(--accent); }
+/* Separator between affiliations, rather than a typed one — the last entry on
+   a line keeps its trailing "·" (matching the hand-written original), and the
+   whole run can be re-broken per affiliation on narrow screens. */
+.team-toggle-legend .affil:not(:last-child)::after { content: "\00a0·"; }
 
 .ack-copy {
   max-width: none;
@@ -1242,24 +1514,24 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 
 /* ───────────────────────────── responsive ─────────────────────── */
 
-@media (max-width: 940px) {
-  .grid-2, .grid-3, .grid-2--wide-left { grid-template-columns: 1fr; gap: 18px; }
-  .nav-links { display: none; }
-  .hero-stats { grid-template-columns: repeat(2, 1fr); }
-  .hero-stats > div:nth-child(2n) { border-right: 0; }
-  .hero-stats > div:nth-child(-n+2) { border-bottom: 1px solid var(--line-soft); }
+@media (max-width: 1084px) {
+  .results-grid { grid-template-columns: 1fr; gap: 18px; margin-left: 0; }
+  .quantitative-subsection { width: auto; margin-left: 0; }
 }
 
-@media (max-width: 640px) {
-  .wrap, .nav-inner { padding: 0 18px; }
-  .hero { padding: 24px 0 16px; }
-  .hero-heading { gap: 10px; }
-  .hero-logo { width: 44px; height: 44px; }
-  /* Too narrow for the logos + pills to share a row without squeezing —
-     stack them in a plain centered column instead. Once stacked, the pills
-     are already centered on their own, so the panel no longer needs the
-     marks-width compensation that keeps it aligned with the row above. */
+@media (max-width: 940px) {
+  .grid-2, .grid-3, .grid-2--wide-left, .results-grid { grid-template-columns: 1fr; gap: 18px; }
+  .nav-links { display: none; }
+}
+
+/* The byline row needs ~720px to hold the institution lockup, the gap, and
+   the fixed-width pill pair; below that it stacks into a plain centered
+   column. Once stacked, the pills are already centered on their own, so the
+   panel no longer needs the marks-width compensation that keeps it aligned
+   with the row above. */
+@media (max-width: 740px) {
   .byline { flex-direction: column; align-items: center; gap: 20px; }
+  .question-examples-grid { grid-template-columns: 1fr; }
   .toggle-panel { margin-left: calc((var(--toggles-width) - var(--panel-width)) / 2); }
   #ack .toggle-panel {
     margin-left: calc(
@@ -1268,9 +1540,139 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
       - var(--toggle-gap)
     );
   }
+  /* Four hero links wrap as 3+1 once the row is narrower than ~520px.
+     Two-up keeps them even through phone landscape. */
+  .hero-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    max-width: 340px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .hero-actions .btn { justify-content: center; }
+  /* Once the byline has stacked, the author panel is only as wide as the
+     content column — too narrow for 3 names or "Stony Brook · Hackensack…"
+     on one line. */
+  .team-toggle-list { gap: 6px; }
+  .team-toggle-row { flex-direction: column; align-items: center; gap: 6px; }
+  .team-toggle-legend { max-width: none; }
+  .team-toggle-legend .affil { display: block; }
+  .team-toggle-legend .affil:not(:last-child)::after { content: none; }
+  .team-toggle-legend br { display: none; }
+}
+
+/* Phones. Everything below assumes a content column of roughly 320–400px:
+   narrow enough that any fixed-width block, single-line control row, or
+   scaled-to-fit chart stops working, so each of those gets a phone layout
+   here rather than being squeezed into its desktop one. */
+@media (max-width: 640px) {
+  .wrap, .nav-inner { padding: 0 18px; }
+  .demo-banner { padding: 10px 18px; }
+
+  .question-examples-head { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .question-examples-nav { width: 100%; }
+  #question-examples-counter { margin-right: auto; }
+  .question-example-card { min-height: 300px; }
+
+  .hero { padding: 24px 0 16px; }
+  .hero-heading { gap: 10px; }
+  .hero-logo { width: 44px; height: 44px; }
+  .hero-tagline { font-size: 16px; }
+
+  .institution-marks { gap: 12px; }
+  .institution-marks img { height: 32px; }
+  /* The pill pair is a fixed 376px grid, wider than the phone content
+     column, so it becomes a full-width accordion. Each panel now spans the
+     same width as the pill that opens it, which is also the full row — so
+     none of the offsets that keep a panel centered on the desktop row
+     (where it has to escape its own narrow grid column) apply anymore. */
+  .byline-toggles { display: block; width: 100%; }
+  .byline-toggles .team-toggle + .team-toggle { margin-top: 10px; }
+  .toggle-panel,
+  #ack .toggle-panel { width: 100%; margin-left: 0; }
+  #ack .toggle-panel { padding: 16px; }
+
   .section { padding: 40px 0; }
+  .card { padding: 16px; }
+  .card--chart { padding: 14px 12px 10px; }
+
+  /* Justified copy needs more measure than a phone has: at this width the
+     inter-word gaps open into rivers, so these blocks read left-aligned. */
+  .intro-copy,
+  .faq-body,
+  .ack-copy .team-toggle-legend { text-align: left; }
+  .faq summary { font-size: 15px; }
+
+  /* Section headings and their controls can't share a row, and the controls
+     themselves are wider than the screen once metric names are spelled out
+     ("Factual Precision"). Give each control its own full-width row instead
+     of letting them wrap into ragged fragments. */
+  .section-head { flex-direction: column; align-items: stretch; gap: 14px; }
+  .section-head--center { align-items: center; }
+  .chart-toolbar,
+  .chart-toolbar-group,
+  .board-controls {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+  }
+  .metric-toggle { display: flex; width: 100%; }
+  .metric-toggle button { flex: 1 1 0; min-width: 0; padding: 8px 4px; font-size: 12px; }
+  .panel-select-wrap { display: flex; width: 100%; justify-content: space-between; }
+  .panel-select-wrap--compact { margin-left: 0; gap: 10px; }
+  .panel-select,
+  .family-picker { flex: 1 1 auto; min-width: 0; }
+  .family-picker summary { min-width: 0; }
+  /* Anchored to the right edge of a now full-width control, the menu would
+     hang off the screen; span the control instead. */
+  .family-picker-menu { left: 0; right: 0; min-width: 0; }
+  .pill-toggle { justify-content: center; }
+  .chart-actions { justify-content: center; }
+  .chart-footnote { text-align: left; }
+
+  /* The trend chart is drawn at a fixed 860px in its viewBox. Fitting that
+     into ~300px scales the whole drawing down with it — axis labels land
+     near 4px and the logo badges become dots — so it keeps a readable size
+     and the card scrolls sideways instead. The floor matches the scale the
+     chart renders at on desktop. */
+  .chart--badged { -webkit-overflow-scrolling: touch; }
+  .chart--badged svg { min-width: 780px; }
+
+  /* Spelled-out metric names are what push these tables past the screen
+     edge; wrapping the headers to two lines keeps every visible column
+     on-screen, so a row can be read without scrolling it sideways. */
   .col-hide-sm { display: none; }
-  .board { font-size: 13.5px; }
-  .board td, .board th { padding: 10px 11px; }
+  .board { font-size: 13px; }
+  .board td, .board th { padding: 9px 9px; }
+  .board th { white-space: normal; }
+  /* Trimming the headers a little keeps the metric columns from claiming
+     width the model names need. */
+  .board th.col-num { font-size: 11px; }
+  .col-rank { width: 24px; }
+  .score { min-width: 0; }
   .score-bar { display: none; }
+  .model-cell { gap: 8px; }
+  .model-provider { font-size: 11px; }
+
+  .factlist > div { gap: 12px; padding: 10px 12px; font-size: 13px; }
+  .legend { gap: 6px 14px; }
+
+  /* The citation is wider than the screen and scrolls sideways, so a copy
+     button floating over its top-right corner would sit on top of the first
+     line. Drop it below the block instead. */
+  .cite-box { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .cite { width: 100%; padding: 14px; }
+  .copy-btn { position: static; }
+}
+
+/* Small phones (iPhone SE / mini widths). Just the last few things that stop
+   fitting once the content column drops under ~330px. */
+@media (max-width: 380px) {
+  .wrap { padding: 0 14px; }
+  .metric-toggle button { font-size: 11.5px; padding: 8px 2px; }
+  /* Buys back the ~20px the score columns need to stay on-screen. */
+  .board td, .board th { padding: 9px 7px; }
+  .col-rank { width: 18px; }
 }

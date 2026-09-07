@@ -41,28 +41,33 @@
       "answer": "SciConBench is an agentic benchmark for *open-domain scientific conclusion synthesis*. Each question is derived from the *Objectives* of a Cochrane systematic review [[3]](https://www.cochranelibrary.com/), with the review’s expert-written *Authors’ Conclusions* as the reference answer. Agents must search the open web through clean-room tools that block benchmark answers, identify relevant evidence, assess its quality, reconcile conflicting findings, and synthesize an expert-level conclusion. Unlike simple fact retrieval, this is a long-horizon task that requires synthesizing evidence across many sources—work that systematic review teams can spend over two years completing [[4]](https://www.sciencedirect.com/science/article/abs/pii/S0895435620301244). SciConBench is also *live*, containing 9,000+ questions and growing monthly."
     },
     {
+      "id": "dashboard-questions",
       "question": "What questions is this dashboard designed to answer?",
       "answer": "The dashboard is longitudinal: the same evaluation is run every month so scores can be read as trends rather than one-off snapshots. It is designed to address three questions.\n- **As frontier labs release new models, how does scientific conclusion synthesis performance change over time?** We evaluate the latest frontier model releases on both a fixed core set and the rolling panel to track longitudinal progress in scientific conclusion synthesis capability.\n- **How well do AI agents synthesize newly published scientific conclusions?** Each month, we evaluate frontier agents on newly released systematic reviews in the rolling panel to measure performance on the latest evidence.\n- **Are improvements driven by genuine gains in synthesis capability, or by models having seen benchmark answers during pretraining?** We compare performance on fresh rolling panels with the fixed, older core set; differences in their trends provide evidence for genuine capability gains versus possible pretraining leakage.\nAcross these analyses, three fixed control models—DeepSeek-V4-Flash, Qwen3.8 27B, and MiniMax M3—provide a stable baseline for distinguishing changes in model capability from changes in cohort difficulty."
     },
     {
       "question": "How are models scored?",
-      "answer": "Long-form conclusions cannot be graded by string match, so we grade them fact by fact. Both the agent's conclusion and the expert conclusion are decomposed into atomic, individually checkable facts.\n- **Factual precision** measures *correctness*: the extent to which facts from the agent’s generated conclusions are supported by the full ground-truth review, with penalties for contradictions.\n- **Factual recall** measures *coverage*: how many facts from the expert conclusion are supported by the agent’s generated conclusion.\n- **Factual F1** is their harmonic mean, rewarding conclusions that are both correct and complete.\nAll metrics range from 0 to 1, with higher scores being better. Scores are macro-averaged across reviews, giving each review equal weight regardless of the number of facts it contains. Every atomic-fact judgment is made by an expert-validated LLM judge; see [Quantitative Results](#leaderboard) for the formulas.\n\nPerformance remains low: the best agent in our [preprint](https://arxiv.org/abs/2606.11337) reached 0.337 factual F1 under the clean-room protocol. The leaderboard shows relative model rankings and trends over time, while precision and recall scores reveal how correct and complete each model’s conclusions are in a more interpretable manner."
+      "answer": "Long-form conclusions cannot be graded by string match, so we grade them fact by fact. Both the agent's conclusion and the expert conclusion are decomposed into atomic, individually checkable facts.\n- **Factual precision** measures *correctness*: the extent to which facts from the agent’s generated conclusions are supported by the full ground-truth review, with penalties for contradictions.\n- **Factual recall** measures *completeness*: how many facts from the expert conclusion are supported by the agent’s generated conclusion.\n- **Factual F1** is their harmonic mean, rewarding conclusions that are both correct and complete.\nAll metrics range from 0 to 1, with higher scores being better. Scores are macro-averaged across reviews, giving each review equal weight regardless of the number of facts it contains. Every atomic-fact judgment is made by an expert-validated LLM judge; see [Quantitative Results](#leaderboard) for the formulas.\n\nPerformance remains low: the best agent in our [preprint](https://arxiv.org/abs/2606.11337) reached 0.337 factual F1 under the clean-room protocol. The leaderboard shows relative model rankings and trends over time, while precision and recall scores reveal how correct and complete each model’s conclusions are in a more interpretable manner."
     },
     {
+      "id": "why-live",
       "question": "Why does the benchmark have to be live?",
       "answer": "Any static benchmark drawn from published literature risks entering the pretraining corpus of future models, at which point a high score may reflect memorization of the reference answer encoded in the model’s weights rather than genuine synthesis capability. Cochrane publishes new reviews every month, so SciConBench continually adds questions whose reference conclusions were published after the tested models’ pretraining cutoffs. Comparing performance on these fresh rolling panels with performance on the older fixed core set helps distinguish genuine synthesis gains from gains driven by memorization."
     },
     {
+      "id": "clean-room",
       "question": "What stops an agent from just looking up the answer online?",
       "answer": "Every evaluation reported on this dashboard runs through **SciConHarness**, a clean-room harness that equips AI agents with web search, academic search, and browsing tools. Like a scientific clean room designed to prevent contamination, SciConHarness creates a controlled information environment free from benchmark-answer contamination. It blocks the target review, documents that discuss it (e.g., news coverage), and sources published after the review date, requiring agents to *synthesize* a conclusion from the underlying evidence rather than merely retrieve the answer directly. In our [preprint](https://arxiv.org/abs/2606.11337), performance under the clean-room protocol is consistently lower than under unconstrained retrieval conditions, where ground-truth answers may be accessible, showing that leakage can inflate estimates of synthesis ability."
     },
     {
+      "id": "evaluation-sets",
       "question": "What are the core set and the rolling panel, and why both?",
-      "answer": "They are the two cuts of data every AI agent is evaluated on, and they answer different questions. Use the **Panel** control on the Progress chart above to switch between them.\n- **Core set (N=119)** — a fixed sample of up to 10 eligible reviews per publication month from July 2025 through June 2026. Held constant across models and months, it provides a stable basis for comparing models and tracking performance over time, while also revealing potential gains from pretraining leakage to these reviews.\n- **Rolling panel (N≈15–30/month)** — newly published reviews continuously added to SciConBench each month. Because their conclusions postdate the tested models’ pretraining cutoffs, they measure genuine synthesis capability without leakage while expanding coverage to emerging topics."
+      "answer": "They are the two cuts of data every AI agent is evaluated on, and they answer different questions. Use the **Panel** control on the Progress chart above to switch between them.\n- **Core set (N=119)** — a fixed sample of up to 10 eligible reviews per publication month from July 2025 through June 2026. Held constant across models and months, it provides a stable basis for comparing models and tracking performance over time, while also revealing potential gains from pretraining leakage to these reviews.\n- **Rolling panel (N≈15–30/month)** — newly published reviews grouped by publication month. Each monthly panel is finalized and evaluated after that month ends, ensuring it contains the complete eligible cohort. Because these conclusions postdate the tested models’ pretraining cutoffs, the panels measure genuine synthesis capability without leakage while expanding coverage to emerging topics.\nBeginning around **July 2027**, after a full year of dashboard evaluations, the core set will advance as a sliding window. A review’s evidence and findings typically remain aligned with the current evidence base for about two years after publication [[5]](https://pmc.ncbi.nlm.nih.gov/articles/PMC1274326/), so a permanently frozen core set would gradually measure synthesis capability against increasingly outdated conclusions. Each month, we will drop the oldest core-set month (i.e., **July 2025 initially**) and promote the oldest rolling panel (e.g., **July 2026**) into the core set, maintaining a 12-month core window of reviews that are no more than roughly two years old at the time of evaluation, while the rolling panel continues to cover newly published reviews."
     },
     {
+      "id": "model-evaluation",
       "question": "Which models are evaluated, and how are they configured?",
-      "answer": "Each month we evaluate the latest frontier model from each of seven leading labs—OpenAI, Anthropic, Google DeepMind, DeepSeek, Moonshot AI, Z.ai, and Alibaba—alongside three control models.\n- Models run with their **default hyperparameters and highest available reasoning effort**.\n- For cost and fairness, each model answers every assigned review **exactly once**, with no score-based retries, best-of-*n* runs, or re-evaluations, since model improvements are typically released as new models rather than updates to existing ones.\n- When a lab releases a new model, we add it in the next monthly evaluation and run it on the core set plus the **four most recent monthly rolling panels**; thereafter, we evaluate it on each new rolling panel.\n- The **three open-weight control models are pinned to fixed versions**. Their month-to-month score changes therefore capture cohort difficulty and evaluation noise, providing a baseline against which improvements in frontier models are more indicative of genuine gains in synthesis capability."
+      "answer": "Each month we evaluate the latest frontier model from each of seven leading labs—OpenAI, Anthropic, Google DeepMind, DeepSeek, Moonshot AI, Z.ai, and Alibaba—alongside three control models.\n- Models run with their **default hyperparameters and highest available reasoning effort**.\n- For cost and fairness, each model answers every assigned review **exactly once**, with no score-based retries, best-of-*n* runs, or re-evaluations, since model improvements are typically released as new models rather than updates to existing ones.\n- When a lab releases a new model, we add it in the next monthly evaluation and run it on the core set plus the **four most recent completed monthly rolling panels**; thereafter, we evaluate it on each new panel after its publication month closes.\n- The **three open-weight control models are pinned to fixed versions**. Their month-to-month score changes therefore capture cohort difficulty and evaluation noise, providing a baseline against which improvements in frontier models are more indicative of genuine gains in synthesis capability."
     },
     {
       "question": "How does the live benchmark infrastructure work, and where can I find it?",
@@ -82,9 +87,58 @@
     }
   ],
   "introduction": [
-    "AI agents are transforming how individuals and institutions access and act on scientific knowledge. Unlike traditional search engines that retrieve documents for users to synthesize, these systems increasingly perform the *long-horizon* task of *scientific conclusion synthesis* themselves: retrieving evidence, reasoning across sources, and producing conclusions used in consequential decisions. The stakes are especially high in health, where billions of ChatGPT messages concern healthcare each week and OpenEvidence, a specialized clinical AI copilot for high-stakes decision-making, reports more than 200 million AI-assisted clinical consultations.",
-    "*So, can AI agents synthesize scientific conclusions?* **SciConBench** tests this with 9K+ questions paired with expert conclusions from Cochrane systematic reviews. Under **SciConHarness**, agents search and browse the open web through clean-room tools that prevent access to benchmark answers, then assess and integrate evidence into a scientific conclusion evaluated for factual correctness (precision) and completeness (recall). ++The best agent in our preprint reached only 0.337 factual F1.++ Because static benchmarks can leak into models' pretraining data, SciConBench is **live**: each month, we add fresh samples from newly published reviews.",
-    "**To track progress in synthesis capability over time, this dashboard evaluates frontier models monthly on fresh samples and a fixed core set, distinguishing capability improvements from gains driven by benchmark leakage.**"
+    "AI agents increasingly perform the *long-horizon* task of *scientific conclusion synthesis*: retrieving evidence, reasoning across sources, and producing conclusions used in consequential decisions. The stakes are especially high in health, where billions of ChatGPT messages concern healthcare each week and OpenEvidence reports over 200 million AI-assisted clinical consultations [[1]](https://www.openevidence.com/about), [[2]](https://cdn.openai.com/pdf/2cb29276-68cd-4ec6-a5f4-c01c5e7a36e9/OpenAI-AI-as-a-Healthcare-Ally-Jan-2026.pdf). *So, can AI agents synthesize scientific conclusions?* **SciConBench** pairs 9K+ questions with expert conclusions from Cochrane systematic reviews. Using **SciConHarness**, agents retrieve sources from the open web through clean-room tools that block benchmark answers and synthesize scientific conclusions, which are then evaluated for factual correctness (precision) and completeness (recall). ++The best agent in our preprint reached only 0.337 factual F1.++ Because static benchmarks leak into pretraining data, SciConBench is **live**, adding fresh samples from newly published reviews monthly.",
+    "**This dashboard evaluates frontier models monthly on both fresh samples and a fixed core set, separating genuine capability gains from gains driven by benchmark leakage.** [See the research questions we aim to answer through this longitudinal dashboard.](#faq-dashboard-questions)"
+  ],
+  "question_examples": [
+    {
+      "field": "Cardiology",
+      "publication_date": "2024-03-07",
+      "doi": "10.1002/14651858.CD003331.pub6",
+      "question": "For adults with heart failure, what are the effects of exercise-based cardiac rehabilitation compared with no exercise control on mortality, hospital admission, and health-related quality of life?"
+    },
+    {
+      "field": "Oncology",
+      "publication_date": "2024-12-05",
+      "doi": "10.1002/14651858.CD011044.pub3",
+      "question": "In people receiving first-line treatment for advanced pancreatic cancer, what are the effects of chemotherapy, radiotherapy, or their combination on overall survival, severe or life-threatening adverse events, and quality of life?"
+    },
+    {
+      "field": "Infectious Disease",
+      "publication_date": "2024-09-26",
+      "doi": "10.1002/14651858.CD006689.pub3",
+      "question": "Among HIV-positive pregnant women living in areas of stable malaria transmission, how do different intermittent preventive treatment regimens compare in terms of safety and efficacy for malaria prevention?"
+    },
+    {
+      "field": "Mental Health",
+      "publication_date": "2024-07-08",
+      "doi": "10.1002/14651858.CD007674.pub3",
+      "question": "For adults aged 55 years and older with anxiety or related disorders, how effective are cognitive behavioural therapy approaches—including traditional CBT, cognitive therapy, behaviour therapy, and third-wave CBT—compared with minimal management or other psychological therapies in reducing the severity of anxiety symptoms?"
+    },
+    {
+      "field": "Maternal Health",
+      "publication_date": "2024-08-15",
+      "doi": "10.1002/14651858.CD004736.pub6",
+      "question": "Among pregnant women receiving antenatal care, what are the effects of daily oral iron supplementation—either alone or combined with folic acid or other vitamins and minerals—on maternal, pregnancy, and infant outcomes?"
+    },
+    {
+      "field": "Neurology & Rehabilitation",
+      "publication_date": "2024-09-23",
+      "doi": "10.1002/14651858.CD010779.pub2",
+      "question": "In adults who have experienced a stroke, how effective are assistive technologies in managing contractures and improving joint mobility and function?"
+    },
+    {
+      "field": "Endocrinology",
+      "publication_date": "2024-08-22",
+      "doi": "10.1002/14651858.CD007374.pub3",
+      "question": "For people with chronic kidney disease and diabetes, what are the benefits and harms of education programmes designed to improve adherence to treatment regimens?"
+    },
+    {
+      "field": "Oral Health",
+      "publication_date": "2024-10-04",
+      "doi": "10.1002/14651858.CD010856.pub3",
+      "question": "Among populations exposed to community water fluoridation, what are the effects of initiating or stopping fluoridation programmes on the prevention of dental caries, and how is water fluoridation—whether artificial or natural—associated with dental fluorosis?"
+    }
   ],
   "acknowledgements": [
     "We thank Anushka Acharya and the Princeton Research Computing for their help in creating this live evaluation infrastructure. In addition, we thank Francesco Salvi, Alejandro Cuevas, Bohdan Turbal, Max Springer, Chung Peng Lee, Elijah Fullerton, Jane Castleman, Blossom Metevier, Jason Greenfield, and members of the Center for Information Technology Policy for their helpful feedback and support.",

@@ -63,7 +63,17 @@
       .replace(/`([^`]+)`/g, "<code>$1</code>")
       // Double brackets preserve visible scholarly citation brackets:
       // [[1]](url) renders the entire "[1]" as a superscript link, matching
-      // the numbered citations in the page introduction.
+      // the numbered citations in the page introduction. Adjacent citations
+      // such as [[1]](url), [[2]](url) collapse into one "[1, 2]" superscript.
+      .replace(
+        /\[\[(\d+)\]\]\(([^)\s]+)\)(?:, \[\[(\d+)\]\]\(([^)\s]+)\))+/g,
+        (match) => {
+          const links = [...match.matchAll(/\[\[(\d+)\]\]\(([^)\s]+)\)/g)]
+            .map(([, n, href]) => linkHtml(n, href))
+            .join(", ");
+          return `<sup class="intro-citations">[${links}]</sup>`;
+        }
+      )
       .replace(/\[\[([^\]]+)\]\]\(([^)\s]+)\)/g, (_, text, href) =>
         `<sup class="intro-citations">${linkHtml(`[${text}]`, href)}</sup>`
       )
@@ -139,25 +149,12 @@
     blog: '<img src="assets/icon-blog.png" alt="" />',
   };
 
-  /* The next run always fires at 00:00 America/New_York on the 1st. */
-  function nextRunLabel() {
-    const now = new Date();
-    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-    const days = Math.max(0, Math.ceil((next - now) / 86400000));
-    return {
-      label: next.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
-      days,
-    };
-  }
-
   /* ------------------------------------------------------------------ *
    * hero
    * ------------------------------------------------------------------ */
 
   function renderHero(data) {
     const site = data.site || {};
-    const summary = data.summary;
-    const dataset = data.dataset;
 
     $("hero-tagline").textContent = site.tagline || "";
 
@@ -179,42 +176,6 @@
           a.href.startsWith("#") ? "" : ' target="_blank" rel="noopener"'
         }>${icon}${escape(a.label)}${sub}</a>`;
       })
-      .join("");
-
-    const next = nextRunLabel();
-    const benchmark = data.benchmark || {};
-    const stats = [
-      {
-        label: "Benchmark questions",
-        value: benchmark.available ? fmtCompact(benchmark.reviews) : fmtInt(dataset.total_reviews),
-        note: benchmark.available
-          ? `${fmtCompact(benchmark.atomic_facts)} expert atomic facts`
-          : "published on HuggingFace",
-      },
-      {
-        label: "Live evaluation panel",
-        value: fmtInt(dataset.total_reviews),
-        note: `${fmtInt(dataset.core_reviews)} core · ${fmtInt(dataset.rolling_reviews)} rolling`,
-      },
-      {
-        label: "Models tracked",
-        value: fmtInt(summary.models_tracked),
-        note: `${fmtInt(summary.total_responses)} evaluations run`,
-      },
-      {
-        label: "Latest cohort",
-        value: summary.latest_run_month_label || "—",
-        note: `next run ${next.label} · in ${next.days}d`,
-      },
-    ];
-
-    $("hero-stats").innerHTML = stats
-      .map(
-        (s) =>
-          `<div><dt>${escape(s.label)}</dt><dd>${escape(s.value)}<span class="stat-note">${escape(
-            s.note
-          )}</span></dd></div>`
-      )
       .join("");
   }
 
@@ -272,7 +233,7 @@
 
     if (!rows.length) {
       $("board-body").innerHTML =
-        '<tr><td colspan="7" class="empty"><strong>No evaluations recorded yet</strong>' +
+        '<tr><td colspan="5" class="empty"><strong>No evaluations recorded yet</strong>' +
         "The first monthly run will populate this table.</td></tr>";
       return;
     }
@@ -288,36 +249,42 @@
       );
     };
 
+    let previousDisplayedScore = null;
+    let sharedRank = 0;
+    const bestDisplayedScore = fmtPct(best);
+
     $("board-body").innerHTML = rows
       .map((row, index) => {
-        const rank = row[metric] === null ? "—" : index + 1;
-        const isBest = row[metric] !== null && best !== null && row[metric] === best;
+        const displayedScore = fmtPct(row[metric]);
+        let rank = "—";
+        if (displayedScore !== null) {
+          // Rank what readers can see: scores equal at the displayed precision
+          // share a competition rank (1, 1, 3), including a tied lead.
+          if (displayedScore !== previousDisplayedScore) {
+            sharedRank = index + 1;
+            previousDisplayedScore = displayedScore;
+          }
+          rank = sharedRank;
+        }
+        const isBest =
+          displayedScore !== null &&
+          bestDisplayedScore !== null &&
+          displayedScore === bestDisplayedScore;
         return (
           `<tr>` +
           `<td class="col-rank">${rank}</td>` +
           `<td class="col-model"><span class="model-cell">` +
           `<span class="model-dot" style="background:${row.color};color:${row.color}"></span>` +
-          `<span>${modelNameHtml(row.display_name)}` +
-          `<span class="model-provider">${escape(row.provider_label)}</span></span></span></td>` +
+          `<span><span class="model-label">${modelNameHtml(row.display_name)}</span>` +
+          `<span class="model-provider">${escape(row.provider_label)}` +
+          `${row.is_paper ? '<span class="tag tag--paper">Preprint</span>' : ""}</span></span></span></td>` +
           cell(row.precision, row.color, metric === "precision" && isBest) +
           cell(row.recall, row.color, metric === "recall" && isBest) +
           cell(row.f1, row.color, metric === "f1" && isBest) +
-          `<td class="col-num col-hide-sm">${fmtInt(row.reviews)}</td>` +
-          `<td class="col-num col-hide-sm"><span class="tag${
-            row.is_paper ? " tag--paper" : ""
-          }">${escape(row.run_month_label)}</span></td>` +
           `</tr>`
         );
       })
       .join("");
-  }
-
-  function panelReviewCount(data, panelKey) {
-    if (panelKey === "all") return data.dataset.total_reviews;
-    if (panelKey === "core") return data.dataset.core_reviews;
-    if (panelKey === "rolling") return data.dataset.rolling_reviews;
-    const view = (data.panel_views || []).find((v) => v.key === panelKey);
-    return view && view.reviews !== undefined ? view.reviews : null;
   }
 
   function populatePanelSelect(data) {
@@ -334,20 +301,6 @@
     const summary = data.summary;
     const pending = summary.total_responses - summary.graded_responses;
 
-    const views = [{ key: "all", label: "All reviews" }, ...(data.panel_views || [])];
-    const active = views.find((v) => v.key === boardState.panel);
-    const count = panelReviewCount(data, boardState.panel);
-    const scope =
-      boardState.panel === "all"
-        ? `${fmtInt(count)} systematic reviews`
-        : `the ${active ? active.label : boardState.panel}` +
-          (count !== null ? ` (${fmtInt(count)} reviews)` : "");
-
-    $("leaderboard-sub").innerHTML =
-      `Macro-averaged over ${scope}, ` +
-      `clean-room configuration (<code>${escape(data.eval_config)}</code>). ` +
-      `Each model is shown at its most recent evaluated month.`;
-
     const notes = [];
     if (pending > 0) {
       notes.push(
@@ -355,17 +308,8 @@
           `awaiting the factual precision and recall judges; those rows show as <em>pending</em>.`
       );
     }
-    notes.push(
-      "Higher is better for every column. Precision penalizes claims the review contradicts; " +
-        "recall measures how much of the expert conclusion the model recovered."
-    );
-    if (boardState.includePaper) {
-      notes.push(
-        "Rows tagged <em>Preprint</em> are the SciConBench paper's own evaluation snapshot " +
-          "(some models graded Jan 2026, others Jul 2026) — a one-off run, not a monthly " +
-          "panel, so it only shows under \u201cAll reviews\u201d."
-      );
-    }
+    const preprintNotice = $("board-preprint-notice");
+    if (preprintNotice) preprintNotice.hidden = !boardState.includePaper;
     $("board-footnote").innerHTML = notes.join(" ");
   }
 
@@ -587,13 +531,17 @@
   function renderDataset(data) {
     const dataset = data.dataset;
 
-    const rows = (dataset.growth || []).map((g) => ({
-      label: g.label,
-      segments: [
-        { name: "Core panel", value: g.core, color: "#5b8def" },
-        { name: "Rolling cohorts", value: g.rolling, color: "#39d0a0" },
-      ],
-    }));
+    const rows = (dataset.growth || []).map((g) => {
+      const existingRolling = Math.max(0, g.rolling - g.added);
+      return {
+        label: g.label,
+        segments: [
+          { name: "Core Set", value: g.core, color: "#5b8def" },
+          { name: "Existing Rolling Panels", value: existingRolling, color: "#8bdcc4" },
+          { name: "New This Month", value: g.added, color: "#159a70" },
+        ],
+      };
+    });
 
     if (rows.length) {
       Charts.stackedBars($("growth-chart"), rows, { unit: " reviews" });
@@ -604,10 +552,8 @@
 
     const facts = [
       ["Total reviews", fmtInt(dataset.total_reviews)],
-      ["Core panel (frozen)", fmtInt(dataset.core_reviews)],
+      ["Core panel (fixed)", fmtInt(dataset.core_reviews)],
       ["Rolling cohorts", fmtInt(dataset.rolling_reviews)],
-      ["Benchmark questions", fmtInt(dataset.questions)],
-      ["Expert atomic facts", fmtInt(dataset.atomic_facts)],
       [
         "Publication window",
         `${fmtDate(dataset.publication_range.from)} – ${fmtDate(dataset.publication_range.to)}`,
@@ -623,36 +569,118 @@
   }
 
   /* ------------------------------------------------------------------ *
-   * effort
+   * fact diagnostics + effort
    * ------------------------------------------------------------------ */
+
+  function renderFactDiagnostics(data) {
+    const rows = (data.leaderboard || [])
+      .filter((row) => row.fact_stats)
+      .slice()
+      .sort(
+        (a, b) =>
+          (b.fact_stats.responses.with_contradiction_rate || 0) -
+          (a.fact_stats.responses.with_contradiction_rate || 0)
+      );
+    if (!rows.length) {
+      $("response-diagnostics-body").innerHTML =
+        '<tr><td colspan="2" class="empty">No evaluated responses recorded yet.</td></tr>';
+      return;
+    }
+
+    const modelCell = (row) =>
+      `<td class="col-model"><span class="model-cell">` +
+      `<span class="model-dot" style="background:${row.color};color:${row.color}"></span>` +
+      `${modelNameHtml(row.display_name)}</span></td>`;
+
+    const issueCell = (count, rate, evaluated) => {
+      const pct = fmtPct(rate);
+      return `<td class="col-num">${pct === null ? "—" : `${pct}% (${fmtInt(count)}/${fmtInt(evaluated)})`}</td>`;
+    };
+    $("response-diagnostics-body").innerHTML = rows
+      .map((row) => {
+        const responses = row.fact_stats.responses;
+        return (
+          `<tr>${modelCell(row)}` +
+          issueCell(
+            responses.with_contradiction,
+            responses.with_contradiction_rate,
+            responses.evaluated
+          ) +
+          `</tr>`
+        );
+      })
+      .join("");
+  }
+
+  let effortState = { sort: "tool_calls", direction: "desc" };
 
   function renderEffort(data) {
     const rows = data.leaderboard || [];
     if (!rows.length) {
       $("effort-body").innerHTML =
-        '<tr><td colspan="6" class="empty">No evaluations recorded yet.</td></tr>';
+        '<tr><td colspan="5" class="empty">No evaluations recorded yet.</td></tr>';
       return;
     }
 
-    const sorted = rows
-      .slice()
-      .sort((a, b) => (b.avg_tool_calls || 0) - (a.avg_tool_calls || 0));
+    const field = effortState.sort === "agent_turns" ? "avg_iterations" : "avg_tool_calls";
+    const direction = effortState.direction === "asc" ? 1 : -1;
+    const sorted = rows.slice().sort((a, b) => {
+      const av = a[field], bv = b[field];
+      if (av === null || av === undefined) return 1;
+      if (bv === null || bv === undefined) return -1;
+      return direction * (av - bv);
+    });
+
+    document.querySelectorAll("[data-effort-sort]").forEach((button) => {
+      const active = button.dataset.effortSort === effortState.sort;
+      const th = button.closest("th");
+      th.classList.toggle("is-sorted", active);
+      th.setAttribute(
+        "aria-sort",
+        active ? (effortState.direction === "asc" ? "ascending" : "descending") : "none"
+      );
+    });
+
+    const toolName = (raw) =>
+      ({
+        serper_google_webpage_search: "google_search",
+        se_google_webpage_search: "google_search",
+        fetch_webpage_content: "web_browse",
+        jina_fetch_webpage_content: "web_browse",
+        semantic_scholar_snippet_search: "paper_search",
+        semantic_scholarly_snippet_search: "paper_search",
+        semantic_scholr_snippet_search: "paper_search",
+        senantic_scholar_snippet_search: "paper_search",
+      })[raw] || raw.replace(/_/g, " ");
 
     $("effort-body").innerHTML = sorted
-      .map((row) => {
-        const top = (row.tool_usage || [])[0];
+      .map((row, index) => {
+        const usage = new Map();
+        (row.tool_usage || []).forEach(({ tool, count }) => {
+          const label = toolName(tool);
+          usage.set(label, (usage.get(label) || 0) + count);
+        });
+        const top = Array.from(usage.entries()).sort((a, b) => b[1] - a[1])[0];
+        const totalCalls = Array.from(usage.values()).reduce((sum, count) => sum + count, 0);
+        const distribution = ["google_search", "web_browse", "paper_search"]
+          .map((label) => {
+            const count = usage.get(label) || 0;
+            const pct = totalCalls ? ((count / totalCalls) * 100).toFixed(1) : "0.0";
+            return (
+              `<span class="tool-share${top && label === top[0] ? " tool-share--top" : ""}"><code>${label}</code>` +
+              `<span>${pct}%</span></span>`
+            );
+          })
+          .join("");
         return (
           `<tr>` +
+          `<td class="col-rank">${index + 1}</td>` +
           `<td class="col-model"><span class="model-cell">` +
           `<span class="model-dot" style="background:${row.color};color:${row.color}"></span>` +
           `${modelNameHtml(row.display_name)}</span></td>` +
           `<td class="col-num">${row.avg_tool_calls === null ? "—" : row.avg_tool_calls.toFixed(1)}</td>` +
           `<td class="col-num">${row.avg_iterations === null ? "—" : row.avg_iterations.toFixed(1)}</td>` +
-          `<td class="col-num">${fmtCompact(row.avg_input_tokens)}</td>` +
-          `<td class="col-num">${fmtCompact(row.avg_output_tokens)}</td>` +
-          `<td class="col-num col-hide-sm">${
-            top ? escape(top.tool.replace(/_/g, " ")) : "—"
-          }</td>` +
+          `<td class="col-tools"><span class="tool-distribution">${distribution}</span></td>` +
           `</tr>`
         );
       })
@@ -662,6 +690,59 @@
   /* ------------------------------------------------------------------ *
    * static content from site.config.json
    * ------------------------------------------------------------------ */
+
+  let questionExamples = [];
+  let questionExampleStart = 0;
+
+  function questionExamplePageSize() {
+    return window.innerWidth <= 740 ? 1 : 2;
+  }
+
+  function renderQuestionExamples() {
+    const section = document.getElementById("question-examples");
+    const grid = document.getElementById("question-examples-grid");
+    if (!section || !grid) return;
+
+    if (!questionExamples.length) {
+      section.hidden = true;
+      return;
+    }
+
+    section.hidden = false;
+    const pageSize = questionExamplePageSize();
+    const maxStart = Math.max(0, questionExamples.length - pageSize);
+    questionExampleStart = Math.min(questionExampleStart, maxStart);
+    const visible = questionExamples.slice(
+      questionExampleStart,
+      questionExampleStart + pageSize
+    );
+
+    grid.innerHTML = visible
+      .map(
+        (item) =>
+          `<article class="question-example-card">` +
+          `<div class="question-example-field"><span aria-hidden="true">✚</span>${escape(
+            item.field
+          )}</div>` +
+          `<div class="question-example-body">` +
+          `<h4>Question</h4><p>${escape(item.question)}</p>` +
+          `</div>` +
+          `<footer><span>Cochrane Database of Systematic Reviews</span>` +
+          `<span class="question-example-source">` +
+          `<a href="https://doi.org/${escape(item.doi)}" target="_blank" rel="noopener">${escape(
+            item.doi
+          )}</a></span></footer>` +
+          `</article>`
+      )
+      .join("");
+
+    const first = questionExampleStart + 1;
+    const last = questionExampleStart + visible.length;
+    $("question-examples-counter").textContent =
+      `Examples ${first}\u2013${last} of ${questionExamples.length}`;
+    $("question-examples-prev").disabled = questionExampleStart === 0;
+    $("question-examples-next").disabled = questionExampleStart === maxStart;
+  }
 
   function renderContent(data) {
     const site = data.site || {};
@@ -679,12 +760,13 @@
       .join("");
 
     $("faq").innerHTML = (site.faq || [])
-      .map(
-        (f) =>
-          `<details><summary>${escape(
-            f.question
-          )}</summary><div class="faq-body">${prose(f.answer)}</div></details>`
-      )
+      .map((f) => {
+        const id = f.id ? ` id="faq-${escape(f.id)}"` : "";
+        return (
+          `<details${id}><summary>${escape(f.question)}</summary>` +
+          `<div class="faq-body">${prose(f.answer)}</div></details>`
+        );
+      })
       .join("");
 
     if (site.headline && site.headline.text) {
@@ -711,6 +793,10 @@
       .map((p) => `<p>${inlineMd(p)}</p>`)
       .join("");
 
+    questionExamples = site.question_examples || [];
+    questionExampleStart = 0;
+    renderQuestionExamples();
+
     $("citation").textContent = site.citation || "";
 
     $("contact").textContent =
@@ -726,6 +812,19 @@
       .map((p) => `<p class="team-toggle-legend">${escape(p)}</p>`)
       .join("");
 
+    // FAQ deep links open their accordion before scrolling to it. This also
+    // handles direct visits to a saved FAQ URL after dynamic content renders.
+    const openFaqTarget = (hash, scroll) => {
+      if (!hash || !hash.startsWith("#faq-")) return;
+      const target = document.getElementById(hash.slice(1));
+      if (!target || target.tagName !== "DETAILS") return;
+      target.open = true;
+      if (scroll) requestAnimationFrame(() => target.scrollIntoView({ block: "start" }));
+    };
+    document.querySelectorAll('a[href^="#faq-"]').forEach((link) => {
+      link.addEventListener("click", () => openFaqTarget(link.getAttribute("href"), false));
+    });
+    openFaqTarget(window.location.hash, true);
   }
 
   /* ------------------------------------------------------------------ *
@@ -813,6 +912,19 @@
       });
     }
 
+    document.querySelectorAll("[data-effort-sort]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const nextSort = button.dataset.effortSort;
+        if (effortState.sort === nextSort) {
+          effortState.direction = effortState.direction === "desc" ? "asc" : "desc";
+        } else {
+          effortState.sort = nextSort;
+          effortState.direction = "desc";
+        }
+        renderEffort(data);
+      });
+    });
+
     document.querySelectorAll("#trend-metric-toggle button").forEach((button) => {
       button.addEventListener("click", () => {
         trendState.metric = button.dataset.metric;
@@ -872,6 +984,34 @@
       });
     }
 
+    const examplesPrev = document.getElementById("question-examples-prev");
+    const examplesNext = document.getElementById("question-examples-next");
+    if (examplesPrev && examplesNext) {
+      examplesPrev.addEventListener("click", () => {
+        questionExampleStart = Math.max(
+          0,
+          questionExampleStart - questionExamplePageSize()
+        );
+        renderQuestionExamples();
+      });
+      examplesNext.addEventListener("click", () => {
+        const pageSize = questionExamplePageSize();
+        questionExampleStart = Math.min(
+          Math.max(0, questionExamples.length - pageSize),
+          questionExampleStart + pageSize
+        );
+        renderQuestionExamples();
+      });
+
+      let previousPageSize = questionExamplePageSize();
+      window.addEventListener("resize", () => {
+        const nextPageSize = questionExamplePageSize();
+        if (nextPageSize === previousPageSize) return;
+        previousPageSize = nextPageSize;
+        renderQuestionExamples();
+      });
+    }
+
     const copyBtn = document.getElementById("copy-citation");
     if (copyBtn) {
       copyBtn.addEventListener("click", () => {
@@ -906,6 +1046,7 @@
       renderBoard();
       renderTrend(data);
       renderDataset(data);
+      renderFactDiagnostics(data);
       renderEffort(data);
       renderContent(data);
       bindControls(data);

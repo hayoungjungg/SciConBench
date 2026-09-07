@@ -36,15 +36,19 @@
   /* Tooltip shared by every chart on the page. */
   let tip;
   let activeTipNode = null;
+  let tipOpenedAt = 0;
+  let tipFromTouch = false;
 
   function hideTip() {
     if (tip) tip.style.opacity = "0";
     activeTipNode = null;
+    tipFromTouch = false;
   }
 
   function tooltip() {
     if (!tip) {
       tip = document.createElement("div");
+      tip.className = "chart-tip";
       Object.assign(tip.style, {
         position: "fixed",
         zIndex: "100",
@@ -65,33 +69,112 @@
     return tip;
   }
 
+  function eventOnNode(event, node) {
+    const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+    if (path.includes(node)) return true;
+    let target = event.target;
+    if (target && target.nodeType === 3) target = target.parentNode;
+    return !!(target && (target === node || node.contains(target)));
+  }
+
+  function placeTip(clientX, clientY) {
+    const t = tooltip();
+    const box = t.getBoundingClientRect();
+    const margin = 8;
+    let x = clientX + 14;
+    if (x + box.width > window.innerWidth - margin) x = clientX - box.width - 14;
+    t.style.left = Math.max(margin, Math.min(x, window.innerWidth - box.width - margin)) + "px";
+    t.style.top = Math.max(margin, clientY - box.height - 12) + "px";
+  }
+
+  function showTip(node, html, clientX, clientY, fromTouch) {
+    const t = tooltip();
+    activeTipNode = node;
+    tipFromTouch = !!fromTouch;
+    tipOpenedAt = Date.now();
+    t.innerHTML = html;
+    t.style.whiteSpace = window.innerWidth < 480 ? "normal" : "nowrap";
+    t.style.maxWidth = window.innerWidth < 480 ? "min(260px, calc(100vw - 16px))" : "none";
+    t.style.opacity = "1";
+    placeTip(clientX, clientY);
+    placeTip(clientX, clientY);
+  }
+
   function bindTip(node, html) {
+    node.style.cursor = "pointer";
     node.addEventListener("mouseenter", (event) => {
-      const t = tooltip();
-      activeTipNode = node;
-      t.innerHTML = html;
-      t.style.opacity = "1";
-      move(event);
+      if (tipFromTouch) return;
+      showTip(node, html, event.clientX, event.clientY, false);
     });
-    node.addEventListener("mousemove", move);
-    node.addEventListener("mouseleave", hideTip);
-    function move(event) {
-      const t = tooltip();
-      const box = t.getBoundingClientRect();
-      let x = event.clientX + 14;
-      if (x + box.width > window.innerWidth - 12) x = event.clientX - box.width - 14;
-      t.style.left = x + "px";
-      t.style.top = Math.max(12, event.clientY - box.height - 12) + "px";
+    node.addEventListener("mousemove", (event) => {
+      if (tipFromTouch || activeTipNode !== node) return;
+      placeTip(event.clientX, event.clientY);
+    });
+    node.addEventListener("mouseleave", () => {
+      if (tipFromTouch) return;
+      if (activeTipNode === node) hideTip();
+    });
+
+    // A touch screen has no hover. A tap opens the tooltip and it stays
+    // until the next tap lands elsewhere. Ignore the compatibility mouse
+    // events iOS fires after a tap — those used to hide the tip immediately.
+    let touchX = 0;
+    let touchY = 0;
+    let armed = false;
+    function armTouch(clientX, clientY) {
+      armed = true;
+      touchX = clientX;
+      touchY = clientY;
     }
+    function finishTouch(clientX, clientY) {
+      if (!armed) return false;
+      armed = false;
+      if (Math.abs(clientX - touchX) > 12 || Math.abs(clientY - touchY) > 12) return false;
+      showTip(node, html, clientX, clientY, true);
+      return true;
+    }
+    node.addEventListener("pointerdown", (event) => {
+      if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+      armTouch(event.clientX, event.clientY);
+    }, { passive: true });
+    node.addEventListener("pointerup", (event) => {
+      if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+      if (finishTouch(event.clientX, event.clientY)) event.preventDefault();
+    });
+    // iOS Safari is inconsistent about pointer events on SVG <g> nodes;
+    // touchend still fires.
+    node.addEventListener("touchstart", (event) => {
+      const touch = event.changedTouches[0];
+      if (touch) armTouch(touch.clientX, touch.clientY);
+    }, { passive: true });
+    node.addEventListener("touchend", (event) => {
+      const touch = event.changedTouches[0];
+      if (touch) finishTouch(touch.clientX, touch.clientY);
+    }, { passive: true });
+    node.addEventListener("click", (event) => {
+      showTip(node, html, event.clientX, event.clientY, tipFromTouch || event.pointerType === "touch");
+    });
   }
 
   // A chart redraw can remove the hovered SVG node before `mouseleave` fires.
-  // Hide the shared tooltip whenever the pointer is no longer over its owner.
   document.addEventListener("mousemove", (event) => {
-    if (activeTipNode && !activeTipNode.contains(event.target)) hideTip();
+    if (!activeTipNode || tipFromTouch) return;
+    if (Date.now() - tipOpenedAt < 400) return;
+    if (!eventOnNode(event, activeTipNode)) hideTip();
   }, true);
+
+  // The opening tap itself must not count as a dismiss. iOS also synthesizes
+  // a delayed click ~300ms later on a different target; ignore that window.
+  document.addEventListener("pointerdown", (event) => {
+    if (!activeTipNode) return;
+    if (Date.now() - tipOpenedAt < 500) return;
+    if (!eventOnNode(event, activeTipNode)) hideTip();
+  }, { capture: true, passive: true });
   window.addEventListener("blur", hideTip);
-  window.addEventListener("scroll", hideTip, true);
+  window.addEventListener("scroll", () => {
+    if (Date.now() - tipOpenedAt < 500) return;
+    hideTip();
+  }, true);
 
   /* ---------------------------------------------------------------- *
    * Provider "logomarks" — small abstract glyphs drawn in a 16x16 box
@@ -609,6 +692,8 @@
         });
         const visual = el("g", { class: "series-badge-visual" });
         badge.appendChild(visual);
+        // Invisible extra radius so a finger can hit the badge on a phone.
+        visual.appendChild(el("circle", { class: "series-badge-hit", r: R + 10, fill: "transparent" }));
         visual.appendChild(el("circle", { class: "series-badge-halo", r: R + 2, fill: "#fff" }));
         if (imgSrc) {
           // White backing keeps each brand mark legible regardless of its own
@@ -698,7 +783,7 @@
     const totals = rows.map((r) => r.segments.reduce((a, s) => a + s.value, 0));
     const max = Math.max(...totals) || 1;
 
-    const pad = { top: 18, right: 12, bottom: 34, left: 42 };
+    const pad = { top: 18, right: 12, bottom: 42, left: 42 };
     const W = 620;
     const H = opts.height;
     const innerW = W - pad.left - pad.right;
@@ -715,7 +800,16 @@
         el("line", { class: "grid-line", x1: pad.left, x2: W - pad.right, y1: y(t), y2: y(t) })
       );
       svg.appendChild(
-        el("text", { x: pad.left - 9, y: y(t) + 3.5, "text-anchor": "end" }, String(t))
+        el(
+          "text",
+          {
+            class: "stacked-y-label",
+            x: pad.left - 9,
+            y: y(t) + 4.5,
+            "text-anchor": "end",
+          },
+          String(t)
+        )
       );
     });
 
@@ -742,13 +836,19 @@
         });
         bindTip(
           rect,
-          `<b>${row.label}</b><br>${seg.name}: ${seg.value}${opts.unit}<br>total: ${totals[i]}${opts.unit}`
+          `<b>${row.label}</b><br>${seg.name}: ${seg.value}${opts.unit}` +
+            (seg.detail ? `<br>${seg.detail}${opts.unit}` : "") +
+            `<br>Total: ${totals[i]}${opts.unit}`
         );
         svg.appendChild(rect);
         cursor += seg.value;
       });
       svg.appendChild(
-        el("text", { x: cx, y: H - 12, "text-anchor": "middle" }, row.label)
+        el(
+          "text",
+          { class: "stacked-x-label", x: cx, y: H - 12, "text-anchor": "middle" },
+          row.label
+        )
       );
     });
 
@@ -769,6 +869,8 @@
     .grid-line { stroke: #eaedf1; stroke-width: 1; }
     .axis-gap-label { fill: #7c8592; }
     .axis-x-label { font-size: 12.5px; font-weight: 500; fill: #4d5560; }
+    .stacked-x-label { font-size: 16px; font-weight: 600; fill: #4d5560; }
+    .stacked-y-label { font-size: 14px; font-weight: 500; fill: #4d5560; }
     .series-badge-halo { opacity: 0.9; }
     .series-badge-dot { stroke: #fff; stroke-width: 1.5; }
     .series-badge--control image { filter: grayscale(1); }
