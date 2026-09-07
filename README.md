@@ -6,7 +6,7 @@ This repository contains the code to reproduce our results and run benchmark eva
 
 - 📄 **Paper**: [Can AI Agents Synthesize Scientific Conclusions?](https://arxiv.org/abs/2606.11337)
 - 🤗 **Dataset**: [hayoungjung/SciConBench on HuggingFace](https://huggingface.co/datasets/hayoungjung/SciConBench)
-- 📊 **Benchmark Dashboard**: [sciconbench.cs.princeton.edu](https://sciconbench.cs.princeton.edu/)
+- 📊 **SciConBench Dashboard**: [sciconbench.cs.princeton.edu](https://sciconbench.cs.princeton.edu/)
 
 ---
 
