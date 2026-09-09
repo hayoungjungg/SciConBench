@@ -1913,7 +1913,6 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 :root[data-theme="dark"] .preprint-notice strong { color: #bdc7ff; }
 
 :root[data-theme="dark"] .institution-marks {
-  padding: 4px 8px;
   border-radius: 6px;
   background: #fff;
 }
