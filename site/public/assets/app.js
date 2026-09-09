@@ -146,7 +146,7 @@
     arxiv: '<img src="assets/icon-arxiv.png" alt="" />',
     huggingface: '<img src="assets/icon-huggingface.png" alt="" />',
     github: '<img src="assets/icon-github.png" alt="" />',
-    blog: '<img src="assets/icon-blog.png" alt="" />',
+    blog: '<img src="assets/icon-blog.png?v=202609090002" alt="" />',
   };
 
   // Real provider marks, vendored with the site so model tables never need
@@ -202,7 +202,9 @@
 
     $("hero-actions").innerHTML = actions
       .map((a) => {
-        const icon = a.icon ? `<span class="btn-icon">${ICONS[a.icon]}</span>` : "";
+        const icon = a.icon
+          ? `<span class="btn-icon btn-icon--${a.icon}">${ICONS[a.icon]}</span>`
+          : "";
         const sub = a.sub ? `<span class="btn-sub">${escape(a.sub)}</span>` : "";
         return `<a class="btn${a.primary ? " btn--primary" : ""}" href="${escape(a.href)}"${
           a.href.startsWith("#") ? "" : ' target="_blank" rel="noopener"'
@@ -396,15 +398,66 @@
       .sort((a, b) => a.label.localeCompare(b.label));
   }
 
+  function availableTrendFamilies(data) {
+    const available = new Set();
+    (data.series || []).forEach((series) => {
+      const hasData = trendPointsForPanel(series, trendState.panel, trendState.metric)
+        .some((point) => point.value !== null && point.value !== undefined);
+      if (hasData) available.add(series.family);
+    });
+    if (trendState.panel === "all") {
+      (data.paper_baselines || []).forEach((baseline) => {
+        if (baseline[trendState.metric] !== null && baseline[trendState.metric] !== undefined) {
+          available.add(baseline.family);
+        }
+      });
+    }
+    return available;
+  }
+
   function updateTrendFamilySummary(data) {
     const summary = document.getElementById("trend-family-summary");
     if (!summary) return;
-    const families = trendFamilyOptions(data);
+    const available = availableTrendFamilies(data);
+    const families = trendFamilyOptions(data).filter((family) => available.has(family.key));
     const selected = families.filter((family) => trendState.families.has(family.key));
-    if (selected.length === families.length) summary.textContent = "All models";
+    if (!families.length) summary.textContent = "No models available";
+    else if (selected.length === families.length) summary.textContent = "All models";
     else if (!selected.length) summary.textContent = "No models";
     else if (selected.length === 1) summary.textContent = selected[0].label;
     else summary.textContent = `${selected.length} families`;
+  }
+
+  function updateTrendFamilyAvailability(data) {
+    const menu = document.getElementById("trend-family-options");
+    if (!menu) return;
+    const available = availableTrendFamilies(data);
+    const familyInputs = Array.from(
+      menu.querySelectorAll('input[type="checkbox"]:not([value="all"])')
+    );
+    familyInputs.forEach((input) => {
+      const isAvailable = available.has(input.value);
+      const option = input.closest(".family-picker-option");
+      input.disabled = !isAvailable;
+      // Keep the desired selection in trendState while showing unavailable
+      // options unchecked. It is restored if a later panel has data.
+      input.checked = isAvailable && trendState.families.has(input.value);
+      if (option) {
+        option.classList.toggle("is-unavailable", !isAvailable);
+        option.title = isAvailable ? "" : "No data for the selected metric and panel";
+        const status = option.querySelector(".family-picker-status");
+        if (status) status.hidden = isAvailable;
+      }
+    });
+    const enabled = familyInputs.filter((input) => !input.disabled);
+    const selectedCount = enabled.filter((input) => input.checked).length;
+    const all = menu.querySelector('input[value="all"]');
+    if (all) {
+      all.disabled = !enabled.length;
+      all.checked = !!enabled.length && selectedCount === enabled.length;
+      all.indeterminate = selectedCount > 0 && selectedCount < enabled.length;
+    }
+    updateTrendFamilySummary(data);
   }
 
   function populateTrendControls(data) {
@@ -419,10 +472,11 @@
           .map(
             (family) =>
               `<label class="family-picker-option"><input type="checkbox" ` +
-              `value="${escape(family.key)}" checked> ${escape(family.label)}</label>`
+              `value="${escape(family.key)}" checked>` +
+              `<span>${escape(family.label)}</span>` +
+              `<span class="family-picker-status" hidden>No data</span></label>`
           )
           .join("");
-      updateTrendFamilySummary(data);
     }
     const panelToggle = document.getElementById("trend-panel-toggle");
     if (panelToggle) {
@@ -439,6 +493,7 @@
         )
         .join("");
     }
+    updateTrendFamilyAvailability(data);
   }
 
   function trendPointsForPanel(series, panel, metric) {
@@ -810,7 +865,7 @@
     $("news-list").innerHTML = (site.news || [])
       .map(
         (n) =>
-          `<li><img class="news-icon" src="assets/logo.png" alt="" aria-hidden="true" /><time>[${escape(
+          `<li><img class="news-icon" src="assets/logo.png?v=202609082358" alt="" aria-hidden="true" /><time>[${escape(
             fmtDate(n.date)
           )}]:</time> <span>${escape(n.text).replace(
             /\*([^*]+)\*/g,
@@ -1029,6 +1084,7 @@
     document.querySelectorAll("#trend-metric-toggle button").forEach((button) => {
       button.addEventListener("click", () => {
         trendState.metric = button.dataset.metric;
+        updateTrendFamilyAvailability(data);
         renderTrend(data);
       });
     });
@@ -1042,16 +1098,20 @@
         const familyInputs = Array.from(
           trendFamilyMenu.querySelectorAll('input[type="checkbox"]:not([value="all"])')
         );
+        const enabledInputs = familyInputs.filter((input) => !input.disabled);
         if (changed.value === "all") {
-          familyInputs.forEach((input) => {
+          if (!changed.checked) trendState.families.clear();
+          enabledInputs.forEach((input) => {
             input.checked = changed.checked;
+            if (changed.checked) trendState.families.add(input.value);
           });
         } else {
-          all.checked = familyInputs.every((input) => input.checked);
+          if (changed.checked) trendState.families.add(changed.value);
+          else trendState.families.delete(changed.value);
         }
-        trendState.families = new Set(
-          familyInputs.filter((input) => input.checked).map((input) => input.value)
-        );
+        const selectedCount = enabledInputs.filter((input) => input.checked).length;
+        all.checked = !!enabledInputs.length && selectedCount === enabledInputs.length;
+        all.indeterminate = selectedCount > 0 && selectedCount < enabledInputs.length;
         updateTrendFamilySummary(data);
         renderTrend(data);
       });
@@ -1063,6 +1123,7 @@
         const button = event.target.closest("button[data-panel]");
         if (!button) return;
         trendState.panel = button.dataset.panel;
+        updateTrendFamilyAvailability(data);
         renderTrend(data);
       });
     }

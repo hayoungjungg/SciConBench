@@ -271,6 +271,12 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   display: block;
   object-fit: contain;
 }
+.btn-icon--github,
+.btn-icon--blog {
+  padding: 1px;
+  border-radius: 50%;
+  background: #fff;
+}
 
 /* ───────────────────────────── sections ─────────────────────────── */
 
@@ -792,6 +798,18 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   white-space: nowrap;
 }
 .family-picker-option:hover { background: var(--bg-hover); color: var(--text); }
+.family-picker-option.is-unavailable {
+  color: var(--text-faint);
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+.family-picker-option.is-unavailable:hover { background: transparent; color: var(--text-faint); }
+.family-picker-option.is-unavailable input { cursor: not-allowed; }
+.family-picker-status {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 500;
+}
 .family-picker-option--all {
   margin-bottom: 4px;
   border-bottom: 1px solid var(--line-soft);
@@ -1428,7 +1446,7 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   top: 0.35em;
   width: 14px;
   height: 14px;
-  background: url("logo.png") center / contain no-repeat;
+  background: url("logo.png?v=202609082358") center / contain no-repeat;
 }
 
 .institution-marks {
@@ -1792,6 +1810,16 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   .model-cell { gap: 8px; }
   .model-provider { font-size: 11px; }
 
+  /* Tool usage has five information-dense columns. Let it scroll as a
+     readable table instead of collapsing model names one letter per line. */
+  #effort .table-wrap { -webkit-overflow-scrolling: touch; }
+  #effort-table { min-width: 680px; }
+  #effort-table .col-model { min-width: 190px; }
+  #effort-table .model-name {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
   .factlist > div { gap: 12px; padding: 10px 12px; font-size: 13px; }
   .legend { gap: 6px 14px; }
 
@@ -1885,14 +1913,16 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 :root[data-theme="dark"] .preprint-notice strong { color: #bdc7ff; }
 
 :root[data-theme="dark"] .institution-marks {
-  background: transparent;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #fff;
 }
 :root[data-theme="dark"] .institution-marks img {
   filter: none;
-  border-radius: 4px;
-  background: #f7f7f7;
-  box-shadow: 0 0 0 4px #f7f7f7;
+  background: transparent;
+  box-shadow: none;
 }
+:root[data-theme="dark"] .institution-sep { color: #6b7280; }
 
 :root[data-theme="dark"] .chart .series-dot,
 :root[data-theme="dark"] .chart .series-badge-dot {
