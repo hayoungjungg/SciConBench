@@ -13,7 +13,13 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from .filters.base import BaseResultFilter
-from .llm_providers.base import LLMProvider
+from .llm_providers.base import ContextLengthExceededError, LLMProvider
+from .utils.compaction import (
+    DEFAULT_FREE_TOKENS_THRESHOLD,
+    DEFAULT_MAX_COMPACTIONS,
+    ContextCompactor,
+    resolve_context_limit,
+)
 from .utils import (
     MessageHandler,
     ToolExecutor,
@@ -62,6 +68,10 @@ class MCPClient:
         allowed_tools: Optional[Set[str]] = None,
         enable_tool_calling: bool = True,
         enable_filtering: bool = True,
+        enable_compaction: bool = True,
+        compaction_free_tokens_threshold: int = DEFAULT_FREE_TOKENS_THRESHOLD,
+        context_limit: Optional[int] = None,
+        max_compactions: int = DEFAULT_MAX_COMPACTIONS,
     ):
         """
         Initialize the MCP client.
@@ -72,6 +82,13 @@ class MCPClient:
             allowed_tools: Set of tool names to allow (default: DEFAULT_ALLOWED_TOOLS)
             enable_tool_calling: If False, disables MCP tool calling and uses LLM directly (default: True)
             enable_filtering: If False, disables result filtering even if filter is provided (default: True)
+            enable_compaction: If True, compacts the tool-calling history (summary + source ledger
+                handoff, see utils/compaction.py) when it nears the model's context window (default: True)
+            compaction_free_tokens_threshold: Compact proactively when estimated free context tokens
+                drop below this (default: DEFAULT_FREE_TOKENS_THRESHOLD)
+            context_limit: Model context window in tokens (default: discovered from OpenRouter's
+                model catalog, else DEFAULT_CONTEXT_LIMIT)
+            max_compactions: Maximum compactions per query (default: DEFAULT_MAX_COMPACTIONS)
         """
         self.llm_provider = llm_provider
         self.session: Optional[ClientSession] = None
@@ -80,6 +97,11 @@ class MCPClient:
         self.allowed_tools = allowed_tools or self.DEFAULT_ALLOWED_TOOLS
         self.enable_tool_calling = enable_tool_calling
         self.enable_filtering = enable_filtering
+        self.enable_compaction = enable_compaction
+        self.compaction_free_tokens_threshold = compaction_free_tokens_threshold
+        self.max_compactions = max_compactions
+        self._context_limit_override = context_limit
+        self._context_limit: Optional[int] = None
         
         # Initialize tool executor (will be set up after connection)
         self.tool_executor: Optional[ToolExecutor] = None
@@ -564,6 +586,24 @@ class MCPClient:
             # For non-Gemini providers, initialize with initial message tokens
             input_tokens = initial_message_tokens
         
+        compactor: Optional[ContextCompactor] = None
+        if self.enable_compaction:
+            if self._context_limit is None:
+                self._context_limit = resolve_context_limit(self.llm_provider, self._context_limit_override)
+            compactor = ContextCompactor(
+                llm_provider=self.llm_provider,
+                original_query=query,
+                context_limit=self._context_limit,
+                free_tokens_threshold=self.compaction_free_tokens_threshold,
+                max_compactions=self.max_compactions,
+                static_prompt_tokens=tool_def_tokens,
+            )
+            logger.info(
+                "Context compaction enabled: context_limit=%d, free_tokens_threshold=%d, max_compactions=%d",
+                self._context_limit, self.compaction_free_tokens_threshold, self.max_compactions,
+            )
+        reported_prompt_tokens = 0  # Provider-reported prompt tokens of the latest call (Gemini only)
+        
         # Initalizing variables to query with tool calling
         final_text = []
         iteration = 0
@@ -572,6 +612,16 @@ class MCPClient:
         while True:
             iteration += 1
             logger.info("Starting iteration %d", iteration)
+            
+            call_tools = available_tools
+            if compactor and compactor.should_compact(messages, reported_prompt_tokens):
+                messages = await compactor.compact(messages, reason="proactive")
+                reported_prompt_tokens = 0
+            elif compactor and compactor.should_force_final_answer(messages, reported_prompt_tokens):
+                logger.warning("Compaction limit reached; compacting once more and requesting the final answer without tools")
+                messages = await compactor.compact(messages, reason="max_compactions_reached", final=True)
+                reported_prompt_tokens = 0
+                call_tools = None
             
             # Count tool definitions as input tokens
             # NOTE: For non-Gemini providers, tools are sent with EVERY API call
@@ -586,7 +636,24 @@ class MCPClient:
             logger.info("Calling LLM with %d messages (approx %d input tokens, ~%d chars)", len(messages), input_tokens, total_chars)
             
             # Call LLM (tools are passed and sent with this API call)
-            response, text_content, tool_calls, reasoning_summary = await self.llm_provider.call_llm(messages, tools=available_tools)
+            try:
+                response, text_content, tool_calls, reasoning_summary = await self.llm_provider.call_llm(messages, tools=call_tools)
+            except ContextLengthExceededError:
+                if not compactor or call_tools is None:
+                    raise
+                final = not compactor.can_compact()
+                logger.warning(
+                    "Context window exceeded at iteration %d; compacting history and retrying%s",
+                    iteration, " (final answer, no tools)" if final else "",
+                )
+                messages = await compactor.compact(
+                    messages,
+                    reason="max_compactions_reached" if final else "context_length_exceeded",
+                    final=final,
+                )
+                reported_prompt_tokens = 0
+                call_tools = None if final else available_tools
+                response, text_content, tool_calls, reasoning_summary = await self.llm_provider.call_llm(messages, tools=call_tools)
             
             logger.info("LLM call completed - text_content: %s, tool_calls: %d", 
                        "present" if text_content else "None", 
@@ -606,6 +673,7 @@ class MCPClient:
                 iteration_thoughts_tokens = api_usage.get('thoughts_tokens', 0)
                 iteration_cached_tokens = api_usage.get('cached_content_tokens', 0)
                 iteration_total_tokens = api_usage.get('total_tokens', 0)
+                reported_prompt_tokens = iteration_input_tokens
                 
                 # Store final iteration's values for result.json
                 final_gemini_prompt_tokens = iteration_input_tokens
@@ -878,6 +946,8 @@ class MCPClient:
                 # usage.prompt_tokens_details.cached_tokens)
                 if total_cached_content_tokens > 0:
                     token_usage["cached_content_tokens"] = total_cached_content_tokens
+            if compactor:
+                token_usage.update(compactor.usage_summary())
             # Extract search_results from last response if available (for Perplexity)
             # Note: In tool-calling mode, we use the last response from the LLM
             search_results = self._extract_search_results_from_response(response)

@@ -83,6 +83,12 @@ async def main() -> None:
                         dest="enable_filtering", help="Disable filtering")
     parser.add_argument("--no-save-results", action="store_true",
                         help="Disable saving results to disk")
+    parser.add_argument("--no-compaction", action="store_false", dest="enable_compaction",
+                        help="Disable context compaction of long tool-calling histories")
+    parser.add_argument("--compaction-free-tokens", type=int,
+                        help="Compact once estimated free context tokens drop below this (default: 32000)")
+    parser.add_argument("--context-limit", type=int,
+                        help="Model context window in tokens (default: discovered via OpenRouter, else 128000)")
     parser.add_argument("--interactive", action="store_true",
                         help="Run in interactive REPL mode")
     parser.add_argument("--temperature", type=float, help="Sampling temperature")
@@ -130,6 +136,9 @@ async def main() -> None:
         api_version=args.api_version,
         enable_tools=args.enable_tool_calling,
         enable_filtering=args.enable_filtering,
+        enable_compaction=args.enable_compaction,
+        compaction_free_tokens_threshold=args.compaction_free_tokens,
+        context_limit=args.context_limit,
         cochrane_titles=Path(args.cochrane_titles) if args.cochrane_titles else None,
         temperature=args.temperature,
         max_tokens=args.max_tokens,

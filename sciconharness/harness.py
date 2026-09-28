@@ -114,6 +114,18 @@ class SciConHarness:
     enable_filtering : bool
         Filter results that post-date the review's publication date or that
         come from the review itself.  Default ``True``.
+    enable_compaction : bool
+        Compact the tool-calling history when it nears the model's context
+        window: the system prompt is kept, and the conversation is replaced by
+        an evidence-focused summary / Q&A handoff plus a ledger of every
+        retrieved source (see ``mcp_client/utils/compaction.py``). Records are
+        appended to ``compactions.jsonl`` in the query's log dir.  Default ``True``.
+    compaction_free_tokens_threshold : int, optional
+        Compact proactively once estimated free context tokens drop below this.
+        ``None`` uses the default (32000).
+    context_limit : int, optional
+        Model context window in tokens.  ``None`` discovers it from
+        OpenRouter's model catalog (falls back to 128000).
 
     cochrane_titles : list[str] or Path, optional
         Cochrane review titles used for title-based source filtering.
@@ -167,6 +179,9 @@ class SciConHarness:
         # Feature flags
         enable_tools: bool = True,
         enable_filtering: bool = True,
+        enable_compaction: bool = True,
+        compaction_free_tokens_threshold: Optional[int] = None,
+        context_limit: Optional[int] = None,
         # Filter data — accept list directly or a path to a JSON file
         cochrane_titles: Optional[Union[List[str], Path]] = None,
         doi_to_title: Optional[Dict[str, str]] = None,
@@ -240,10 +255,16 @@ class SciConHarness:
 
         # ── build MCP client (not needed for deep-research) ──────────────────
         if not self._is_deep_research:
+            compaction_kwargs: Dict[str, Any] = {}
+            if compaction_free_tokens_threshold is not None:
+                compaction_kwargs["compaction_free_tokens_threshold"] = compaction_free_tokens_threshold
             self._mcp_client = MCPClient(
                 self._llm_provider,
                 enable_tool_calling=self.enable_tools,
                 enable_filtering=self.enable_filtering,
+                enable_compaction=enable_compaction,
+                context_limit=context_limit,
+                **compaction_kwargs,
             )
         else:
             self._mcp_client = None

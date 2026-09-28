@@ -727,7 +727,10 @@ class ClaudeProvider(LLMProvider):
             else:
                 # Handle context length errors
                 error_msg = str(e)
-                if 'context_length_exceeded' in error_msg.lower() or 'maximum context length' in error_msg.lower():
+                if any(
+                    marker in error_msg.lower()
+                    for marker in ("context_length_exceeded", "maximum context length", "prompt is too long")
+                ):
                     logger.warning(
                         "Context length exceeded for model %s. Messages: %d, Tools: %d",
                         self.model, len(messages), len(tools) if tools else 0

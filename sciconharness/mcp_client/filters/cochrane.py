@@ -114,6 +114,40 @@ def normalize_title_for_matching(title: str) -> str:
     return normalized
 
 
+def _strip_all_punctuation_for_matching(text: str) -> str:
+    """Final-stage normalization used ONLY for the exact-substring content
+    check in ``_should_filter_jina_content``.
+
+    ``normalize_title_for_matching`` (used to build ``source_title``'s
+    normalized form) deliberately preserves most punctuation (e.g. colons,
+    commas) since it's also used for fuzzy title-list matching where that
+    punctuation carries meaning. But raw fetched page/API content frequently
+    drops or alters punctuation around a title (e.g. a JSON API response
+    rendering "Title: <title>: a network meta-analysis" — no colon between
+    "keratitis" and "a" once flattened to plain text), which previously made
+    the "does the source title appear verbatim in the content" substring
+    check fail even when the content is unambiguously about that exact
+    Cochrane review — letting it slip past the filter.
+
+    Stripping ALL non-alphanumeric characters from *both* sides right before
+    the substring comparison (done by the caller) makes the check robust to
+    this class of punctuation drift while still requiring every word of the
+    title to appear, in order, in the content.
+    """
+    if not text:
+        return ""
+    # Normalize ALL Unicode hyphen variants to regular hyphens first, so a
+    # hyphenated word isn't glued to its neighbor once hyphens are removed.
+    text = re.sub(r'[\u00AD\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE63\u058A\u05BE-]', '-', text)
+    text = re.sub(r'[\s\-]+', ' ', text)
+    # Remove all remaining punctuation (colons, commas, periods, etc.) —
+    # this is the step that must be applied identically to both the source
+    # title and the fetched content for the comparison to be meaningful.
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.lower().strip()
+
+
 def _parse_date(date_str: Optional[str]) -> Optional[datetime]:
     """Parse date string into datetime object.
     
@@ -565,28 +599,16 @@ class CochraneResultFilter(BaseResultFilter):
             logger.debug("Filter check: Content does not contain 'Cochrane' keyword")
             return False, None
         
-        # Normalize both strings for comparison (handle different dash/hyphen characters and spaces)
-        # For content matching, we normalize the source title using the same function as title matching
-        # This ensures consistent normalization across all filtering operations
-        normalized_source_title = normalize_title_for_matching(self.source_title)
-        
-        # For content, normalize similarly but keep all words (don't remove suffixes/prefixes from content)
-        # Just normalize hyphens and spaces to make it searchable
-        def normalize_content_for_matching(text: str) -> str:
-            """Normalize content text for matching by standardizing hyphens and spaces, keeping all words."""
-            if not text:
-                return ""
-            # Normalize ALL Unicode hyphens to regular hyphens (same as title normalization)
-            text = re.sub(r'[\u00AD\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE63\u058A\u05BE-]', '-', text)
-            # Normalize multiple spaces/hyphens to single space
-            text = re.sub(r'[\s\-]+', ' ', text)
-            # Remove punctuation but keep alphanumeric and spaces (for word matching)
-            text = re.sub(r'[^\w\s]', '', text)
-            # Normalize multiple spaces to single space (final pass)
-            text = re.sub(r'\s+', ' ', text)
-            return text.lower().strip()
-        
-        normalized_content = normalize_content_for_matching(content_lower)
+        # Normalize both strings for comparison. The two sides go through
+        # _strip_all_punctuation_for_matching() IDENTICALLY (hyphens -> space,
+        # then all remaining punctuation removed) so that punctuation drift
+        # between the cached title (e.g. "...keratitis: a network
+        # meta-analysis", with a colon) and flattened page/API text (e.g.
+        # "...keratitis a network meta analysis", colon dropped) can't cause
+        # a false negative. Using two different normalization functions here
+        # previously let exactly this kind of content through the filter.
+        normalized_source_title = _strip_all_punctuation_for_matching(self.source_title)
+        normalized_content = _strip_all_punctuation_for_matching(content_lower)
         
         # Log for debugging
         logger.debug(f"Filter check - Source title (normalized): {normalized_source_title[:150]}")

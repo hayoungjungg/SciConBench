@@ -11,7 +11,7 @@ from google import genai
 from google.genai import types
 
 from ..prompts import RESEARCH_ASSISTANT_PROMPT
-from .base import LLMProvider
+from .base import ContextLengthExceededError, LLMProvider
 from .reasoning_discovery import (
     candidate_openrouter_slugs,
     discover_reasoning_config,
@@ -430,6 +430,10 @@ class GeminiProvider(LLMProvider):
                     logger.error(f"Attempt: {attempt + 1}/{max_retries}")
                     logger.error("=" * 80)
                     print("Error:", e)
+                    if "exceeds the maximum number of tokens" in error_msg.lower():
+                        raise ContextLengthExceededError(
+                            f"Input exceeds context window for model {self.model}. Messages: {len(messages)}"
+                        ) from e
                     raise e
         
         # If we exhausted retries without success, raise the last exception
@@ -575,7 +579,7 @@ class GeminiProvider(LLMProvider):
                     if thought_signature is None and hasattr(part, 'thought_signature') and part.thought_signature:
                         thought_signature = part.thought_signature
         
-        return None, text_content, tool_calls, None
+        return response, text_content, tool_calls, None
     
     def format_tool_response_message(
         self, tool_call_id: str, tool_name: str, tool_result: str, thought_signature: Optional[str] = None

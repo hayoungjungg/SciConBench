@@ -22,6 +22,8 @@ Public API:
 - ``discover_reasoning_config(model_slugs)``: cached ``GET /models`` lookup;
   tries each candidate slug in order, returns the first match's raw
   ``reasoning`` dict, or ``None``.
+- ``discover_context_length(model_slugs)``: same lookup, returns the model's
+  ``context_length`` (used by context compaction), or ``None``.
 - ``highest_supported_effort(reasoning_cfg)``: ``(effort_or_None, supports_effort)``.
 - ``anthropic_effort_ratio(effort)``: OpenRouter's documented
   ``budget_tokens = max_tokens * ratio`` multiplier for a given effort label.
@@ -180,6 +182,38 @@ def discover_reasoning_config(
 
     _REASONING_CONFIG_CACHE[cache_key] = result
     return result
+
+
+def discover_context_length(
+    model_slugs: Iterable[str], client: Optional[Any] = None
+) -> Optional[int]:
+    """Try each candidate OpenRouter slug (in order) and return the first
+    match's ``context_length`` (total context window in tokens), or ``None``
+    if no slug is listed or the lookup failed. Slugs are also tried
+    lowercased, since native model names (e.g. Azure's ``DeepSeek-V4-Pro``)
+    are not always cased like OpenRouter ids."""
+    slugs: List[str] = []
+    for s in model_slugs:
+        for variant in (s, s.lower() if s else s):
+            if variant and variant not in slugs:
+                slugs.append(variant)
+    models = _list_models(client)
+    if not models or not slugs:
+        return None
+    by_id = {getattr(m, "id", None): m for m in models}
+    for slug in slugs:
+        m = by_id.get(slug)
+        if m is None:
+            continue
+        context_length = getattr(m, "context_length", None)
+        if context_length is None:
+            top_provider = getattr(m, "top_provider", None)
+            if isinstance(top_provider, dict):
+                context_length = top_provider.get("context_length")
+        if context_length:
+            logger.info("Discovered OpenRouter context_length via slug %s: %s", slug, context_length)
+            return int(context_length)
+    return None
 
 
 def highest_supported_effort(reasoning_cfg: Optional[Dict[str, Any]]) -> Tuple[Optional[str], bool]:
