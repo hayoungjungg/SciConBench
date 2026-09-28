@@ -262,18 +262,18 @@ running alongside the primary panel for comparison:
 
 | Role | Models |
 |------|--------|
-| Primary | GPT-5.6 Sol, Claude Opus 5, Gemini 3.7 Flash, DeepSeek-V4-Pro, Kimi K3, GLM-5.3, Qwen3.8-max |
+| Primary | GPT-6 Sol, Claude Opus 5.5, Gemini 3.8 Flash, DeepSeek-V4.1-Flash, Kimi K3, GLM-5.3, Qwen3.8-max |
 | Control | DeepSeek-V4-Flash-0731, Qwen3.8 27B, MiniMax M3 |
 
 ```yaml
 rolling_panel_months: 4             # newest closed rolling cohorts to evaluate
 
 default_models:
-  openai: gpt-5.6-sol
-  claude: claude-opus-5
-  gemini: gemini-3.7-flash
+  openai: gpt-6-sol
+  claude: claude-opus-5-5
+  gemini: gemini-3.8-flash
   azure:
-    - DeepSeek-V4-Pro              # Azure Foundry Chat Completions
+    - DeepSeek-V4.1-Flash          # Azure Foundry Chat Completions
     - DeepSeek-V4-Flash-0731       # control
   openrouter:                      # one provider, several models
     - moonshotai/kimi-k3           # Kimi K3
@@ -320,43 +320,48 @@ lane, models — and DOIs within a model — are queried strictly sequentially:
   `openrouter_base_model_lane` → **`OPENROUTER_API_KEY_BASE_MODEL`**
   (GLM-5.3, Qwen3.8-max); everything else → **`OPENROUTER_API_KEY`**
   (Kimi K3, Qwen3.8-27B, MiniMax M3). Run order is base list then generic list.
-- `azure_openai` — OpenAI GPT (`gpt-5.6-sol`) **then** DeepSeek-V4-Pro /
-  DeepSeek-V4-Flash-0731 (control), all on **`COCHRANE_DASHBOARD_OPENAI_KEY`** +
-  **`COCHRANE_DASHBOARD_BASE_URL`** (falls back to `AZURE_OPENAI_KEY` /
-  `OPENAI_BASE_URL` if unset). GPT always runs before DeepSeek so they
-  never share the Cochrane Dashboard quota concurrently.
+- `spi_openai` — OpenAI GPT (`gpt-6-sol`) on
+  **`SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY`** +
+  **`SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL`** (no fallback; the lane errors
+  if either is unset).
+- `azure_openai` — DeepSeek-V4.1-Flash, then DeepSeek-V4-Flash-0731 (control).
+  Models in `azure_openai_key_models` (DeepSeek-V4.1-Flash) use
+  **`AZURE_OPENAI_KEY`** + **`OPENAI_BASE_URL`**; the rest use
+  **`COCHRANE_DASHBOARD_OPENAI_KEY`** + **`COCHRANE_DASHBOARD_BASE_URL`**.
 - `azure_anthropic` — Claude on Azure Foundry
   (`AZURE_ANTHROPIC_API_KEY`, `AZURE_ANTHROPIC_BASE_URL`,
   `AZURE_ANTHROPIC_RESOURCE_NAME`).
-- `gemini` — `gemini-3.7-flash` (Vertex AI / Google env vars).
+- `gemini` — `gemini-3.8-flash` (Vertex AI / Google env vars).
 
 A single `SciConHarness` instance is never called concurrently (it mutates
 per-instance state, e.g. the OpenRouter sticky-routing `session_id`, right
 before each query) — see `_run_provider_lane` in `run_workflow.py`.
 
-The track force-passes Cochrane Dashboard credentials for `openai`/`azure`
-and Azure Anthropic credentials for `claude`. OpenRouter and Gemini leave
+The track force-passes SPI dashboard credentials for `openai`, Azure OpenAI
+credentials for `azure`, and Azure Anthropic credentials for `claude`. OpenRouter and Gemini leave
 `api_key`/`base_url` unset so `create_provider()` resolves their env vars
 normally.
 
 **Post-query stages (atomic facts, precision, recall — steps 10-11,
 `_run_grouped_sharded`).** These three stages run strictly one after
 another (facts → precision → recall), and only start once `task_run_queries`
-has fully finished — so they're free to reuse the same two Azure credentials
-(`FACTS_JUDGE_API_KEYS`: `AZURE_OPENAI_KEY` + `COCHRANE_DASHBOARD_OPENAI_KEY`)
-without any cross-stage contention:
+has fully finished — so they're free to reuse the query-stage Azure
+credentials (`FACTS_JUDGE_API_KEYS`: `AZURE_OPENAI_KEY` +
+`COCHRANE_DASHBOARD_OPENAI_KEY` + `SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY`)
+without any cross-stage contention. Each of these resources needs
+`gpt-5.1`, `gpt-5-mini` and `gpt-5.4-mini` deployments:
 
 - **Atomic facts** (`task_generate_response_facts_by_model`): pending
   model-response items are grouped by generating model, then processed
-  **two models at a time** (one dedicated API key per model), each model's
+  **three models at a time** (one dedicated API key per model), each model's
   items further split into `FACTS_SHARD_CONCURRENCY` (4) concurrent shards
-  — up to 2 × 4 = 8 concurrent `AtomicFactGenerator` calls at once — repeating
-  in batches of two until every model has been processed.
+  — up to 3 × 4 = 12 concurrent `AtomicFactGenerator` calls at once —
+  repeating in batches of three until every model has been processed.
 - **Precision** (`task_run_precision`), then **recall**
   (`task_run_recall`) once precision is fully done: since these aren't
-  grouped by model, the full pending-item queue is instead split into two
-  halves up front, one per API key, each further 4-way sharded (again up to
-  8 concurrent judge calls).
+  grouped by model, the full pending-item queue is instead split into three
+  parts up front, one per API key, each further 4-way sharded (again up to
+  12 concurrent judge calls).
 
 Because `ThreadPoolExecutor` worker threads run genuinely concurrently
 (unlike the query stage's cooperative `asyncio` scheduling), each of these

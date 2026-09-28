@@ -179,11 +179,11 @@ def create_provider(
         if max_tokens is not None:
             claude_kwargs["max_tokens"] = max_tokens
 
-        # Opus 5 does not accept fixed-budget thinking. The 2026-07 workflow
+        # Opus 5 / 5.5 do not accept fixed-budget thinking. The 2026-07 workflow
         # succeeded by retrying every call in adaptive mode at effort=max;
         # select that known-good mode directly to preserve the same behavior
         # without an avoidable rejected request on every tool turn.
-        if model.lower() == "claude-opus-5":
+        if model.lower() in {"claude-opus-5", "claude-opus-5-5"}:
             claude_kwargs["thinking_mode"] = "adaptive"
             claude_kwargs["adaptive_effort"] = "max"
         

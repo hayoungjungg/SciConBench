@@ -218,14 +218,14 @@ All three fall back to their previous hardcoded defaults (`"high"` / `HIGH` / a 
 
 ### Azure Foundry Chat Completions (`provider="azure"`)
 
-Azure Foundry Chat Completions models (**DeepSeek-V4-Pro**, plus control
+Azure Foundry Chat Completions models (**DeepSeek-V4.1-Flash**, plus control
 **DeepSeek-V4-Flash-0731**) use the OpenAI-compatible **Chat Completions**
 API, not the OpenAI Responses API. Use `provider="azure"` so the harness
 routes through `AzureChatCompletionsProvider`.
 
 The wire format differs from `OpenAIProvider` (nested `function` schema, `role=tool` result messages, an injected `system` message instead of top-level `instructions`), but the functionality and end outcomes are identical: same `RESEARCH_ASSISTANT_PROMPT`, the same one-tool-result-per-message loop (`MCPClient` treats it exactly like OpenAI, since neither defines `format_multiple_tool_response_message`), and the same retry contract (rate-limit backoff, timeout retry, `ContextLengthExceededError` on context-window overflows).
 
-DeepSeek-V4-Pro is deployed on its own dedicated Azure resource, separate from the one used for GPT via Azure OpenAI, so this provider prefers its own credentials (falling back to the shared `AZURE_OPENAI_KEY` / `OPENAI_BASE_URL` if unset):
+DeepSeek on Azure is deployed on its own dedicated Azure resource, separate from the one used for GPT via Azure OpenAI, so this provider prefers its own credentials (falling back to the shared `AZURE_OPENAI_KEY` / `OPENAI_BASE_URL` if unset):
 
 ```
 AZURE_OPENAI_KEY=...
@@ -237,19 +237,19 @@ OPENAI_API_VERSION=2025-04-01-preview
 # Smoke test one DOI — publication date / title filtering auto-resolve from
 # --doi via the HF benchmark cache (see "Clean Room Evaluation Protocol").
 python -m sciconharness.cli_scripts.query_single azure \
-    --model DeepSeek-V4-Pro \
+    --model DeepSeek-V4.1-Flash \
     --query "What are the benefits and harms of oral antibiotics for otitis media?" \
     --doi "10.1002/14651858.CD015254.pub2" \
     --enable-tool-calling --enable-filtering
 
 # Batch — same flags as other providers
 python -m sciconharness.cli_scripts.query_batch azure \
-    --model DeepSeek-V4-Pro \
+    --model DeepSeek-V4.1-Flash \
     --doi-questions data/doi_questions.json \
     --enable-tool-calling --enable-filtering
 ```
 
-Pass your Azure **deployment name** exactly as `--model` (`DeepSeek-V4-Pro`
+Pass your Azure **deployment name** exactly as `--model` (`DeepSeek-V4.1-Flash`
 or the control deployment `DeepSeek-V4-Flash-0731`).
 
 DeepSeek defaults match Claude/OpenRouter: completion `max_tokens=8192`,

@@ -16,7 +16,11 @@ specialized for SciConBench's evidence-synthesis task:
     2. Questions: a fresh model that sees only the question, summary, and
        source ledger asks what it still needs to write the final conclusion.
     3. Answers: the model with the full transcript answers those questions.
-  Falls back to a single short summary, then to a no-LLM handoff.
+  A failed summary or answers call is retried on a shorter transcript
+  (``TRANSCRIPT_RETRY_FRACTIONS``). If the answers still fail, the summary alone
+  is handed off; if the summary still fails, a short (~500-word) summary is
+  written (from a much shorter transcript only if step 1 overflowed the
+  context window), and failing that, a no-LLM handoff.
 - A deterministic source ledger (title, URL, date, verbatim snippets) is
   extracted from every tool result, accumulated across compactions, ranked
   by relevance to the question, and appended to the handoff so citations
@@ -60,11 +64,26 @@ TOKEN_ESTIMATE_SAFETY_FACTOR = 1.2
 COMPACTION_MAX_OUTPUT_TOKENS = 32_768
 _OUTPUT_TOKEN_ATTRS = ("max_tokens", "max_output_tokens")
 
-LEDGER_TOKEN_BUDGET = 8192
+LEDGER_TOKEN_BUDGET = 8192  # default for SourceLedger.render() outside a compactor
+LEDGER_CONTEXT_FRACTION = 0.20
 _LEDGER_SNIPPETS_PER_SOURCE = 3
 _LEDGER_SNIPPET_CHARS = 400
+# Lines of the handoff summary that mark a search as a dead end (lowercased).
+_DEAD_END_MARKERS = (
+    "dead end", "dead-end", "do not repeat", "don't repeat", "not useful",
+    "no relevant", "nothing relevant", "not relevant", "no useful", "no substantive",
+    "off-topic", "off topic", "irrelevant", "returned zero", "returned no ", "no bearing",
+)
+_USEFUL_MARKERS = ("⚠", "partially useful", "useful hit")
 _LEDGER_MIN_RELEVANCE = 0.2  # fraction of question terms a source must mention to keep its snippets
 _TRANSCRIPT_SAFETY_MARGIN = 2_000
+# Retry schedule: fraction of the first attempt's transcript size sent on each attempt.
+TRANSCRIPT_RETRY_FRACTIONS = (1.0, 0.95, 0.9, 0.85)
+# Short-summary fallback (after the step-1 summary exhausts its retries). A short
+# output rarely hits the output-token cap, so the full transcript is kept unless
+# step 1 overflowed the context window.
+SHORT_SUMMARY_TRANSCRIPT_FRACTIONS = (1.0, 0.5)
+SHORT_SUMMARY_AFTER_OVERFLOW_FRACTIONS = (0.5, 0.25)
 _TRANSCRIPT_TOOL_RESULT_CAPS: List[Optional[int]] = [None, 16_000, 8_000, 4_000, 2_000, 1_000, 500]
 
 _VENDOR_PREFIXES: Dict[str, List[str]] = {
@@ -72,10 +91,12 @@ _VENDOR_PREFIXES: Dict[str, List[str]] = {
     "OpenAIProvider": ["openai"],
     "GeminiProvider": ["google"],
 }
-# OpenRouter lists Claude models with the 1M-token beta context, which the
-# native ClaudeProvider does not request (no ``context-1m`` beta header).
+# Upper bound on the discovered context for native providers whose API window
+# may be smaller than the one OpenRouter lists.
 _NATIVE_CONTEXT_CAPS: Dict[str, int] = {"ClaudeProvider": 1_000_000}
-# Used when the model is missing from OpenRouter's catalog (e.g. Gemini previews).
+# Used when the model is missing from OpenRouter's catalog (e.g. Gemini previews
+# or unlisted slugs); per-model entries take precedence over per-provider ones.
+_MODEL_CONTEXT_DEFAULTS: Dict[str, int] = {"qwen/qwen3.8-max": 1_000_000}
 _NATIVE_CONTEXT_DEFAULTS: Dict[str, int] = {"GeminiProvider": 1_048_576}
 _FALLBACK_VENDOR_PREFIXES = [
     "deepseek", "openai", "anthropic", "google", "moonshotai", "qwen",
@@ -147,6 +168,8 @@ def resolve_context_limit(llm_provider: LLMProvider, override: Optional[int] = N
     if context_limit:
         native_cap = _NATIVE_CONTEXT_CAPS.get(provider_cls)
         return min(context_limit, native_cap) if native_cap else context_limit
+    if model in _MODEL_CONTEXT_DEFAULTS:
+        return _MODEL_CONTEXT_DEFAULTS[model]
     if provider_cls in _NATIVE_CONTEXT_DEFAULTS:
         return _NATIVE_CONTEXT_DEFAULTS[provider_cls]
     logger.warning(
@@ -415,6 +438,10 @@ def _normalize_url(url: str) -> str:
     return url.rstrip("/")
 
 
+def _normalize_text(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", text.lower()))
+
+
 def _terms(text: str) -> set:
     return {
         word for word in re.findall(r"[a-z0-9]+", text.lower())
@@ -462,6 +489,7 @@ class SourceLedger:
     def __init__(self, question: str):
         self._question_terms = _terms(question)
         self._sources: Dict[str, _Source] = {}
+        self.last_labels: Dict[str, str] = {}
 
     def __len__(self) -> int:
         return len(self._sources)
@@ -548,43 +576,113 @@ class SourceLedger:
                 opened=bool(content.strip()),
             )
 
-    def _score(self, source: _Source, cited_text: str) -> Tuple[float, bool]:
-        """(ranking score, whether the source is relevant enough to keep its snippets)."""
-        overlap = _overlap(self._question_terms, " ".join([source.title] + source.snippets))
-        cited = False
-        if cited_text:
-            url_key = _normalize_url(source.url) if source.url else ""
-            cited = bool(url_key and url_key in cited_text) or (
-                len(source.title) >= 20 and source.title.lower() in cited_text
-            )
-        score = overlap + (0.5 if source.opened else 0.0) + (1.0 if cited else 0.0)
-        relevant = cited or overlap >= _LEDGER_MIN_RELEVANCE
-        return score + 0.02 * min(source.seen, 5), relevant
+    @staticmethod
+    def _is_dead_end_line(line: str) -> bool:
+        return any(m in line for m in _DEAD_END_MARKERS) and not any(m in line for m in _USEFUL_MARKERS)
 
-    def render(self, cited_text: str = "", budget_tokens: int = LEDGER_TOKEN_BUDGET) -> str:
-        """Sources ranked by relevance to the question (and whether the
-        handoff cites or the agent opened them). Relevant top sources keep
-        verbatim snippets; the rest are listed by title/URL only, and the
-        lowest-ranked are counted but omitted to stay within ``budget_tokens``."""
+    @staticmethod
+    def _mentions(source: _Source, line: str, line_labels: set, source_label: Optional[str]) -> bool:
+        url_key = _normalize_url(source.url) if source.url else ""
+        title = source.title.lower().rstrip(". …")
+        return (
+            bool(url_key and url_key in line)
+            or (len(title.split()) >= 5 and title in line)
+            or (source_label is not None and source_label in line_labels)
+        )
+
+    @staticmethod
+    def _dead_end_queries(dead_lines: List[str], queries: Iterable[str]) -> set:
+        """Queries that appear on a dead-end line, verbatim or by 80% of their terms."""
+        normalized_lines = [(_normalize_text(line), _terms(line)) for line in dead_lines]
+        dead: set = set()
+        for query in queries:
+            normalized, query_terms = _normalize_text(query), _terms(query)
+            for line_text, line_terms in normalized_lines:
+                if (normalized and normalized in line_text) or (
+                    len(query_terms) >= 3 and len(query_terms & line_terms) >= 0.8 * len(query_terms)
+                ):
+                    dead.add(query)
+                    break
+        return dead
+
+    def _rank(
+        self, summary: str, summary_labels: Optional[Dict[str, str]] = None
+    ) -> List[Tuple[_Source, bool, bool, bool]]:
+        """Sources as (source, cited, dead_end, relevant), ordered: sources the
+        summary cites first; then the rest by relevance to the question; then
+        sources the summary dismisses or that were found only by searches it
+        marks as dead ends.
+
+        A source is cited if the summary mentions it (URL, title, or its
+        ``[S#]`` label from the ledger the summary was written against,
+        ``summary_labels``: label -> source key) on a line that is not a
+        dead-end line; mentioned only on dead-end lines, it is dismissed."""
+        lines = [line for line in summary.lower().splitlines() if line.strip()]
+        line_info = [(line, set(re.findall(r"\bs\d+\b", line)), self._is_dead_end_line(line)) for line in lines]
+        label_of = {key: label.lower() for label, key in (summary_labels or {}).items()}
+        dead_queries = self._dead_end_queries(
+            [line for line, _, dead in line_info if dead],
+            {q for s in self._sources.values() for q in s.queries},
+        )
+        ranked = []
+        for source in self._sources.values():
+            overlap = _overlap(self._question_terms, " ".join([source.title] + source.snippets))
+            source_label = label_of.get(source.key)
+            mentioned_ok = mentioned_dead = False
+            for line, line_labels, dead in line_info:
+                if self._mentions(source, line, line_labels, source_label):
+                    if dead:
+                        mentioned_dead = True
+                    else:
+                        mentioned_ok = True
+                        break
+            cited = mentioned_ok
+            dead_end = not cited and (
+                mentioned_dead
+                or (not source.opened and bool(source.queries) and all(q in dead_queries for q in source.queries))
+            )
+            relevant = cited or (overlap >= _LEDGER_MIN_RELEVANCE and not dead_end)
+            score = overlap + (0.5 if source.opened else 0.0) + 0.02 * min(source.seen, 5)
+            ranked.append((source, cited, dead_end, relevant, score))
+        ranked.sort(key=lambda item: (not item[1], item[2], -item[4]))
+        return [item[:4] for item in ranked]
+
+    def render(
+        self,
+        cited_text: str = "",
+        budget_tokens: int = LEDGER_TOKEN_BUDGET,
+        summary_labels: Optional[Dict[str, str]] = None,
+    ) -> str:
+        """Sources the handoff summary (``cited_text``) cites come first; then
+        the rest ranked by relevance to the question (and whether the agent
+        opened them); sources found only by searches the summary marks as dead
+        ends come last (see ``_rank``). Cited and relevant sources keep verbatim
+        snippets; the rest are listed by title/URL only, and the lowest-ranked
+        are counted but omitted to stay within ``budget_tokens``. The labels
+        used are kept in ``last_labels`` (label -> source key)."""
+        self.last_labels = {}
         if not self._sources:
             return "(no sources retrieved yet)"
-        cited_text = cited_text.lower()
-        scored = [(source, *self._score(source, cited_text)) for source in self._sources.values()]
-        scored.sort(key=lambda item: -item[1])
 
         lines: List[str] = []
         used = 0
         detailed_budget = int(budget_tokens * 0.75)
         omitted = 0
-        for rank, (source, _, relevant) in enumerate(scored, start=1):
+        ranked = self._rank(cited_text, summary_labels)
+        for rank, (source, cited, dead_end, relevant) in enumerate(ranked, start=1):
+            self.last_labels[f"S{rank}"] = source.key
             header = f"[S{rank}] {source.title or '(untitled)'}"
             meta = [f"URL: {source.url}" if source.url else "", source.authors, source.date]
             flags = ", ".join(source.tools) + (" | opened" if source.opened else "")
+            flags += " | cited in handoff" if cited else ""
+            flags += " | dead end per handoff" if dead_end else ""
             detail_lines = [header, "    " + " | ".join(m for m in meta if m) + f" | via {flags}"]
             for snippet in source.snippets[:_LEDGER_SNIPPETS_PER_SOURCE]:
                 detail_lines.append(f'    > "{_limit_middle(snippet, _LEDGER_SNIPPET_CHARS)}"')
             detailed = "\n".join(detail_lines)
-            brief = f"[S{rank}] {source.title or '(untitled)'} — {source.url}"
+            brief = f"[S{rank}] {source.title or '(untitled)'} — {source.url}" + (
+                " (dead end per handoff)" if dead_end else ""
+            )
 
             detailed_tokens = count_tokens(detailed)
             if relevant and used + detailed_tokens <= detailed_budget:
@@ -621,15 +719,23 @@ _SUMMARY_PROMPT = """You are a research assistant partway through a long evidenc
 {ledger}
 </source_ledger>
 
-This is an intermediate handoff, NOT the final answer: do NOT write the final conclusion and do NOT use triple square brackets. Using ONLY information that appears in the transcript (never invent studies, numbers, quotes, or citations), write a detailed handoff with these sections:
+This is an intermediate handoff, NOT the final answer: do NOT write the final conclusion and do NOT use triple square brackets. Use ONLY information in the transcript; NEVER INVENT studies, numbers, quotes, or URLs.
 
-1. **Research Actions So Far** - Each significant search or page fetch (tool and query/URL), what it returned, and whether it was useful. List dead ends and queries that returned nothing relevant so they are not repeated.
-2. **Relevant Evidence Gathered** - For EVERY source relevant to the question (skip irrelevant ones): title, authors/year if known, exact URL copied from the transcript, study type (e.g., systematic review, meta-analysis, RCT, cohort, guideline), population, intervention/exposure and comparator, outcomes (benefits and harms), sample sizes, effect estimates with confidence intervals or p-values, and key findings quoted verbatim in quotation marks. Order sources from most to least relevant, preferring higher-quality evidence.
-3. **Evidence Quality Assessment** - Strengths and limitations of the evidence so far: risk of bias, imprecision, inconsistency across sources, indirectness, publication bias, recency, and overall certainty.
-4. **Synthesis So Far** - How the sources relate: where they agree, where they conflict, and the tentative direction of the answer to the question.
-5. **Remaining Gaps and Next Steps** - What evidence is still missing to answer the question well (e.g., specific outcomes, populations, comparators, harms, higher-quality or more recent studies) and concrete searches or URLs to pursue next.
+Be concise and precise: terse bullet points, no prose filler, no restating the question. Include only what the next assistant needs to synthesize the final conclusion comprehensively. Aim for at most about 2000 words. Use these sections:
 
-Be comprehensive and precise. The next assistant must be able to write a well-cited, evidence-backed conclusion from your handoff without re-running searches you already did."""
+1. **Research Actions So Far** - Each significant search or page fetch (tool and query/URL), what it returned, and whether it 
+was useful. List dead ends and queries that returned nothing relevant so they are not repeated.
+2. **Relevant Evidence Gathered** - For EVERY source relevant to the question (skip irrelevant ones): title, authors/year if 
+known, exact URL copied from the transcript, study type (e.g., systematic review, meta-analysis, RCT, cohort, guideline), 
+population, intervention/exposure and comparator, outcomes (benefits and harms), sample sizes, effect estimates with 
+confidence intervals or p-values, and key findings quoted verbatim in quotation marks. Order sources from most to least 
+relevant, preferring higher-quality evidence.
+3. **Evidence Quality Assessment** - Strengths and limitations of the evidence so far: risk of bias, imprecision, 
+inconsistency across sources, indirectness, publication bias, recency, and overall certainty.
+4. **Synthesis So Far** - How the sources relate: where they agree, where they conflict, and the tentative direction of the 
+answer to the question.
+5. **Remaining Gaps and Next Steps** - What evidence is still missing to answer the question well (e.g., specific outcomes, 
+populations, comparators, harms, higher-quality or more recent studies) and concrete searches or URLs to pursue next."""
 
 _QUESTIONS_PROMPT = """You are a research assistant picking up an evidence-gathering task from a previous research assistant who ran out of context. After this step you will continue the research on your own and ultimately write a comprehensive, well-cited, evidence-backed conclusion to the original question.
 
@@ -642,7 +748,7 @@ _QUESTIONS_PROMPT = """You are a research assistant picking up an evidence-gathe
 **Source Ledger** (extracted automatically from all tool results so far, ranked by relevance to the question):
 {ledger}
 
-Before continuing, ask several questions (at least five, more if necessary) about information that is missing or unclear in the handoff and that you would need to write the final conclusion: for example exact effect sizes and confidence intervals, study designs and sample sizes, which source supports which claim, conflicting findings, evidence quality and certainty, verbatim wording of key findings, or which searches were already tried. The previous assistant can answer from the full research history. After you ask these questions you will be on your own, so ask everything you need to know. Only ask questions in this step; do not call tools and do not write the final conclusion."""
+Before continuing, ask at least five (or more if necessary) short, specific questions about information missing or unclear in the handoff that you need for the final conclusion (e.g., an exact effect size or CI, a study's design or sample size, which source supports a claim, a conflict between sources, verbatim wording of a key finding). Do not ask about anything the handoff already answers. The previous assistant can answer from the full research history; after this you are on your own. Output only the numbered questions: no tool calls, no conclusion."""
 
 _ANSWERS_PROMPT = """You are the research assistant who conducted the research below on this question:
 {question}
@@ -657,21 +763,20 @@ _ANSWERS_PROMPT = """You are the research assistant who conducted the research b
 {summary}
 </handoff_summary>
 
-The next research assistant has a few questions for you. Answer each of them one by one in detail, using ONLY information from the transcript. Quote tool results verbatim where possible and give the exact source title and URL for every factual claim. If the transcript does not contain the answer, say so explicitly rather than guessing. Do not write the final conclusion and do not use triple square brackets.
+The next research assistant has a few questions for you. Answer each one briefly and precisely (a few sentences at most), numbered to match, using ONLY information from the transcript. Quote the key numbers or wording verbatim and give the exact source title and URL for every factual claim. If the transcript does not contain the answer, say "Not in transcript" rather than guessing. Do not write the final conclusion and do not use triple square brackets.
 
 **Questions:**
 {questions}"""
 
-_SHORT_SUMMARY_PROMPT = """You are handing off an evidence-gathering task on this scientific question to another research assistant:
+_SHORT_SUMMARY_PROMPT = """You are handing off an evidence-gathering task on this scientific question to another research assistant who will NOT see the transcript:
 {question}
 
-**Research transcript** (heavily truncated):
+**Research transcript** (truncated):
 <transcript>
 {transcript}
 </transcript>
 
-Using ONLY information from the transcript, briefly summarize (at most about 500 words): the most relevant evidence found so far with exact source titles and URLs and key numbers quoted verbatim, the quality of that evidence, searches already tried, and what evidence is still needed. Do not write the final conclusion and do not use triple square brackets."""
-
+Using ONLY information in the transcript (never invent studies, numbers, quotes, or URLs), write a concise handoff of at most about 500 words in terse bullet points: (1) searches already done; (2) the most relevant evidence, one line per source with title (year), exact URL, study type, and key numbers quoted verbatim; (3) evidence quality; (4) remaining gaps and searches to try next. Do not write the final conclusion and do not use triple square brackets."""
 
 def _sanitize(text: str) -> str:
     """Handoff text must not look like a final ``[[[...]]]`` conclusion."""
@@ -713,11 +818,12 @@ class ContextCompactor:
             _provider_max_output_tokens(llm_provider),
             min(COMPACTION_MAX_OUTPUT_TOKENS, context_limit // 4),
         )
-        self._ledger_budget = min(LEDGER_TOKEN_BUDGET, context_limit // 20)
+        self._ledger_budget = int(context_limit * LEDGER_CONTEXT_FRACTION)
         self.ledger = SourceLedger(original_query)
 
         self.compaction_count = 0
         self._final = False
+        self._context_overflowed = False
         self._messages_len_after_compaction = 1
         self._llm_calls = 0
         self._input_tokens = 0
@@ -767,6 +873,7 @@ class ContextCompactor:
         caller must then query the provider with ``tools=None``."""
         self.compaction_count += 1
         self._final = final
+        self._context_overflowed = False
         entries, tool_results = _walk_messages(messages)
         self.ledger.ingest(tool_results)
         record: Dict[str, Any] = {
@@ -787,9 +894,9 @@ class ContextCompactor:
 
         try:
             new_messages = await self._three_step_handoff(entries, record)
-            record["method"] = "three_step"
+            record.setdefault("method", "three_step")
         except Exception as e:
-            logger.warning("Compaction %d: full summary failed: %s", self.compaction_count, e)
+            logger.error("Compaction %d: step-1 summary failed: %s", self.compaction_count, e)
             record["three_step_error"] = str(e)
             try:
                 new_messages = await self._short_summary_handoff(entries, record)
@@ -800,6 +907,9 @@ class ContextCompactor:
                 new_messages = self._no_llm_handoff(entries)
                 record["method"] = "no_llm_fallback"
 
+        for key in ("summary_retry_errors", "answers_retry_errors", "short_summary_retry_errors"):
+            if not record.get(key):
+                record.pop(key, None)
         record["num_messages_after"] = len(new_messages)
         record["estimated_tokens_after"] = self.estimate_prompt_tokens(new_messages)
         record["messages_before"] = messages
@@ -821,28 +931,42 @@ class ContextCompactor:
 
         # Step 1: summary (full transcript).
         pre_ledger = self.ledger.render(budget_tokens=self._ledger_budget)
+        pre_ledger_labels = dict(self.ledger.last_labels)
         summary = await self._call_with_transcript(
             entries,
             lambda transcript: _SUMMARY_PROMPT.format(
                 question=question, transcript=transcript, ledger=pre_ledger
             ),
+            errors=record.setdefault("summary_retry_errors", []),
         )
         record["summary"] = summary
-
-        # Step 2: questions (fresh context: question + summary + ledger only).
-        ledger = self.ledger.render(cited_text=summary, budget_tokens=self._ledger_budget)
-        question_prompt = _QUESTIONS_PROMPT.format(question=question, summary=summary, ledger=ledger)
-        model_questions = await self._call(question_prompt)
-        record["questions"] = model_questions
-
-        # Step 3: answers (full transcript + summary).
-        answers = await self._call_with_transcript(
-            entries,
-            lambda transcript: _ANSWERS_PROMPT.format(
-                question=question, transcript=transcript, summary=summary, questions=model_questions
-            ),
+        ledger = self.ledger.render(
+            cited_text=summary, budget_tokens=self._ledger_budget, summary_labels=pre_ledger_labels
         )
-        record["answers"] = answers
+
+        try:
+            # Step 2: questions (fresh context: question + summary + ledger only).
+            question_prompt = _QUESTIONS_PROMPT.format(question=question, summary=summary, ledger=ledger)
+            model_questions = await self._call(question_prompt)
+            record["questions"] = model_questions
+
+            # Step 3: answers (full transcript + summary).
+            answers = await self._call_with_transcript(
+                entries,
+                lambda transcript: _ANSWERS_PROMPT.format(
+                    question=question, transcript=transcript, summary=summary, questions=model_questions
+                ),
+                errors=record.setdefault("answers_retry_errors", []),
+            )
+            record["answers"] = answers
+        except Exception as e:
+            logger.warning(
+                "Compaction %d: Q&A step failed, handing off step-1 summary only: %s",
+                self.compaction_count, e,
+            )
+            record["qa_error"] = str(e)
+            record["method"] = "summary_only"
+            return [{"role": "user", "content": self._standalone_handoff(summary, ledger)}]
 
         handoff = (
             "Here are the answers the previous research assistant provided.\n\n"
@@ -861,10 +985,16 @@ class ContextCompactor:
         summary = await self._call_with_transcript(
             entries,
             lambda transcript: _SHORT_SUMMARY_PROMPT.format(question=self.original_query, transcript=transcript),
-            budget_fraction=0.5,
+            errors=record.setdefault("short_summary_retry_errors", []),
+            fractions=(
+                SHORT_SUMMARY_AFTER_OVERFLOW_FRACTIONS
+                if self._context_overflowed
+                else SHORT_SUMMARY_TRANSCRIPT_FRACTIONS
+            ),
         )
         record["summary"] = summary
-        return [{"role": "user", "content": self._standalone_handoff(summary, self.ledger.render(summary, self._ledger_budget))}]
+        ledger = self.ledger.render(cited_text=summary, budget_tokens=self._ledger_budget)
+        return [{"role": "user", "content": self._standalone_handoff(summary, ledger)}]
 
     def _no_llm_handoff(self, entries: List[_TranscriptEntry]) -> List[Dict[str, Any]]:
         recent_reasoning = [e.text for e in entries if e.kind in ("reasoning", "assistant")][-3:]
@@ -926,23 +1056,40 @@ class ContextCompactor:
         self,
         entries: List[_TranscriptEntry],
         build_prompt: Callable[[str], str],
-        budget_fraction: float = 1.0,
+        errors: Optional[List[str]] = None,
+        fractions: Tuple[float, ...] = TRANSCRIPT_RETRY_FRACTIONS,
     ) -> str:
-        """Call the LLM with a transcript sized to fit the context window,
-        halving the budget if the provider still reports an overflow."""
+        """Call the LLM with a transcript sized to fit the context window. Each
+        attempt sends ``fractions[i]`` of the largest transcript that fits; on any
+        failure (overflow, empty or failed response), the next fraction is tried."""
         usable = self.context_limit - self._output_reserve - _TRANSCRIPT_SAFETY_MARGIN
         overhead = count_tokens(build_prompt("")) + self._static_tokens
-        budget = int((usable / TOKEN_ESTIMATE_SAFETY_FACTOR - overhead) * budget_fraction)
-        for _ in range(3):
+        window_budget = int(usable / TOKEN_ESTIMATE_SAFETY_FACTOR - overhead)
+        if window_budget <= 0:
+            raise RuntimeError("No room for a compaction transcript in the context window")
+        base_budget = min(window_budget, count_tokens(_fit_transcript(entries, window_budget)))
+        last_error: Optional[Exception] = None
+        for attempt, fraction in enumerate(fractions, start=1):
+            budget = int(base_budget * fraction)
             if budget <= 0:
                 break
             transcript = _fit_transcript(entries, budget)
+            transcript_tokens = count_tokens(transcript)
             try:
                 return await self._call(build_prompt(transcript))
-            except ContextLengthExceededError:
-                budget = min(budget, count_tokens(transcript)) // 2
-                logger.warning("Compaction call exceeded context; retrying with transcript budget %d", budget)
-        raise ContextLengthExceededError("Compaction transcript could not fit the context window")
+            except Exception as e:
+                last_error = e
+                if isinstance(e, ContextLengthExceededError):
+                    self._context_overflowed = True
+                if errors is not None:
+                    errors.append(
+                        f"attempt {attempt} ({fraction:.0%}, ~{transcript_tokens} transcript tokens): {e}"
+                    )
+                logger.warning(
+                    "Compaction call failed on attempt %d (%.0f%% transcript, ~%d tokens): %s",
+                    attempt, fraction * 100, transcript_tokens, e,
+                )
+        raise RuntimeError(f"Compaction call failed after shortening the transcript: {last_error}")
 
     # ── reporting ────────────────────────────────────────────────────────────
 

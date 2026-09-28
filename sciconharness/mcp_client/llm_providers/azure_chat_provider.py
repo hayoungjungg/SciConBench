@@ -3,6 +3,7 @@
 Supports OpenAI-compatible Chat Completions models hosted on Microsoft Foundry,
 including:
 
+- DeepSeek-V4.1-Flash
 - DeepSeek-V4-Pro
 
 This model uses ``client.chat.completions.create`` (not the OpenAI Responses
@@ -26,7 +27,7 @@ end-to-end contract matches ``OpenAIProvider`` exactly:
 
 Reasoning defaults (maxed; sampling left at API defaults)
 ---------------------------------------------------------
-**DeepSeek-V4-Pro / DeepSeek-V4-Flash**
+**DeepSeek-V4.1-Flash / DeepSeek-V4-Pro / DeepSeek-V4-Flash**
 
 - Thinking is on by default server-side.
 - Effort: ``reasoning_effort="max"`` (API default is only ``"high"``).

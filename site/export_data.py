@@ -88,9 +88,13 @@ PROVIDER_META = {
 # Reasoning levels match what the live track actually ran (provider defaults /
 # auto-discovered highest effort). MiniMax has reasoning on but no effort tier.
 DISPLAY_NAMES = {
+    "gpt-6-sol": "GPT-6 Sol (max)",
     "gpt-5.6-sol": "GPT-5.6 Sol (max)",
+    "claude-opus-5-5": "Claude Opus 5.5 (max)",
     "claude-opus-5": "Claude Opus 5 (max)",
+    "gemini-3.8-flash": "Gemini 3.8 Flash (high)",
     "gemini-3.7-flash": "Gemini 3.7 Flash (high)",
+    "DeepSeek-V4.1-Flash": "DeepSeek-V4.1-Flash (max)",
     "DeepSeek-V4-Pro": "DeepSeek-V4-Pro (max)",
     "DeepSeek-V4-Flash-0731": "DeepSeek-V4-Flash (max)",
     "moonshotai/kimi-k3": "Kimi K3 (max)",

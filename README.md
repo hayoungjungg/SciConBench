@@ -146,7 +146,7 @@ For batch evaluation using the CLI, see [`sciconharness/cli_scripts/README.md`](
 | `claude` | `claude-sonnet-4-5`, `claude-haiku-4.5` |
 | `gemini` | `gemini-3-pro-preview` |
 | `perplexity` | `sonar-reasoning-pro`, `sonar-deep-research` |
-| `azure` | `DeepSeek-V4-Pro`, `DeepSeek-V4-Flash-0731` (control) |
+| `azure` | `DeepSeek-V4.1-Flash`, `DeepSeek-V4-Flash-0731` (control) |
 | `openrouter` | `moonshotai/kimi-k3`, `z-ai/glm-5.3`, `qwen/qwen3.8-max`, `qwen/qwen3.8-27b` (control), `minimax/minimax-m3` (control) |
 
 The monthly SciConBench-Track roster is **7 primary + 3 control** models

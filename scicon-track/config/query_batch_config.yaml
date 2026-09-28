@@ -24,14 +24,16 @@ max_tokens: 8192
 rolling_panel_months: 4
 
 default_models:
-  openai: gpt-5.6-sol
-  claude: claude-opus-5
-  gemini: gemini-3.7-flash
-  # Azure Foundry Chat Completions on the Cochrane Dashboard resource
-  # (same COCHRANE_DASHBOARD_* creds as openai GPT). Queried in the
-  # azure_openai lane *after* openai GPT finishes.
+  # Own spi_openai lane on SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY /
+  # SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL.
+  openai: gpt-6-sol
+  claude: claude-opus-5-5
+  gemini: gemini-3.8-flash
+  # Azure Foundry Chat Completions (credentials per model — see
+  # azure_openai_key_models below). Queried sequentially in the
+  # azure_openai lane.
   azure:
-    - DeepSeek-V4-Pro
+    - DeepSeek-V4.1-Flash
     - DeepSeek-V4-Flash-0731  # control
   # OpenRouter-hosted models — Kimi K3, GLM-5.3, Qwen3.8-max, plus
   # control-scale Qwen3.8-27B and MiniMax M3 (alongside Azure DeepSeek-V4-Flash).
@@ -54,6 +56,12 @@ openrouter_generic_lane:             # OPENROUTER_API_KEY
   - moonshotai/kimi-k3               # first among this key's models
   - qwen/qwen3.8-27b                 # control
   - minimax/minimax-m3               # control
+
+# azure (DeepSeek) models deployed on the AZURE_OPENAI_KEY / OPENAI_BASE_URL
+# resource. Every other azure model (e.g. the DeepSeek-V4-Flash-0731
+# control) uses COCHRANE_DASHBOARD_OPENAI_KEY / COCHRANE_DASHBOARD_BASE_URL.
+azure_openai_key_models:
+  - DeepSeek-V4.1-Flash
 
 # Default policy: every model evaluates each DOI once, ever. Later monthly
 # runs only pick up newly closed rolling DOIs (and missing responses still

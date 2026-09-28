@@ -69,6 +69,10 @@ class QueryBatchConfig(BaseModel):
     # one sequential query lane (at most one OpenRouter request in flight).
     openrouter_base_model_lane: list[str] = []
     openrouter_generic_lane: list[str] = []
+    # azure (DeepSeek) models deployed on the AZURE_OPENAI_KEY /
+    # OPENAI_BASE_URL resource. Every other azure model uses
+    # COCHRANE_DASHBOARD_*. (openai GPT always uses SPI_HAYOUNG_DASHBOARD_*.)
+    azure_openai_key_models: list[str] = []
     # Default: every model queries each DOI once. Models listed here are
     # re-queried against the current core + rolling window every run. A
     # brand-new model (zero response rows) evaluates that bounded universe

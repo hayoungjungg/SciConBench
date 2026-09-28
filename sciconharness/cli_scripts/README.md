@@ -36,11 +36,11 @@ python -m sciconharness.cli_scripts.query_batch openai \
 
 ### Azure Foundry models (DeepSeek)
 
-Same procedure as above with `provider=azure`. Uses `COCHRANE_DASHBOARD_OPENAI_KEY` and `COCHRANE_DASHBOARD_BASE_URL` in `.env` (DeepSeek-V4-Pro is deployed on its own Azure resource); falls back to `AZURE_OPENAI_KEY` / `OPENAI_BASE_URL` if those are unset.
+Same procedure as above with `provider=azure`. Uses `COCHRANE_DASHBOARD_OPENAI_KEY` and `COCHRANE_DASHBOARD_BASE_URL` in `.env` (DeepSeek-V4.1-Flash is deployed on its own Azure resource); falls back to `AZURE_OPENAI_KEY` / `OPENAI_BASE_URL` if those are unset.
 
 ```bash
 python -m sciconharness.cli_scripts.query_batch azure \
-    --model DeepSeek-V4-Pro \
+    --model DeepSeek-V4.1-Flash \
     --doi-questions data/doi_questions.json \
     --enable-tool-calling --enable-filtering
 ```

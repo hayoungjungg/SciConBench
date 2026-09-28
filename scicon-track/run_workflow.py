@@ -618,7 +618,9 @@ def task_generate_cochrane_facts_batch(batch: dict, questions: dict) -> None:
 #
 #   openrouter       — all OpenRouter models, strictly one at a time
 #                      (key still chosen per model: BASE_MODEL vs GENERIC)
-#   azure_openai     — OpenAI GPT then DeepSeek (COCHRANE_DASHBOARD_*)
+#   spi_openai       — OpenAI GPT (SPI_HAYOUNG_DASHBOARD_*)
+#   azure_openai     — DeepSeek (AZURE_OPENAI_KEY or COCHRANE_DASHBOARD_*,
+#                      per azure_openai_key_models)
 #   azure_anthropic  — Claude on Azure (AZURE_ANTHROPIC_*)
 #   gemini           — Gemini (Vertex / GOOGLE_*)
 #
@@ -627,13 +629,12 @@ def task_generate_cochrane_facts_batch(batch: dict, questions: dict) -> None:
 # 429 pressure. Within the lane, models run sequentially in YAML order
 # (base_model_lane list, then generic_lane list, then any remainder).
 #
-# Within azure_openai, openai GPT always runs before azure DeepSeek models
-# so the shared Cochrane Dashboard quota is not contended by two models at
-# once. A single SciConHarness instance is never called concurrently (it
-# mutates per-instance state, e.g. the OpenRouter sticky-routing session_id).
+# A single SciConHarness instance is never called concurrently (it mutates
+# per-instance state, e.g. the OpenRouter sticky-routing session_id).
 QUERY_LANES: dict[str, tuple[str, ...]] = {
     "openrouter": ("openrouter",),
-    "azure_openai": ("openai", "azure"),
+    "spi_openai": ("openai",),
+    "azure_openai": ("azure",),
     "azure_anthropic": ("claude",),
     "gemini": ("gemini",),
 }
@@ -648,10 +649,6 @@ OPENROUTER_LANE_KEY_ENV: dict[str, str] = {
     OPENROUTER_GENERIC_LANE: "OPENROUTER_API_KEY",
     OPENROUTER_LANE: "OPENROUTER_API_KEY",  # default print / fallback
 }
-
-# Within the azure_openai lane, force GPT before DeepSeek regardless of
-# YAML key order in query_batch_config.yaml.
-_AZURE_OPENAI_LANE_ORDER: dict[str, int] = {"openai": 0, "azure": 1}
 
 
 def _env_api_key(*names: str) -> str | None:
@@ -674,7 +671,11 @@ def _resolve_query_credentials(
 ) -> tuple[str | None, str | None, str | None]:
     """Return (api_key, base_url, api_version) for a query-stage provider.
 
-    - ``openai`` / ``azure`` (DeepSeek): Cochrane Dashboard Azure OpenAI
+    - ``openai`` (GPT): ``SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY`` /
+      ``SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL``, no fallback.
+    - ``azure`` (DeepSeek): models listed in
+      ``azure_openai_key_models`` use ``AZURE_OPENAI_KEY`` /
+      ``OPENAI_BASE_URL``; all others use Cochrane Dashboard Azure OpenAI
       (``COCHRANE_DASHBOARD_*``), falling back to ``AZURE_OPENAI_KEY`` /
       ``OPENAI_BASE_URL`` if the dashboard vars are unset.
     - ``claude``: Azure Anthropic Foundry (``AZURE_ANTHROPIC_*``).
@@ -686,8 +687,23 @@ def _resolve_query_credentials(
       sequential query lane so only one OpenRouter request is in flight.
     - Everything else: leave unset so ``create_provider()`` resolves from env.
     """
-    if provider in ("openai", "azure"):
-        del model  # unused for these providers
+    if provider == "openai":
+        api_key = _env_api_key("SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY")
+        base_url = _env_api_key("SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL")
+        if not api_key or not base_url:
+            raise RuntimeError(
+                f"openai/{model}: SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY and "
+                "SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL must both be set"
+            )
+        return api_key, base_url, os.environ.get("OPENAI_API_VERSION")
+    if provider == "azure":
+        from config import query_cfg
+        if model in query_cfg.azure_openai_key_models:
+            return (
+                _env_api_key("AZURE_OPENAI_KEY"),
+                os.environ.get("OPENAI_BASE_URL"),
+                os.environ.get("OPENAI_API_VERSION"),
+            )
         return (
             _env_api_key("COCHRANE_DASHBOARD_OPENAI_KEY", "AZURE_OPENAI_KEY"),
             os.environ.get("COCHRANE_DASHBOARD_BASE_URL")
@@ -1003,8 +1019,8 @@ async def task_run_queries(
     strictly sequentially (see _run_provider_lane). All OpenRouter models
     share one sequential lane (at most one OpenRouter request in flight);
     per-model keys still follow openrouter_base_model_lane vs generic.
-    Other lanes: azure_openai (GPT then DeepSeek on COCHRANE_DASHBOARD_*),
-    azure_anthropic (Claude on AZURE_ANTHROPIC_*), gemini.
+    Other lanes: spi_openai (GPT on SPI_HAYOUNG_DASHBOARD_*), azure_openai
+    (DeepSeek), azure_anthropic (Claude on AZURE_ANTHROPIC_*), gemini.
     """
     from config import query_cfg
     from db.utils import get_questions, get_reviews_from_db
@@ -1058,8 +1074,7 @@ async def task_run_queries(
     # Bucket (provider, model) pairs into lanes; anything not covered by
     # QUERY_LANES falls into its own "other" lane so nothing is silently
     # dropped if a new provider is added later without updating the map.
-    # openrouter is one sequential lane; azure_openai is sorted so
-    # openai GPT always precedes azure DeepSeek.
+    # openrouter is one sequential lane.
     base_or_models = list(query_cfg.openrouter_base_model_lane)
     generic_or_models = list(query_cfg.openrouter_generic_lane)
     configured_or = {m for p, m in query_cfg.iter_models() if p == "openrouter"}
@@ -1089,12 +1104,6 @@ async def task_run_queries(
     for provider, model in models:
         lane_name = lane_of_provider.get(provider, "other")
         lanes.setdefault(lane_name, []).append((provider, model))
-    if "azure_openai" in lanes:
-        # Stable sort: openai GPT before azure DeepSeek; keep YAML order
-        # among DeepSeek models.
-        lanes["azure_openai"].sort(
-            key=lambda pm: _AZURE_OPENAI_LANE_ORDER.get(pm[0], 99),
-        )
     # OpenRouter: one sequential lane. Order = base_model_lane list, then
     # generic_lane list, then any unlisted remainder in default_models order.
     if OPENROUTER_LANE in lanes:
@@ -1163,22 +1172,25 @@ async def task_run_queries(
 #
 # These three stages run strictly one after another (facts -> precision ->
 # recall), *after* task_run_queries has fully finished -- so they're free to
-# reuse the same two Azure credentials without any cross-stage contention.
-# Within each stage: work is split into up to FACTS_MODELS_PER_BATCH (2)
+# reuse the query-stage Azure credentials without any cross-stage contention.
+# Within each stage: work is split into up to FACTS_MODELS_PER_BATCH (3)
 # top-level groups processed concurrently, one dedicated API key per group
 # (round-robin over FACTS_JUDGE_API_KEYS), and each group's items are
 # further split into FACTS_SHARD_CONCURRENCY (4) concurrent shards sharing
-# that group's key -- so up to 2 x 4 = 8 concurrent LLM calls at a time.
+# that group's key -- so up to 3 x 4 = 12 concurrent LLM calls at a time.
 # Groups run via a ThreadPoolExecutor (these stages are sync/blocking calls,
 # not async), so batches of groups are processed one batch at a time,
-# repeating until every group has been handled ("two models at a time...
+# repeating until every group has been handled ("three models at a time...
 # repeat sequentially until you finish" for atomic facts; a single batch of
-# 2 for precision/recall, since those aren't grouped by model).
+# 3 for precision/recall, since those aren't grouped by model).
+# Every resource listed here needs gpt-5.1, gpt-5-mini and gpt-5.4-mini
+# deployments (atomic-fact model_config.yaml + llm_judge_config.yaml).
 FACTS_JUDGE_API_KEYS: list[tuple[str, str, str | None]] = [
     ("AZURE_OPENAI_KEY", "OPENAI_BASE_URL", "OPENAI_API_VERSION"),
     ("COCHRANE_DASHBOARD_OPENAI_KEY", "COCHRANE_DASHBOARD_BASE_URL", "OPENAI_API_VERSION"),
+    ("SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY", "SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL", "OPENAI_API_VERSION"),
 ]
-FACTS_MODELS_PER_BATCH = 2
+FACTS_MODELS_PER_BATCH = len(FACTS_JUDGE_API_KEYS)
 FACTS_SHARD_CONCURRENCY = 4
 
 
@@ -1224,8 +1236,8 @@ def _run_grouped_sharded(
 def task_generate_response_facts_by_model(run_month: str | None = None) -> None:
     """Generate atomic facts for pending model responses, grouped by model.
 
-    Two models at a time (one dedicated API key each), each model's pending
-    items sharded 4-way; repeats in batches of two until every model with
+    Three models at a time (one dedicated API key each), each model's pending
+    items sharded 4-way; repeats in batches of three until every model with
     pending responses has been processed (see _run_grouped_sharded).
     Re-scans remaining items up to STAGE_ROUNDS and raises if any are still
     missing well-formed facts.

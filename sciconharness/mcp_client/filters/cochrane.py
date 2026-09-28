@@ -194,6 +194,25 @@ def _parse_date(date_str: Optional[str]) -> Optional[datetime]:
     return None
 
 
+# Trailing " - Site" / " | Site" segment (1-4 words) that search engines append
+# to result titles, e.g. "... keratitis - IOVS" or "... | Semantic Scholar".
+# Requires whitespace around the separator so hyphenated words are untouched.
+_SITE_SUFFIX_RE = re.compile(r'\s+[-|]\s+(?:[^\s|-]+\s?){1,4}$')
+
+
+def _title_match_candidates(title_clean: str) -> List[str]:
+    """``title_clean`` plus versions with up to two trailing site suffixes removed."""
+    candidates = [title_clean] if title_clean else []
+    current = title_clean
+    for _ in range(2):
+        stripped = _SITE_SUFFIX_RE.sub('', current).strip()
+        if not stripped or stripped == current or len(stripped.split()) < 4:
+            break
+        candidates.append(stripped)
+        current = stripped
+    return candidates
+
+
 def create_title_filter_from_list(title_list: Union[List[str], Set[str]]) -> callable:
     """Create a title filter function from a list or set of titles (case-insensitive).
     
@@ -214,9 +233,10 @@ def create_title_filter_from_list(title_list: Union[List[str], Set[str]]) -> cal
     normalized_title_list = [normalize_title_for_matching(title) for title in title_list if title]
     
     def title_filter(title: str) -> bool:
-        # Normalize the input title using the comprehensive normalization function
         title_clean = normalize_title_for_matching(title)
-        
+        return any(_matches_normalized(c) for c in _title_match_candidates(title_clean))
+
+    def _matches_normalized(title_clean: str) -> bool:
         if not title_clean:
             return False
         
