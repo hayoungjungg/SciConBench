@@ -24,6 +24,8 @@ except ImportError:
     AZURE_IDENTITY_AVAILABLE = False
 
 from .base import LLMProvider, ContextLengthExceededError
+
+CLAUDE_REQUEST_TIMEOUT = 3600.0
 from .reasoning_discovery import (
     anthropic_effort_ratio,
     candidate_openrouter_slugs,
@@ -176,7 +178,9 @@ class ClaudeProvider(LLMProvider):
                     "or provide api_key parameter."
                 )
             # base_url and resource are mutually exclusive - prefer resource if available (recommended for Azure Foundry)
-            foundry_kwargs = {"api_key": api_key}
+            # An explicit timeout lifts the SDK's refusal of non-streaming
+            # requests with max_tokens above ~21k (see _calculate_nonstreaming_timeout).
+            foundry_kwargs = {"api_key": api_key, "timeout": CLAUDE_REQUEST_TIMEOUT}
             if resource:
                 foundry_kwargs["resource"] = resource
             elif base_url:
@@ -193,7 +197,7 @@ class ClaudeProvider(LLMProvider):
                     "Anthropic API key required. Set ANTHROPIC_API_KEY environment variable "
                     "or provide api_key parameter."
                 )
-            self.client = anthropic.Anthropic(api_key=api_key)
+            self.client = anthropic.Anthropic(api_key=api_key, timeout=CLAUDE_REQUEST_TIMEOUT)
     
     def format_tools(self, tools: List[Any]) -> List[Dict[str, Any]]:
         """
@@ -599,6 +603,21 @@ class ClaudeProvider(LLMProvider):
         """
         # Convert messages to Claude format
         claude_messages, system_message = self._convert_messages_to_claude_format(messages)
+
+        # Newer models reject a conversation that ends on an assistant turn
+        # ("does not support assistant message prefill").
+        if claude_messages and claude_messages[-1].get("role") == "assistant":
+            tail = []
+            for m in claude_messages[-4:]:
+                c = m.get("content")
+                kinds = [b.get("type") for b in c if isinstance(b, dict)] if isinstance(c, list) else ["text"]
+                tail.append(f"{m.get('role')}:{kinds}")
+            logger.warning(
+                "Conversation ends with an assistant message (would be rejected as prefill); "
+                "appending a user continue turn. Last %d message(s): %s (source messages: %d)",
+                len(tail), " | ".join(tail), len(messages),
+            )
+            claude_messages.append({"role": "user", "content": "Continue."})
         
         # Use RESEARCH_ASSISTANT_PROMPT as system message if no system message is present
         if not system_message:
@@ -824,6 +843,21 @@ class ClaudeProvider(LLMProvider):
                     },
                 })
         
+        stop_reason = getattr(response, "stop_reason", None)
+        usage = getattr(response, "usage", None)
+        output_tokens = getattr(usage, "output_tokens", None) if usage else None
+        logger.info(
+            "Claude stop_reason=%s output_tokens=%s max_tokens=%d",
+            stop_reason, output_tokens, output_max_tokens,
+        )
+        if not text_content and not tool_calls:
+            logger.warning(
+                "Claude returned no text and no tool calls: stop_reason=%s output_tokens=%s "
+                "max_tokens=%d thinking_blocks=%d stop_details=%s",
+                stop_reason, output_tokens, output_max_tokens, len(thinking_blocks),
+                getattr(response, "stop_details", None),
+            )
+
         # Store thinking blocks in response object for preservation
         if thinking_blocks:
             response.thinking_blocks = thinking_blocks

@@ -110,6 +110,11 @@ class PipelineReport:
         self.current_stage = None
         # Failure email is sent by notify_failure; no mid-stage progress mail.
 
+    def skip_stage(self, name: str, summary: str = "") -> None:
+        self.stages.append(StageUpdate(name=name, status="skipped", summary=summary))
+        if self.workflow_log is not None:
+            self.workflow_log.info(f"{name}: skipped — {summary}")
+
     def note(self, text: str) -> None:
         self.extra_notes.append(text)
         if self.workflow_log is not None:

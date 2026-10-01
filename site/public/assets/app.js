@@ -268,7 +268,7 @@
     if (!rows.length) {
       $("board-body").innerHTML =
         '<tr><td colspan="5" class="empty"><strong>No evaluations recorded yet</strong>' +
-        "The first monthly run will populate this table.</td></tr>";
+        "The first evaluation run will populate this table.</td></tr>";
       return;
     }
 
@@ -602,12 +602,12 @@
       notes.push(
         "\u00b9 Preprint results use a fixed N=268 subset published after the latest model knowledge " +
         'cutoff (Gemini 3 Pro, Jan 31, 2025); later models were evaluated on the same subset for comparability. <span class="axis-break-key" role="img" ' +
-        'aria-label="Axis break"></span> marks the longer gap to July 2026; subsequent intervals are monthly.'
+        'aria-label="Axis break"></span> marks the longer gap to July 2026; subsequent intervals are monthly through September 2026 and two months thereafter.'
       );
     }
     notes.push(
       escape(`${CONTROL_MARK} Control open-weight models are shown in gray: DeepSeek-V4-Flash, Qwen3.8 27B, ` +
-        "and MiniMax M3. These fixed model versions remain unchanged across monthly runs, " +
+        "and MiniMax M3. These fixed model versions remain unchanged across evaluation runs, " +
         "providing a stable baseline for gauging frontier-model progress and changes in " +
         "benchmark difficulty.")
     );

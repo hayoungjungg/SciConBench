@@ -184,7 +184,7 @@
         </div>
       </div>
       <div class="card card--chart">
-        <div id="trend-chart" class="chart chart--badged" role="img" aria-label="Model score over monthly runs"></div>
+        <div id="trend-chart" class="chart chart--badged" role="img" aria-label="Model score over evaluation runs"></div>
         <p class="chart-footnote" id="trend-footnote"></p>
         <div class="chart-actions">
           <button class="chart-download-btn" id="trend-download" type="button" aria-label="Download chart as PNG">
@@ -268,13 +268,13 @@
         </p>
         <p>
           This longitudinal dashboard tracks frontier AI agents’ scientific conclusion synthesis
-          over time. Each month, we evaluate the latest model from seven leading labs alongside
+          over time. Every two months, we evaluate the latest model from seven leading labs alongside
           three fixed controls on a stable <strong>core set</strong> and <strong>rolling
           panels</strong> of newly published reviews. Agents use <strong>SciConHarness</strong>
           to search the web, find papers, and browse pages while blocking the target review and
           answer-revealing sources, ensuring the task requires synthesis rather than lookup. Each
           rolling panel is grouped by its publication month and finalized only after that month
-          ends. Newly released models are evaluated on the core set and up to four of the most recent
+          ends. Newly released models are evaluated on the core set and up to three of the most recent
           rolling panels, then on each new panel as it is introduced on the dashboard.
         </p>
         <p>
@@ -528,6 +528,6 @@
 </main>
 
 <script src="assets/charts.js?v=202609071910"></script>
-<script src="assets/app.js?v=202609090002"></script>
+<script src="assets/app.js?v=202609301600"></script>
 </body>
 </html>

@@ -66,11 +66,15 @@ def _install_model_filter(
     orig_unprocessed = db_utils.get_unprocessed_model_responses
     orig_all = db_utils.get_all_model_responses
 
-    def filtered_unprocessed(run_month: str | None = None) -> dict[int, dict[str, Any]]:
-        return _filter_responses(orig_unprocessed(run_month), model, allowed_ids)
+    def filtered_unprocessed(
+        run_month: str | None = None, exclude_models=None,
+    ) -> dict[int, dict[str, Any]]:
+        return _filter_responses(orig_unprocessed(run_month, exclude_models=exclude_models), model, allowed_ids)
 
-    def filtered_all(run_month: str | None = None) -> dict[int, dict[str, Any]]:
-        return _filter_responses(orig_all(run_month), model, allowed_ids)
+    def filtered_all(
+        run_month: str | None = None, exclude_models=None,
+    ) -> dict[int, dict[str, Any]]:
+        return _filter_responses(orig_all(run_month, exclude_models=exclude_models), model, allowed_ids)
 
     db_utils.get_unprocessed_model_responses = filtered_unprocessed
     db_utils.get_all_model_responses = filtered_all

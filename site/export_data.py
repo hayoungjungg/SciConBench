@@ -88,7 +88,7 @@ PROVIDER_META = {
 # Reasoning levels match what the live track actually ran (provider defaults /
 # auto-discovered highest effort). MiniMax has reasoning on but no effort tier.
 DISPLAY_NAMES = {
-    "gpt-6-sol": "GPT-6 Sol (max)",
+    "gpt-6.1-sol": "GPT-6.1 Sol (max)",
     "gpt-5.6-sol": "GPT-5.6 Sol (max)",
     "claude-opus-5-5": "Claude Opus 5.5 (max)",
     "claude-opus-5": "Claude Opus 5 (max)",
@@ -322,6 +322,19 @@ def parse_model_roster() -> dict[str, str]:
             else:
                 roster[name] = "once"
     return roster
+
+
+def parse_excluded_models() -> set[str]:
+    """``excluded_models`` from the run config: never graded, never shown."""
+    if not CONFIG_PATH.exists():
+        return set()
+    match = re.search(
+        r"^excluded_models:\s*$(.*?)(?=^\S|\Z)", CONFIG_PATH.read_text(), re.M | re.S
+    )
+    if not match:
+        return set()
+    lines = (raw.split("#", 1)[0].strip() for raw in match.group(1).splitlines())
+    return {line.lstrip("- ").strip() for line in lines if line.startswith("-")}
 
 
 # --------------------------------------------------------------------------- #
@@ -625,7 +638,9 @@ def _weighted_response_average(rows: list[dict[str, Any]], field: str) -> float 
     return total / total_w if total_w else None
 
 
-def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
+def export_evaluations(
+    conn: sqlite3.Connection, demo: bool, excluded: set[str]
+) -> dict[str, Any]:
     """Aggregate per-(model, run_month) scores, cost, and tool-use statistics."""
     rows = conn.execute(
         """
@@ -642,6 +657,7 @@ def export_evaluations(conn: sqlite3.Connection, demo: bool) -> dict[str, Any]:
         """,
         (EVAL_CONFIG_LABEL,),
     ).fetchall()
+    rows = [row for row in rows if row["model"] not in excluded]
 
     rng = random.Random(20260826)
     demo_baseline: dict[str, tuple[float, float]] = {}
@@ -1042,11 +1058,12 @@ def main() -> None:
 
     site_config = json.loads(SITE_CONFIG_PATH.read_text()) if SITE_CONFIG_PATH.exists() else {}
     roster = parse_model_roster()
+    excluded = parse_excluded_models()
     benchmark = export_benchmark()
 
     with connect() as conn:
         dataset = export_dataset(conn)
-        evaluations = export_evaluations(conn, demo=args.demo)
+        evaluations = export_evaluations(conn, demo=args.demo, excluded=excluded)
         registry = [
             {
                 "model": row["name"],
@@ -1059,6 +1076,7 @@ def main() -> None:
                 "active": row["name"] in roster,
             }
             for row in conn.execute("SELECT name, provider FROM models ORDER BY id")
+            if row["name"] not in excluded
         ]
 
     entries = evaluations["entries"]

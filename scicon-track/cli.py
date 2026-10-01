@@ -42,14 +42,15 @@ def main():
 @click.option("--providers", default=None, metavar="LIST",
               help="Comma-separated providers to query (default: all, or "
                    "openai-only with --trial).")
-@click.option("--interval", type=click.Choice(["monthly", "bimonthly"]), default="monthly",
-              show_default=True,
-              help="Scheduler cadence (ignored with --once): 1st of each month, "
-                   "or 1st of odd months.")
-def workflow(once, max_dois, batch_size, rolling_month, trial, providers, interval):
+@click.option("--force-query", is_flag=True,
+              help="Run stages 9–12 (query + scoring) even when the run month "
+                   "is not in query_run_months.")
+def workflow(once, max_dois, batch_size, rolling_month, trial, providers, force_query):
     """Run the monthly SciConBench-Track pipeline.
 
     Requires a core set created once via `scicon-track init-core-set`.
+    Stages 1–8 run every month; stages 9–11 run only in query_run_months
+    (bimonthly: Oct, Dec, Feb, ...) unless --trial or --force-query.
 
     Pipeline stages (all idempotent):
 
@@ -85,12 +86,12 @@ def workflow(once, max_dois, batch_size, rolling_month, trial, providers, interv
             rolling_month=rolling_month,
             trial=trial,
             providers=provider_list,
+            force_query=force_query,
         )
     else:
-        cron = "0 0 1 * *" if interval == "monthly" else "0 0 1 1,3,5,7,9,11 *"
         sciconbench_track_pipeline.serve(
-            name=f"sciconbench-track-{interval}",
-            schedules=[Cron(cron, timezone="America/New_York")],
+            name="sciconbench-track-monthly",
+            schedules=[Cron("0 0 1 * *", timezone="America/New_York")],
         )
 
 

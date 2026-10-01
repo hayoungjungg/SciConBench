@@ -76,17 +76,17 @@ def main() -> None:
     orig_unprocessed = db_utils.get_unprocessed_model_responses
     orig_all = db_utils.get_all_model_responses
 
-    def filtered_unprocessed(run_month: str | None = None):
+    def filtered_unprocessed(run_month: str | None = None, exclude_models=None):
         return {
             rid: data
-            for rid, data in orig_unprocessed(run_month).items()
+            for rid, data in orig_unprocessed(run_month, exclude_models=exclude_models).items()
             if data.get("doi") == doi
         }
 
-    def filtered_all(run_month: str | None = None):
+    def filtered_all(run_month: str | None = None, exclude_models=None):
         return {
             rid: data
-            for rid, data in orig_all(run_month).items()
+            for rid, data in orig_all(run_month, exclude_models=exclude_models).items()
             if data.get("doi") == doi
         }
 

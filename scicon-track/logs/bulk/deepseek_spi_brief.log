@@ -1,0 +1,51 @@
+============================================================
+Stage 9 backfill: run_month=2026-08 smoke=False
+  eval DOIs (core + all released rolling): 159; held back: 2
+  azure/DeepSeek-V4.1-Flash: pending 55/159 endpoint=spi-hayoung-dashboard-resource.cognitiveservices.azure.com
+============================================================
+Query providers restricted to ['azure']: 1 model(s) [('azure', 'DeepSeek-V4.1-Flash')]
+Warning: openrouter_base_model_lane lists models not in default_models.openrouter (ignored for bucketing): ['z-ai/glm-5.3', 'qwen/qwen3.8-max']
+Warning: openrouter_generic_lane lists models not in default_models.openrouter (ignored for bucketing): ['moonshotai/kimi-k3', 'qwen/qwen3.8-27b', 'minimax/minimax-m3']
+Running 1 query lane(s) concurrently (azure_openai: 1 model(s))...
+Query round 1/3: 55 pending DOI/model pair(s)...
+[azure_openai] azure/DeepSeek-V4.1-Flash: 55 pending of 159 eval DOI(s) (policy=once)...
+/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/fastmcp/server/auth/providers/jwt.py:10: AuthlibDeprecationWarning: authlib.jose module is deprecated, please use joserfc instead.
+It will be compatible before version 2.0.0.
+  from authlib.jose import JsonWebKey, JsonWebToken
+
+
+[2m╭─[0m[2m FastMCP 2.0 [0m[2m─────────────────────────────────────────────────────────────[0m[2m─╮[0m
+[2m│[0m                                                                            [2m│[0m
+[2m│[0m    [1m    _ __ ___ ______           __  __  _____________    ____    ____ [0m    [2m│[0m
+[2m│[0m    [1m   _ __ ___ / ____/___ ______/ /_/  |/  / ____/ __ \  |___ \  / __ \[0m    [2m│[0m
+[2m│[0m    [1m  _ __ ___ / /_  / __ `/ ___/ __/ /|_/ / /   / /_/ /  ___/ / / / / /[0m    [2m│[0m
+[2m│[0m    [1m _ __ ___ / __/ / /_/ (__  ) /_/ /  / / /___/ ____/  /  __/_/ /_/ / [0m    [2m│[0m
+[2m│[0m    [1m_ __ ___ /_/    \__,_/____/\__/_/  /_/\____/_/      /_____(_)____/  [0m    [2m│[0m
+[2m│[0m                                                                            [2m│[0m
+[2m│[0m                                                                            [2m│[0m
+[2m│[0m                                                                            [2m│[0m
+[2m│[0m    [1m🖥️ [0m[1m [0m[1mServer name:    [0m[1m [0mBenchmarkMCP                                        [2m│[0m
+[2m│[0m    [1m📦[0m[1m [0m[1mTransport:      [0m[1m [0mSTDIO                                               [2m│[0m
+[2m│[0m    [1m  [0m[1m [0m[1m                [0m[1m [0m                                                    [2m│[0m
+[2m│[0m    [1m📚[0m[1m [0m[1mDocs:           [0m[1m [0mhttps://gofastmcp.com                               [2m│[0m
+[2m│[0m    [1m🚀[0m[1m [0m[1mDeploy:         [0m[1m [0mhttps://fastmcp.cloud                               [2m│[0m
+[2m│[0m    [1m  [0m[1m [0m[1m                [0m[1m [0m                                                    [2m│[0m
+[2m│[0m    [1m🏎️ [0m[1m [0m[1mFastMCP version:[0m[1m [0m[2m2.11.3               [0m                               [2m│[0m
+[2m│[0m    [1m🤝[0m[1m [0m[1mMCP version:    [0m[1m [0m[2m1.28.1               [0m                               [2m│[0m
+[2m│[0m                                                                            [2m│[0m
+[2m╰────────────────────────────────────────────────────────────────────────────╯[0m
+
+
+[2m[09/29/26 22:36:11][0m[2m [0mINFO     Starting MCP server 'BenchmarkMCP'   ]8;id=994696;file:///n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/fastmcp/server/server.py\[2mserver.py[0m]8;;\[2m:[0m]8;id=406423;file:///n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/fastmcp/server/server.py#1445\[2m1445[0m]8;;\
+[2m                    [0m         with transport 'stdio'               [2m              [0m
+2026-09-29 22:36:23,136 - mcp_server.cache - INFO - Cache set for key: 874e51e23b452290b148e46c9997dcb4 (caching 0 organic results)
+2026-09-29 22:36:24,875 - mcp_server.cache - INFO - Cache set for key: 192111d1d563721cd2f8462c8ed8f3cc (caching 0 organic results)
+2026-09-29 22:36:26,285 - mcp_server.cache - INFO - Cache set for key: ab5ce4ba907fcce702909a173d393d0b (caching 10 organic results)
+2026-09-29 22:36:28,207 - mcp_server.cache - INFO - Cache set for key: 502ae32af652abacc4320cfedd8ff56b (caching 10 organic results)
+2026-09-29 22:36:29,445 - mcp_server.cache - INFO - Cache set for key: ed8c5ea6c0f1c71f6d74a31a2696101f (caching 0 organic results)
+2026-09-29 22:36:30,649 - mcp_server.cache - INFO - Cache set for key: f9717eb531978dc332ed43e395458355 (caching 0 organic results)
+2026-09-29 22:36:39,176 - mcp_server.cache - INFO - Cache set for key: 6e62133c5e2a190ff2db11d3ee261873 (caching 0 organic results)
+2026-09-29 22:36:40,948 - mcp_server.cache - INFO - Cache set for key: 99eb2deadbba7b51f2ab3ab3ac4472bc (caching 0 organic results)
+2026-09-29 22:36:42,634 - mcp_server.cache - INFO - Cache set for key: 7244155a47afce29aa210a0fd440b55b (caching 10 organic results)
+2026-09-29 22:36:44,621 - mcp_server.cache - INFO - Cache set for key: 0335f636ed6eb4f5f7b2b507d1011bfa (caching 10 organic results)
+2026-09-29 22:36:45,984 - mcp_server.cache - INFO - Cache set for key: 3094c56bfb3f804d912c73dc12ccb3f5 (caching 0 organic results)

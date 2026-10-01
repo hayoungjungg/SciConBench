@@ -18,16 +18,34 @@ min_conclusion_length: 50
 # max_output_tokens for GPT/Gemini and max_tokens elsewhere). Also bounds
 # OpenRouter's in-flight credit reservation.
 max_tokens: 8192
+# Per-model replacements for max_tokens. Opus 5.5 at adaptive/max effort can
+# spend all 8192 tokens on thinking and return no text or tool call.
+max_tokens_overrides:
+  claude-opus-5-5: 32000
 
 # Evaluate the current core plus only the most recent N closed rolling cohorts.
 # This prevents a newly added model from backfilling the entire rolling history.
-rolling_panel_months: 4
+rolling_panel_months: 3
+
+# The pipeline runs monthly (ingest, facts, HF upload), but model querying and
+# scoring (stages 9–12) run only when the run date falls in one of these
+# calendar months: Oct → Dec → Feb → ... Each query run evaluates the two
+# cohorts closed since the previous one, both inside the 3-month window.
+# Override for a one-off run with `--force-query`.
+query_run_months: [2, 4, 6, 8, 10, 12]
+
+# Models whose stored responses are never graded (stages 10–12) or shown on
+# the dashboard, e.g. a model replaced before its responses were scored.
+excluded_models:
+  - gpt-6-sol    # replaced by gpt-6.1-sol
 
 default_models:
-  # Own spi_openai lane on SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY /
-  # SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL.
-  openai: gpt-6-sol
-  claude: claude-opus-5-5
+  # Own salame_openai lane on SALAME_AZURE_OPENAI_KEY /
+  # SALAME_OPENAI_BASE_URL.
+  openai: gpt-6.1-sol
+  # Paused from scheduled runs (cost) — query manually via
+  # scripts/bulk_query_new_models.py --providers claude.
+  # claude: claude-opus-5-5
   gemini: gemini-3.8-flash
   # Azure Foundry Chat Completions (credentials per model — see
   # azure_openai_key_models below). Queried sequentially in the
@@ -63,7 +81,7 @@ openrouter_generic_lane:             # OPENROUTER_API_KEY
 azure_openai_key_models:
   - DeepSeek-V4.1-Flash
 
-# Default policy: every model evaluates each DOI once, ever. Later monthly
+# Default policy: every model evaluates each DOI once, ever. Later query
 # runs only pick up newly closed rolling DOIs (and missing responses still
 # inside the rolling window). Adding a new model name evaluates the core plus
 # the latest rolling_panel_months cohorts, not the full rolling history. Put a

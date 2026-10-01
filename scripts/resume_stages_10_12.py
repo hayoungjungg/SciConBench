@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Resume post-query stages for a run month: atomic facts → precision → recall.
+"""Resume post-query stages (all run months, or one via --run-month):
+atomic facts → precision → recall.
 
 Idempotent: Stage 10 only processes responses still missing atomic facts;
 Stages 11–12 only grade responses that are not yet graded.
@@ -23,8 +24,8 @@ from dotenv import load_dotenv
 load_dotenv(ROOT / ".env")
 
 import db.utils as db_utils
-from data_collection.utils import previous_year_month
 from run_workflow import (
+    _excluded_models,
     _run_task,
     task_generate_response_facts_by_model,
     task_run_precision,
@@ -37,20 +38,21 @@ def main() -> None:
     parser.add_argument(
         "--run-month",
         default=None,
-        help="Run month partition (default: previous calendar month).",
+        help="Limit to one run month partition (default: all months).",
     )
     args = parser.parse_args()
-    run_month = args.run_month or previous_year_month()
+    run_month = args.run_month
+    excluded = _excluded_models()
 
-    all_responses = db_utils.get_all_model_responses(run_month)
-    pending_facts = db_utils.get_unprocessed_model_responses(run_month)
+    all_responses = db_utils.get_all_model_responses(run_month, exclude_models=excluded)
+    pending_facts = db_utils.get_unprocessed_model_responses(run_month, exclude_models=excluded)
     graded_p = db_utils.get_graded_response_ids(precision=True)
     graded_r = db_utils.get_graded_response_ids(precision=False)
     pending_p = [rid for rid in all_responses if rid not in graded_p]
     pending_r = [rid for rid in all_responses if rid not in graded_r]
 
     print("=" * 60)
-    print(f"Resume stages 10–12: run_month={run_month}")
+    print(f"Resume stages 10–12: run_month={run_month or 'all'}")
     print(f"  atomic facts pending: {len(pending_facts)}/{len(all_responses)}")
     if pending_facts:
         for rid, data in sorted(pending_facts.items(), key=lambda x: x[1]["model"]):
@@ -81,15 +83,15 @@ def main() -> None:
     else:
         print("Stage 12: nothing pending, skipping.")
 
-    leftover_facts = db_utils.get_unprocessed_model_responses(run_month)
+    leftover_facts = db_utils.get_unprocessed_model_responses(run_month, exclude_models=excluded)
     leftover_p = [
         rid
-        for rid in db_utils.get_all_model_responses(run_month)
+        for rid in db_utils.get_all_model_responses(run_month, exclude_models=excluded)
         if rid not in db_utils.get_graded_response_ids(precision=True)
     ]
     leftover_r = [
         rid
-        for rid in db_utils.get_all_model_responses(run_month)
+        for rid in db_utils.get_all_model_responses(run_month, exclude_models=excluded)
         if rid not in db_utils.get_graded_response_ids(precision=False)
     ]
     print("=" * 60)

@@ -29,10 +29,11 @@ Anything placed in `/n/fs/sciconbench/www` is served at the public URL, so
 `publish.sh` is the whole deployment story. Set `SCICON_WEB_ROOT` to stage
 somewhere else.
 
-## Refreshing after a monthly run
+## Refreshing after a run
 
-The pipeline runs on the 1st of each month and the judging stages finish hours
-later, so the site should be regenerated once grading has landed:
+The pipeline runs on the 1st of each month; model querying and judging run
+only every other month (`query_run_months`, default Oct/Dec/Feb/…) and finish
+hours later, so the site should be regenerated once grading has landed:
 
 ```bash
 cd /n/fs/hamcore/hayoung/SciConBench

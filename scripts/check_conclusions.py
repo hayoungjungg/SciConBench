@@ -64,6 +64,7 @@ DEFAULT_QUERY_BATCH_CONFIG = (
 # needed, or use --provider/--model with --models for a one-off directory.
 LEGACY_PROVIDER_MODEL_MAP: dict[str, tuple[str, str]] = {
     "qwen_qwen3.5-9b": ("openrouter", "qwen/qwen3.5-9b"),
+    "claude-opus-5-5": ("claude", "claude-opus-5-5"),
 }
 
 

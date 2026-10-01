@@ -155,7 +155,10 @@ class SciConHarness:
         Hard cap on tool calls per query for [o3, o4-mini]-deep-research models.  Default 30.
     max_format_retries : int
         How many total attempts to make if the response is missing
-        ``[[[...]]]``.  Default 3 (matches ``query_batch.py``).
+        ``[[[...]]]``.  Default 3 (matches ``query_batch.py``).  If all of
+        them fail, one extra attempt is made with the provider's
+        thinking/output token budget doubled, then a final one with it
+        tripled, before giving up.
     min_conclusion_length : int
         Minimum character count inside ``[[[...]]]`` to be considered
         well-formatted.  Default 50.
@@ -166,6 +169,8 @@ class SciConHarness:
     log_dir : Path, optional
         Override the base log/output directory.
     """
+
+    THINKING_ESCALATION_FACTORS = (2, 3)
 
     def __init__(
         self,
@@ -451,6 +456,18 @@ class SciConHarness:
         logger.error("Failed to save result file after %d attempts", max_retries)
         return None
 
+    def _scale_output_budget(self, factor: int) -> Dict[str, int]:
+        """Multiply the provider's per-turn output cap (which bounds thinking
+        for every provider) and, for Claude fixed-budget thinking, the
+        thinking budget. Returns the original values for restoring."""
+        originals: Dict[str, int] = {}
+        for attr in ("max_tokens", "max_output_tokens", "thinking_budget_tokens"):
+            value = getattr(self._llm_provider, attr, None)
+            if isinstance(value, int) and not isinstance(value, bool):
+                originals[attr] = value
+                setattr(self._llm_provider, attr, value * factor)
+        return originals
+
     def _is_well_formatted(self, response: str) -> Tuple[bool, str]:
         """Return (ok, reason) — mirrors BatchQueryRunner._is_response_well_formatted."""
         if not response or not isinstance(response, str):
@@ -624,39 +641,41 @@ class SciConHarness:
         token_usage: Optional[Dict[str, Any]] = None
         format_error: Optional[str] = None
 
+        async def _attempt(attempt: int) -> Tuple[str, Dict[str, Any]]:
+            if self._is_deep_research:
+                # Pass data_dir=None to defer saving until after all retries
+                return await self._query_deep_research(
+                    question=question,
+                    doi=doi,
+                    publication_date=publication_date,
+                    source_title=source_title,
+                    log_dir=log_dir,
+                    data_dir=None,
+                )
+            # OpenRouter-only: pin this query's whole tool-calling loop
+            # (all iterations) to one sticky-routing session, so prompt
+            # caching actually has a stable prefix to hit against. Scoped
+            # to (provider, model, doi, attempt, random) so distinct
+            # models/configs/reruns sharing the same DOI never collide —
+            # session_id only affects *routing*, not cache correctness,
+            # but a fresh id per logical conversation keeps runs cleanly
+            # separated for cost attribution (OpenRouter's Activity page
+            # also groups by session_id).
+            if hasattr(self._llm_provider, "set_session_id"):
+                self._llm_provider.set_session_id(
+                    self._build_session_id(doi, attempt)
+                )
+            return await self._mcp_client.process_query(
+                question,
+                conversation_history=None,
+                result_filter=result_filter,
+                return_token_usage=True,
+                domain_filter=df,
+            )
+
         for attempt in range(self.max_format_retries):
             try:
-                if self._is_deep_research:
-                    # Pass data_dir=None to defer saving until after all retries
-                    response, token_usage = await self._query_deep_research(
-                        question=question,
-                        doi=doi,
-                        publication_date=publication_date,
-                        source_title=source_title,
-                        log_dir=log_dir,
-                        data_dir=None,
-                    )
-                else:
-                    # OpenRouter-only: pin this query's whole tool-calling loop
-                    # (all iterations) to one sticky-routing session, so prompt
-                    # caching actually has a stable prefix to hit against. Scoped
-                    # to (provider, model, doi, attempt, random) so distinct
-                    # models/configs/reruns sharing the same DOI never collide —
-                    # session_id only affects *routing*, not cache correctness,
-                    # but a fresh id per logical conversation keeps runs cleanly
-                    # separated for cost attribution (OpenRouter's Activity page
-                    # also groups by session_id).
-                    if hasattr(self._llm_provider, "set_session_id"):
-                        self._llm_provider.set_session_id(
-                            self._build_session_id(doi, attempt)
-                        )
-                    response, token_usage = await self._mcp_client.process_query(
-                        question,
-                        conversation_history=None,
-                        result_filter=result_filter,
-                        return_token_usage=True,
-                        domain_filter=df,
-                    )
+                response, token_usage = await _attempt(attempt)
 
                 ok, reason = self._is_well_formatted(response)
                 if ok:
@@ -714,6 +733,51 @@ class SciConHarness:
                     logger.info("Retrying query for %s...", doi)
                 else:
                     raise  # propagate on final attempt so query_batch can capture it
+
+        # Last resort after max_format_retries malformed responses: retry with
+        # 2x, then 3x the thinking/output budget (e.g. a max-effort reasoning
+        # model that spends the whole cap thinking and emits no text).
+        escalation_attempt = self.max_format_retries
+        for factor in self.THINKING_ESCALATION_FACTORS:
+            if not format_error or self._is_deep_research:
+                break
+            originals = self._scale_output_budget(factor)
+            if not originals:
+                break
+            logger.warning(
+                "Retrying %s with %dx thinking/output budget: %s",
+                doi, factor,
+                {k: (v, getattr(self._llm_provider, k)) for k, v in originals.items()},
+            )
+            try:
+                esc_response, esc_usage = await _attempt(escalation_attempt)
+                ok, reason = self._is_well_formatted(esc_response)
+                response, token_usage = esc_response, dict(esc_usage or {})
+                token_usage["output_budget_escalation"] = {
+                    "factor": factor,
+                    **{k: getattr(self._llm_provider, k) for k in originals},
+                }
+                if ok:
+                    logger.info(
+                        "Response is well-formatted after %dx budget escalation: %s",
+                        factor, reason,
+                    )
+                    format_error = None
+                else:
+                    format_error = (
+                        f"Response not well-formatted after {self.max_format_retries} "
+                        f"attempts plus {factor}x-budget escalation: {reason}"
+                    )
+                    logger.error("%s (%s)", format_error, doi)
+            except Exception as e:
+                logger.error(
+                    "%dx budget-escalation attempt failed for %s: %s",
+                    factor, doi, e, exc_info=True,
+                )
+            finally:
+                for k, v in originals.items():
+                    setattr(self._llm_provider, k, v)
+            escalation_attempt += 1
 
         # ── Save once after all retries ───────────────────────────────────────
         if response:

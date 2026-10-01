@@ -1,0 +1,49 @@
+============================================================
+Stage 9 backfill: run_month=2026-08 smoke=False
+  eval DOIs (core + all released rolling): 159; held back: 2
+  claude/claude-opus-5-5: pending 24/159 endpoint=mh358-mceydgr5-eastus2.services.ai.azure.com
+============================================================
+Limit: eval DOIs 147-147 (10.1002/14651858.CD016085.pub2 .. 10.1002/14651858.CD016085.pub2); 1 still pending
+Query providers restricted to ['claude']: 1 model(s) [('claude', 'claude-opus-5-5')]
+Warning: openrouter_base_model_lane lists models not in default_models.openrouter (ignored for bucketing): ['z-ai/glm-5.3', 'qwen/qwen3.8-max']
+Warning: openrouter_generic_lane lists models not in default_models.openrouter (ignored for bucketing): ['moonshotai/kimi-k3', 'qwen/qwen3.8-27b', 'minimax/minimax-m3']
+Running 1 query lane(s) concurrently (azure_anthropic: 1 model(s))...
+Query round 1/3: 1 pending DOI/model pair(s)...
+[azure_anthropic] claude/claude-opus-5-5: 1 pending of 1 eval DOI(s) (policy=once)...
+/n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/fastmcp/server/auth/providers/jwt.py:10: AuthlibDeprecationWarning: authlib.jose module is deprecated, please use joserfc instead.
+It will be compatible before version 2.0.0.
+  from authlib.jose import JsonWebKey, JsonWebToken
+
+
+[2m╭─[0m[2m FastMCP 2.0 [0m[2m─────────────────────────────────────────────────────────────[0m[2m─╮[0m
+[2m│[0m                                                                            [2m│[0m
+[2m│[0m    [1m    _ __ ___ ______           __  __  _____________    ____    ____ [0m    [2m│[0m
+[2m│[0m    [1m   _ __ ___ / ____/___ ______/ /_/  |/  / ____/ __ \  |___ \  / __ \[0m    [2m│[0m
+[2m│[0m    [1m  _ __ ___ / /_  / __ `/ ___/ __/ /|_/ / /   / /_/ /  ___/ / / / / /[0m    [2m│[0m
+[2m│[0m    [1m _ __ ___ / __/ / /_/ (__  ) /_/ /  / / /___/ ____/  /  __/_/ /_/ / [0m    [2m│[0m
+[2m│[0m    [1m_ __ ___ /_/    \__,_/____/\__/_/  /_/\____/_/      /_____(_)____/  [0m    [2m│[0m
+[2m│[0m                                                                            [2m│[0m
+[2m│[0m                                                                            [2m│[0m
+[2m│[0m                                                                            [2m│[0m
+[2m│[0m    [1m🖥️ [0m[1m [0m[1mServer name:    [0m[1m [0mBenchmarkMCP                                        [2m│[0m
+[2m│[0m    [1m📦[0m[1m [0m[1mTransport:      [0m[1m [0mSTDIO                                               [2m│[0m
+[2m│[0m    [1m  [0m[1m [0m[1m                [0m[1m [0m                                                    [2m│[0m
+[2m│[0m    [1m📚[0m[1m [0m[1mDocs:           [0m[1m [0mhttps://gofastmcp.com                               [2m│[0m
+[2m│[0m    [1m🚀[0m[1m [0m[1mDeploy:         [0m[1m [0mhttps://fastmcp.cloud                               [2m│[0m
+[2m│[0m    [1m  [0m[1m [0m[1m                [0m[1m [0m                                                    [2m│[0m
+[2m│[0m    [1m🏎️ [0m[1m [0m[1mFastMCP version:[0m[1m [0m[2m2.11.3               [0m                               [2m│[0m
+[2m│[0m    [1m🤝[0m[1m [0m[1mMCP version:    [0m[1m [0m[2m1.28.1               [0m                               [2m│[0m
+[2m│[0m                                                                            [2m│[0m
+[2m╰────────────────────────────────────────────────────────────────────────────╯[0m
+
+
+[2m[09/30/26 20:15:32][0m[2m [0mINFO     Starting MCP server 'BenchmarkMCP'   ]8;id=186996;file:///n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/fastmcp/server/server.py\[2mserver.py[0m]8;;\[2m:[0m]8;id=352144;file:///n/fs/hamcore/hayoung/.conda/envs/cochrane-benchmark/lib/python3.10/site-packages/fastmcp/server/server.py#1445\[2m1445[0m]8;;\
+[2m                    [0m         with transport 'stdio'               [2m              [0m
+2026-09-30 20:15:40,125 - mcp_server.cache - INFO - Cache set for key: 436ad48e79a7d16500bd7e82cbb54176 (caching 0 organic results)
+2026-09-30 20:15:41,399 - mcp_server.cache - INFO - Cache set for key: 1475683997febda3a4cd746eaba5725f (caching 0 organic results)
+2026-09-30 20:15:46,770 - mcp_server.cache - INFO - Cache set for key: 3f13225a10b920316f54bb27714b032f (caching 0 organic results)
+2026-09-30 20:15:48,077 - mcp_server.cache - INFO - Cache set for key: e9eb612567410167c5c85b14e5f4ca76 (caching 0 organic results)
+2026-09-30 20:15:54,271 - mcp_server.cache - INFO - Cache set for key: 7e31c2b41328c1b7906d25aaeab2c2ef (caching 0 organic results)
+2026-09-30 20:15:55,550 - mcp_server.cache - INFO - Cache set for key: 110dcea7706d690be25767c72bf2b6fe (caching 0 organic results)
+2026-09-30 20:16:01,004 - mcp_server.cache - INFO - Cache set for key: 81fbb2399fad5f125d572232c9d3e3bd (caching 0 organic results)
+Done claude/claude-opus-5-5: 1/1 answered

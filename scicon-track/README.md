@@ -79,8 +79,12 @@ scicon-track workflow --once
 
 Runs the full monthly pipeline.  Pass `--once` to execute a single run and exit;
 omit it to start a Prefect scheduler that fires on the 1st of each calendar
-month (`cron 0 0 1 * *`, America/New_York). Use `--interval bimonthly` for the
-1st of odd months. Requires a core set created once via `scicon-track init-core-set`.
+month (`cron 0 0 1 * *`, America/New_York). Stages 1–8 (ingest, facts,
+HuggingFace upload) run every month; stages 9–12 (query + scoring) run only
+when the run date falls in `query_run_months` — bimonthly by default
+(Oct → Dec → Feb → …). In other months those stages are logged as skipped;
+pass `--force-query` to run them anyway. Requires a core set created once via
+`scicon-track init-core-set`.
 
 ```
 Usage: scicon-track workflow [OPTIONS]
@@ -90,8 +94,7 @@ Options:
   --max-dois N            Limit to N DOIs per run (smoke-testing).
   --batch-size INT        Atomic-fact batch size.  [default: 500]
   --rolling-month YYYY-MM Latest closed month for evals (default: previous calendar month).
-  --interval [monthly|bimonthly]
-                          Scheduler cadence (ignored with --once).  [default: monthly]
+  --force-query           Run query + scoring stages outside query_run_months.
   --help                  Show this message and exit.
 ```
 
@@ -212,8 +215,8 @@ The `workflow` command executes these Prefect tasks in order:
 | 6 | `task_generate_questions` | Generate clinical questions |
 | 7 | `task_generate_cochrane_facts_batch` | Atomic-fact decomposition of Cochrane conclusions |
 | 8 | `task_upload_to_hf` | Merge + publish **closed-month** core+rolling rows to `hayoungjung/SciConBench` (benchmark/test); refresh `sciconharness` Cochrane-filter caches; then (production only) prepend a newest-first Hub README changelog entry in a second commit. Superseded `.pubN` DOIs are dropped from the merge. |
-| 9 | `task_run_queries` | Query models with SciConHarness against the current core plus the latest **4** closed rolling cohorts. By default every model queries each DOI **once** (skip if any prior response exists). Opt into per-run re-query via `reevaluate_always` in `query_batch_config.yaml`. A newly added model therefore evaluates the core and four-month rolling window, never the entire rolling history. Only `FACTS_GENERATED` DOIs are queried. Each pair is retried per-item, then leftover pairs are re-queried in whole-stage rounds; leftover pending DOI/model pairs fail the task. |
-| 10 | `task_generate_response_facts_by_model` | Atomic-fact decomposition of model responses |
+| 9 | `task_run_queries` | **Bimonthly** (only in `query_run_months`, default Oct/Dec/Feb/Apr/Jun/Aug; stages 9–12 are skipped otherwise). Query models with SciConHarness against the current core plus the latest **3** closed rolling cohorts. By default every model queries each DOI **once** (skip if any prior response exists). Opt into per-run re-query via `reevaluate_always` in `query_batch_config.yaml`. A newly added model therefore evaluates the core and three-month rolling window, never the entire rolling history; existing models pick up the two cohorts closed since the previous query run. Only `FACTS_GENERATED` DOIs are queried. Each pair is retried per-item, then leftover pairs are re-queried in whole-stage rounds; leftover pending DOI/model pairs fail the task. |
+| 10 | `task_generate_response_facts_by_model` | Atomic-fact decomposition of model responses. Stages 10–12 cover **every** ungraded response from any run month (except `excluded_models`), so off-cycle backfills are scored at the next query run. |
 | 11 | `task_run_precision` | LLM-judge precision analysis |
 | 12 | `task_run_recall` | LLM-judge recall analysis |
 
@@ -231,7 +234,7 @@ Every DOI in the database belongs to one of two panels:
 | Panel | Description |
 |-------|-------------|
 | `core` | Initially, up to 10 curated reviews per month from Jul 2025–Jun 2026, drawn once via `scicon-track init-core-set`. After 12 rolling cohorts have closed, this becomes a monthly sliding 12-cohort window: the earliest core cohort is demoted to rolling and the oldest rolling cohort is promoted to core. For example, the Jun 2027 close replaces Jul 2025 with Jul 2026; the Jul 2027 close replaces Aug 2025 with Aug 2026. This keeps the core no more than two years old. Every model queries each current core DOI once. |
-| `rolling` | New CDSR reviews not already on HuggingFace, tagged by publication `cohort_month`. Open-month rows stay local until the month closes. Query evaluation includes only the latest `rolling_panel_months` closed cohorts (default **4**) outside the current core; older rolling history remains stored and published but is not backfilled for newly added models. A newer `.pubN` is assigned to rolling even when it replaces a core DOI. |
+| `rolling` | New CDSR reviews not already on HuggingFace, tagged by publication `cohort_month`. Open-month rows stay local until the month closes. Query evaluation includes only the latest `rolling_panel_months` closed cohorts (default **3**) outside the current core; older rolling history remains stored and published but is not backfilled for newly added models. A newer `.pubN` is assigned to rolling even when it replaces a core DOI. |
 
 Each rolling review is tagged with its `cohort_month` (e.g. `"2026-07"`), which is the publication month, not the run date.
 Panel membership is mirrored to `data_track/doi_panels.json` for inspection.
@@ -249,14 +252,14 @@ All behaviour is controlled by YAML files in `scicon-track/config/`.  No code ch
 | `config/query_batch_config.yaml` | Models/providers for harness queries |
 | `config/hugging_face_config.yaml` | Source + upload dataset on HuggingFace |
 
-### `query_batch_config.yaml` — models run every month
+### `query_batch_config.yaml` — models run every other month
 
 `default_models` maps each provider to either a single model name or a
 **list** of model names — the list form lets one provider run several
 distinct models every run (used for OpenRouter, which hosts multiple
 models behind a single provider).
 
-Current monthly roster is **7 frontier models + 3 controls** (10 total).
+Current bimonthly roster is **7 frontier models + 3 controls** (10 total).
 Controls are all open-weight, frontier models as of the start of the study
 running alongside the primary panel for comparison:
 
@@ -266,10 +269,12 @@ running alongside the primary panel for comparison:
 | Control | DeepSeek-V4-Flash-0731, Qwen3.8 27B, MiniMax M3 |
 
 ```yaml
-rolling_panel_months: 4             # newest closed rolling cohorts to evaluate
+rolling_panel_months: 3             # newest closed rolling cohorts to evaluate
+query_run_months: [2, 4, 6, 8, 10, 12]  # run months for stages 9–12
+excluded_models: [gpt-6-sol]        # never graded (stages 10–12) or shown on the site
 
 default_models:
-  openai: gpt-6-sol
+  openai: gpt-6.1-sol
   claude: claude-opus-5-5
   gemini: gemini-3.8-flash
   azure:
@@ -296,11 +301,11 @@ reevaluate_always: []              # empty = all models query each DOI once
 Every `(provider, model)` pair produced by `QueryBatchConfig.iter_models()`
 is queried in `task_run_queries` under a single **clean-room** configuration
 (`tools_filter`). By default every model skips DOIs it has already answered;
-later runs only pick up newly closed rolling DOIs (and still-missing pairs
-within the four-month rolling window). Put a model in `reevaluate_always` only
-if you want the current core + rolling window re-queried every run. Adding a
-new model name to `default_models` evaluates the current core and latest four
-rolling cohorts; older rolling history is deliberately not backfilled.
+later query runs only pick up newly closed rolling DOIs (and still-missing
+pairs within the three-month rolling window). Put a model in
+`reevaluate_always` only if you want the current core + rolling window
+re-queried every run. Adding a new model name to `default_models` evaluates
+the current core and latest three rolling cohorts at the next query run; older rolling history is deliberately not backfilled.
 
 ### Pipeline concurrency
 
@@ -320,9 +325,9 @@ lane, models — and DOIs within a model — are queried strictly sequentially:
   `openrouter_base_model_lane` → **`OPENROUTER_API_KEY_BASE_MODEL`**
   (GLM-5.3, Qwen3.8-max); everything else → **`OPENROUTER_API_KEY`**
   (Kimi K3, Qwen3.8-27B, MiniMax M3). Run order is base list then generic list.
-- `spi_openai` — OpenAI GPT (`gpt-6-sol`) on
-  **`SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY`** +
-  **`SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL`** (no fallback; the lane errors
+- `salame_openai` — OpenAI GPT (`gpt-6.1-sol`) on
+  **`SALAME_AZURE_OPENAI_KEY`** +
+  **`SALAME_OPENAI_BASE_URL`** (no fallback; the lane errors
   if either is unset).
 - `azure_openai` — DeepSeek-V4.1-Flash, then DeepSeek-V4-Flash-0731 (control).
   Models in `azure_openai_key_models` (DeepSeek-V4.1-Flash) use
@@ -384,8 +389,8 @@ per-DOI directory as `result.json` (track sets `SciConHarness(log_dir=...)`
 to `data_track/results/<run_month>/`). Static benchmark runs still default
 to `sciconharness/logs/` when `log_dir` is unset.
 
-The `<run_month>` partition matters because the pipeline runs monthly (or
-bimonthly) against a sliding core plus a bounded rolling panel: the same
+The `<run_month>` partition matters because models are queried every other
+month against a sliding core plus a bounded rolling panel: the same
 DOI/model pair can legitimately get queried again in a later month, and
 without partitioning by month that re-run would silently overwrite the
 earlier month's file even though the DB keeps them as distinct rows (unique

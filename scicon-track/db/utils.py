@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import Any
+from typing import Any, Iterable
 
 from sqlalchemy import select
 
@@ -1021,17 +1021,21 @@ def get_dois_with_response(
         return {row.doi for row in q.all()}
 
 
-def get_all_model_responses(run_month: str | None = None) -> dict[int, Any]:
+def get_all_model_responses(
+    run_month: str | None = None, exclude_models: Iterable[str] | None = None,
+) -> dict[int, Any]:
     """Return all ModelResponse rows as a dict keyed by response id.
 
     Each value is a plain dict of column name → value, matching the shape
     returned by :func:`get_unprocessed_model_responses`.  Optionally filters
-    to a specific *run_month*.
+    to a specific *run_month* and drops rows from *exclude_models*.
     """
     with _session()() as session:
         q = session.query(ModelResponse)
         if run_month is not None:
             q = q.filter(ModelResponse.run_month == run_month)
+        if exclude_models:
+            q = q.filter(ModelResponse.model.notin_(list(exclude_models)))
         return {
             row.id: {
                 col.name: getattr(row, col.name)
@@ -1041,10 +1045,13 @@ def get_all_model_responses(run_month: str | None = None) -> dict[int, Any]:
         }
 
 
-def get_unprocessed_model_responses(run_month: str | None = None) -> dict[str, Any]:
+def get_unprocessed_model_responses(
+    run_month: str | None = None, exclude_models: Iterable[str] | None = None,
+) -> dict[str, Any]:
     """Return model responses that do not yet have atomic facts generated.
 
-    Optionally filters to a specific *run_month*.
+    Optionally filters to a specific *run_month* and drops rows from
+    *exclude_models*.
     """
     with _session()() as session:
         processed_response_ids = {
@@ -1058,6 +1065,8 @@ def get_unprocessed_model_responses(run_month: str | None = None) -> dict[str, A
         q = session.query(ModelResponse)
         if run_month is not None:
             q = q.filter(ModelResponse.run_month == run_month)
+        if exclude_models:
+            q = q.filter(ModelResponse.model.notin_(list(exclude_models)))
         return {
             row.id: {
                 col.name: getattr(row, col.name)

@@ -2,14 +2,16 @@
 
 Run once:                       python scicon-track/run_workflow.py --once
 Run on the 1st of each month:   python scicon-track/run_workflow.py
-Run on the 1st of odd months:   python scicon-track/run_workflow.py --interval bimonthly
 Limit to N DOIs (smoke test):   python scicon-track/run_workflow.py --once --max-dois 5
 Rolling panel month override:   python scicon-track/run_workflow.py --once --rolling-month 2026-07
+Query in an off month:          python scicon-track/run_workflow.py --once --force-query
 
 The core set must be created once via ``scicon-track init-core-set`` before
 any monthly run. After a full rolling year it advances one cohort per month.
-Every run evaluates that core plus the latest configured rolling cohorts; each
-model queries a DOI at most once. Adding a model to query_batch_config.yaml is
+Ingest, facts, and HuggingFace upload run monthly; querying and scoring run
+only in ``query_run_months`` (bimonthly). Each query run evaluates that core
+plus the latest configured rolling cohorts; each model queries a DOI at most
+once. Adding a model to query_batch_config.yaml is
 enough — the next run evaluates it on that bounded universe.
 """
 
@@ -618,7 +620,7 @@ def task_generate_cochrane_facts_batch(batch: dict, questions: dict) -> None:
 #
 #   openrouter       — all OpenRouter models, strictly one at a time
 #                      (key still chosen per model: BASE_MODEL vs GENERIC)
-#   spi_openai       — OpenAI GPT (SPI_HAYOUNG_DASHBOARD_*)
+#   salame_openai    — OpenAI GPT (SALAME_*)
 #   azure_openai     — DeepSeek (AZURE_OPENAI_KEY or COCHRANE_DASHBOARD_*,
 #                      per azure_openai_key_models)
 #   azure_anthropic  — Claude on Azure (AZURE_ANTHROPIC_*)
@@ -633,7 +635,7 @@ def task_generate_cochrane_facts_batch(batch: dict, questions: dict) -> None:
 # per-instance state, e.g. the OpenRouter sticky-routing session_id).
 QUERY_LANES: dict[str, tuple[str, ...]] = {
     "openrouter": ("openrouter",),
-    "spi_openai": ("openai",),
+    "salame_openai": ("openai",),
     "azure_openai": ("azure",),
     "azure_anthropic": ("claude",),
     "gemini": ("gemini",),
@@ -671,8 +673,8 @@ def _resolve_query_credentials(
 ) -> tuple[str | None, str | None, str | None]:
     """Return (api_key, base_url, api_version) for a query-stage provider.
 
-    - ``openai`` (GPT): ``SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY`` /
-      ``SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL``, no fallback.
+    - ``openai`` (GPT): ``SALAME_AZURE_OPENAI_KEY`` /
+      ``SALAME_OPENAI_BASE_URL``, no fallback.
     - ``azure`` (DeepSeek): models listed in
       ``azure_openai_key_models`` use ``AZURE_OPENAI_KEY`` /
       ``OPENAI_BASE_URL``; all others use Cochrane Dashboard Azure OpenAI
@@ -688,12 +690,12 @@ def _resolve_query_credentials(
     - Everything else: leave unset so ``create_provider()`` resolves from env.
     """
     if provider == "openai":
-        api_key = _env_api_key("SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY")
-        base_url = _env_api_key("SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL")
+        api_key = _env_api_key("SALAME_AZURE_OPENAI_KEY")
+        base_url = _env_api_key("SALAME_OPENAI_BASE_URL")
         if not api_key or not base_url:
             raise RuntimeError(
-                f"openai/{model}: SPI_HAYOUNG_DASHBOARD_AZURE_OPENAI_KEY and "
-                "SPI_HAYOUNG_DASHBOARD_OPENAI_BASE_URL must both be set"
+                f"openai/{model}: SALAME_AZURE_OPENAI_KEY and "
+                "SALAME_OPENAI_BASE_URL must both be set"
             )
         return api_key, base_url, os.environ.get("OPENAI_API_VERSION")
     if provider == "azure":
@@ -877,7 +879,7 @@ async def _run_provider_lane(
             # least min_conclusion_length chars (see SciConHarness.query()).
             max_format_retries=max_format_retries,
             min_conclusion_length=min_conclusion_length,
-            max_tokens=max_tokens,
+            max_tokens=query_cfg.max_tokens_overrides.get(model, max_tokens),
         )
         async with harness:
             for doi in dois:
@@ -1019,7 +1021,7 @@ async def task_run_queries(
     strictly sequentially (see _run_provider_lane). All OpenRouter models
     share one sequential lane (at most one OpenRouter request in flight);
     per-model keys still follow openrouter_base_model_lane vs generic.
-    Other lanes: spi_openai (GPT on SPI_HAYOUNG_DASHBOARD_*), azure_openai
+    Other lanes: salame_openai (GPT on SALAME_*), azure_openai
     (DeepSeek), azure_anthropic (Claude on AZURE_ANTHROPIC_*), gemini.
     """
     from config import query_cfg
@@ -1194,6 +1196,13 @@ FACTS_MODELS_PER_BATCH = len(FACTS_JUDGE_API_KEYS)
 FACTS_SHARD_CONCURRENCY = 4
 
 
+def _excluded_models() -> list[str]:
+    """``excluded_models`` from query_batch_config.yaml; stages 10–12 skip them."""
+    from config import query_cfg
+
+    return list(query_cfg.excluded_models)
+
+
 def _run_grouped_sharded(
     item_groups: list[list],
     shard_worker: Callable[[list, str | None, str | None], None],
@@ -1294,7 +1303,7 @@ def task_generate_response_facts_by_model(run_month: str | None = None) -> None:
                 )
 
     for round_i in range(1, STAGE_ROUNDS + 1):
-        unprocessed = get_unprocessed_model_responses(run_month=run_month)
+        unprocessed = get_unprocessed_model_responses(run_month=run_month, exclude_models=_excluded_models())
         if not unprocessed:
             print("Model-response atomic facts: nothing pending.")
             return
@@ -1307,7 +1316,7 @@ def task_generate_response_facts_by_model(run_month: str | None = None) -> None:
         )
         _run_grouped_sharded(list(by_model.values()), _run_shard, group_label="atomic facts")
 
-    leftover = get_unprocessed_model_responses(run_month=run_month)
+    leftover = get_unprocessed_model_responses(run_month=run_month, exclude_models=_excluded_models())
     if leftover:
         raise _stage_leftover_error("Model-response atomic facts", leftover.keys())
 
@@ -1335,7 +1344,7 @@ def task_run_precision(run_month: str | None = None) -> None:
         graded = get_graded_response_ids(precision=True)
         return [
             (rid, data)
-            for rid, data in get_all_model_responses(run_month=run_month).items()
+            for rid, data in get_all_model_responses(run_month=run_month, exclude_models=_excluded_models()).items()
             if rid not in graded
         ]
 
@@ -1431,7 +1440,7 @@ def task_run_recall(run_month: str | None = None) -> None:
         graded = get_graded_response_ids(precision=False)
         return [
             (rid, data)
-            for rid, data in get_all_model_responses(run_month=run_month).items()
+            for rid, data in get_all_model_responses(run_month=run_month, exclude_models=_excluded_models()).items()
             if rid not in graded
         ]
 
@@ -1625,8 +1634,13 @@ def sciconbench_track_pipeline(
     rolling_month: str | None = None,
     trial: bool = False,
     providers: list[str] | None = None,
+    force_query: bool = False,
 ) -> None:
     """End-to-end monthly pipeline.
+
+    Stages 1–8 run every month. Stages 9–12 run only when the run date falls
+    in ``query_run_months`` (bimonthly: Oct, Dec, Feb, ...), or with
+    ``trial`` / ``force_query``.
 
     Stages:
       1.  Initialize DB
@@ -1702,6 +1716,17 @@ def sciconbench_track_pipeline(
             f"TRIAL MODE — HF upload → config 'trial'; providers={providers}"
         )
     print(f"Pipeline closed-month for evals: {target_month}")
+
+    from config import query_cfg
+
+    run_month_now = datetime.now(ZoneInfo("America/New_York")).month
+    run_queries = trial or force_query or run_month_now in query_cfg.query_run_months
+    if not run_queries:
+        print(
+            f"Stages 9–12 (query + scoring) skipped this month: run month "
+            f"{run_month_now} is not in query_run_months="
+            f"{query_cfg.query_run_months} (use --force-query to override)."
+        )
 
     run_status = "failed"
     try:
@@ -1839,74 +1864,92 @@ def sciconbench_track_pipeline(
             )
         report.finish(report.upload_note)
 
-        # 9. Query models against core + the latest closed rolling cohorts.
-        report.begin("9. Query models")
-        eval_dois, held_back = get_eval_dois(target_month)
-        if trial:
-            new_set = set(new_dois)
-            eval_dois = [d for d in eval_dois if d in new_set]
-            print(
-                f"Trial eval: {len(eval_dois)} of {len(new_dois)} newly "
-                f"discovered DOI(s) are ready (cohort_month <= {target_month})."
+        if not run_queries:
+            skip_note = (
+                f"bimonthly query cadence; run month {run_month_now} not in "
+                f"query_run_months={query_cfg.query_run_months}"
             )
-        elif max_dois is not None:
-            eval_dois = eval_dois[:max_dois]
-        report.eval_dois = list(eval_dois)
-        report.held_back = list(held_back)
-        report.n_rolling = len(get_dois_by_panel(PanelType.ROLLING))
-        print(
-            f"Eval universe: {len(eval_dois)} DOI(s) with questions+facts "
-            f"(core + latest rolling cohorts through {target_month}; "
-            f"{len(get_dois_by_panel(PanelType.CORE))} core, "
-            f"{report.n_rolling} rolling total; "
-            f"{len(held_back)} rolling held back as still-open)."
-        )
-        wlog.info(
-            f"Eval universe: {len(eval_dois)} DOI(s); "
-            f"held back={len(held_back)}; providers={providers or 'all'}"
-        )
+            for stage in (
+                "9. Query models",
+                "10. Response atomic facts",
+                "11. Precision analysis",
+                "12. Recall analysis",
+            ):
+                report.skip_stage(stage, skip_note)
+        else:
+            # 9. Query models against core + the latest closed rolling cohorts.
+            report.begin("9. Query models")
+            eval_dois, held_back = get_eval_dois(target_month)
+            if trial:
+                new_set = set(new_dois)
+                eval_dois = [d for d in eval_dois if d in new_set]
+                print(
+                    f"Trial eval: {len(eval_dois)} of {len(new_dois)} newly "
+                    f"discovered DOI(s) are ready (cohort_month <= {target_month})."
+                )
+            elif max_dois is not None:
+                eval_dois = eval_dois[:max_dois]
+            report.eval_dois = list(eval_dois)
+            report.held_back = list(held_back)
+            report.n_rolling = len(get_dois_by_panel(PanelType.ROLLING))
+            print(
+                f"Eval universe: {len(eval_dois)} DOI(s) with questions+facts "
+                f"(core + latest rolling cohorts through {target_month}; "
+                f"{len(get_dois_by_panel(PanelType.CORE))} core, "
+                f"{report.n_rolling} rolling total; "
+                f"{len(held_back)} rolling held back as still-open)."
+            )
+            wlog.info(
+                f"Eval universe: {len(eval_dois)} DOI(s); "
+                f"held back={len(held_back)}; providers={providers or 'all'}"
+            )
 
-        asyncio.run(_run_task_async(
-            task_run_queries,
-            eval_dois, run_month=target_month, providers=providers,
-        ))
-        report.finish(
-            f"{len(eval_dois)} DOI(s); providers="
-            f"{providers or 'all'}"
-        )
+            asyncio.run(_run_task_async(
+                task_run_queries,
+                eval_dois, run_month=target_month, providers=providers,
+            ))
+            report.finish(
+                f"{len(eval_dois)} DOI(s); providers="
+                f"{providers or 'all'}"
+            )
 
-        # 10. Model-response atomic facts
-        report.begin("10. Response atomic facts")
-        from db.utils import get_unprocessed_model_responses
-        n_resp_pending = len(get_unprocessed_model_responses(run_month=target_month))
-        wlog.info(f"Response atomic facts pending at start: {n_resp_pending}")
-        _run_task(task_generate_response_facts_by_model, run_month=target_month)
-        n_resp_left = len(get_unprocessed_model_responses(run_month=target_month))
-        report.finish(
-            f"{n_resp_pending} pending at start; {n_resp_left} remaining"
-        )
+            # Stages 10–12 grade every ungraded response from any run month,
+            # so off-cycle backfills (bulk_query_new_models.py) get scored too.
 
-        # 11. Precision, then recall
-        report.begin("11. Precision analysis")
-        from db.utils import get_all_model_responses, get_graded_response_ids
-        n_prec_pending = sum(
-            1 for rid in get_all_model_responses(run_month=target_month)
-            if rid not in get_graded_response_ids(precision=True)
-        )
-        wlog.info(f"Precision pending at start: {n_prec_pending}")
-        _run_task(task_run_precision, run_month=target_month)
-        report.finish(f"{n_prec_pending} pending at start; complete")
+            # 10. Model-response atomic facts
+            report.begin("10. Response atomic facts")
+            from db.utils import get_unprocessed_model_responses
+            n_resp_pending = len(get_unprocessed_model_responses(exclude_models=_excluded_models()))
+            wlog.info(f"Response atomic facts pending at start (all months): {n_resp_pending}")
+            _run_task(task_generate_response_facts_by_model, run_month=None)
+            n_resp_left = len(get_unprocessed_model_responses(exclude_models=_excluded_models()))
+            report.finish(
+                f"{n_resp_pending} pending at start (all months); {n_resp_left} remaining"
+            )
 
-        report.begin("12. Recall analysis")
-        n_rec_pending = sum(
-            1 for rid in get_all_model_responses(run_month=target_month)
-            if rid not in get_graded_response_ids(precision=False)
-        )
-        wlog.info(f"Recall pending at start: {n_rec_pending}")
-        _run_task(task_run_recall, run_month=target_month)
-        report.finish(f"{n_rec_pending} pending at start; complete")
+            # 11. Precision, then recall
+            report.begin("11. Precision analysis")
+            from db.utils import get_all_model_responses, get_graded_response_ids
+            graded_p = get_graded_response_ids(precision=True)
+            n_prec_pending = sum(
+                1 for rid in get_all_model_responses(exclude_models=_excluded_models())
+                if rid not in graded_p
+            )
+            wlog.info(f"Precision pending at start (all months): {n_prec_pending}")
+            _run_task(task_run_precision, run_month=None)
+            report.finish(f"{n_prec_pending} pending at start (all months); complete")
 
-        _run_task(task_print_eval_metrics, run_month=target_month, dois=eval_dois)
+            report.begin("12. Recall analysis")
+            graded_r = get_graded_response_ids(precision=False)
+            n_rec_pending = sum(
+                1 for rid in get_all_model_responses(exclude_models=_excluded_models())
+                if rid not in graded_r
+            )
+            wlog.info(f"Recall pending at start (all months): {n_rec_pending}")
+            _run_task(task_run_recall, run_month=None)
+            report.finish(f"{n_rec_pending} pending at start (all months); complete")
+
+            _run_task(task_print_eval_metrics, run_month=target_month, dois=eval_dois)
 
         report.ended_at = _now()
         run_status = "success"
@@ -1955,10 +1998,9 @@ if __name__ == "__main__":
     parser.add_argument("--providers", default=None, metavar="LIST",
                         help="Comma-separated providers to query (default: all, "
                              "or openai-only with --trial).")
-    parser.add_argument("--interval", choices=["monthly", "bimonthly"], default="monthly",
-                        help="Recurring-schedule cadence (ignored with --once): "
-                             "'monthly' (1st of each month) or 'bimonthly' "
-                             "(1st of odd months). Calendar-aligned, not a rolling interval.")
+    parser.add_argument("--force-query", action="store_true",
+                        help="Run stages 9–12 (query + scoring) even when the "
+                             "run month is not in query_run_months.")
     args = parser.parse_args()
 
     providers = (
@@ -1974,11 +2016,11 @@ if __name__ == "__main__":
             rolling_month=args.rolling_month,
             trial=args.trial,
             providers=providers,
+            force_query=args.force_query,
         )
     else:
         from prefect.schedules import Cron
-        cron = "0 0 1 * *" if args.interval == "monthly" else "0 0 1 1,3,5,7,9,11 *"
         sciconbench_track_pipeline.serve(
-            name=f"sciconbench-track-{args.interval}",
-            schedules=[Cron(cron, timezone="America/New_York")],
+            name="sciconbench-track-monthly",
+            schedules=[Cron("0 0 1 * *", timezone="America/New_York")],
         )

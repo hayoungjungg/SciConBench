@@ -40,7 +40,7 @@ class DataCollectionConfig(BaseModel):
 
 
 class QueryBatchConfig(BaseModel):
-    """Models evaluated each monthly harness run.
+    """Models evaluated each bimonthly harness run.
 
     All providers in ``default_models`` are considered each run. Add or
     remove entries there to control which models are benchmarked. Each
@@ -60,9 +60,16 @@ class QueryBatchConfig(BaseModel):
     # Per-turn output cap for every provider. Provider adapters map this to
     # their native max_tokens / max_output_tokens field.
     max_tokens: Optional[int] = 8192
+    # Per-model replacement for max_tokens (model name → per-turn output cap).
+    max_tokens_overrides: dict[str, int] = {}
     # Query only this many most-recent closed rolling cohorts, in addition to
     # the current core panel. This bounds first-time evaluation for new models.
-    rolling_panel_months: int = 4
+    rolling_panel_months: int = 3
+    # Calendar months (1–12, by run date) in which stages 9–12 (query, response
+    # facts, precision, recall) run. Stages 1–8 run every month regardless.
+    query_run_months: list[int] = [2, 4, 6, 8, 10, 12]
+    # Models whose stored responses are never graded or shown on the dashboard.
+    excluded_models: list[str] = []
     # OpenRouter key assignment (not concurrent lanes). Models in
     # ``openrouter_base_model_lane`` bill to OPENROUTER_API_KEY_BASE_MODEL;
     # everything else uses OPENROUTER_API_KEY. All OpenRouter models run in
@@ -71,7 +78,7 @@ class QueryBatchConfig(BaseModel):
     openrouter_generic_lane: list[str] = []
     # azure (DeepSeek) models deployed on the AZURE_OPENAI_KEY /
     # OPENAI_BASE_URL resource. Every other azure model uses
-    # COCHRANE_DASHBOARD_*. (openai GPT always uses SPI_HAYOUNG_DASHBOARD_*.)
+    # COCHRANE_DASHBOARD_*. (openai GPT always uses SALAME_*.)
     azure_openai_key_models: list[str] = []
     # Default: every model queries each DOI once. Models listed here are
     # re-queried against the current core + rolling window every run. A
