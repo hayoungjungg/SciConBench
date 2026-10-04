@@ -1,8 +1,0 @@
-/bin/bash: _parse_usage: line 16: syntax error near unexpected token `('
-/bin/bash: _parse_usage: line 16: ` -?(\[)+([a-zA-Z0-9?]))'
-/bin/bash: error importing function definition for `_parse_usage'
-/bin/bash: _longopt: line 6: syntax error near unexpected token `('
-/bin/bash: _longopt: line 6: ` --!(no-*)dir*)'
-/bin/bash: error importing function definition for `_longopt'
-2026-10-01 01:08:10 killed bulk-gpt61
-2026-10-01 01:20:16 killed bulk-opus-rest-cosaita
