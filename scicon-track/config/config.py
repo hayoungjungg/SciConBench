@@ -70,6 +70,9 @@ class QueryBatchConfig(BaseModel):
     query_run_months: list[int] = [2, 4, 6, 8, 10, 12]
     # Models whose stored responses are never graded or shown on the dashboard.
     excluded_models: list[str] = []
+    # Per-model DOIs the model abstains on (refused every attempt). They are
+    # never queried again, so the model is scored on fewer DOIs.
+    model_abstentions: dict[str, list[str]] = {}
     # OpenRouter key assignment (not concurrent lanes). Models in
     # ``openrouter_base_model_lane`` bill to OPENROUTER_API_KEY_BASE_MODEL;
     # everything else uses OPENROUTER_API_KEY. All OpenRouter models run in

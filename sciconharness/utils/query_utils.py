@@ -183,9 +183,14 @@ def create_provider(
         # succeeded by retrying every call in adaptive mode at effort=max;
         # select that known-good mode directly to preserve the same behavior
         # without an avoidable rejected request on every tool turn.
-        if model.lower() in {"claude-opus-5", "claude-opus-5-5"}:
+        # Opus 5.5 uses xhigh: at max its final-answer turns average ~20k
+        # thinking tokens and overflow the 8192-token cap.
+        if model.lower() == "claude-opus-5":
             claude_kwargs["thinking_mode"] = "adaptive"
             claude_kwargs["adaptive_effort"] = "max"
+        elif model.lower() == "claude-opus-5-5":
+            claude_kwargs["thinking_mode"] = "adaptive"
+            claude_kwargs["adaptive_effort"] = "xhigh"
         
         return ClaudeProvider(**claude_kwargs)
     else:

@@ -727,6 +727,21 @@
       .join("");
   }
 
+  // Row heights vary with breakpoint and name wrapping, so the visible-row
+  // cap is measured from the rendered table rather than fixed in CSS.
+  function capScrollRows() {
+    document.querySelectorAll(".table-wrap--scroll[data-scroll-rows]").forEach((wrap) => {
+      const limit = Number(wrap.dataset.scrollRows);
+      const head = wrap.querySelector("thead");
+      const rows = Array.from(wrap.querySelectorAll("tbody tr")).slice(0, limit);
+      if (!rows.length) return;
+      const height =
+        (head ? head.getBoundingClientRect().height : 0) +
+        rows.reduce((sum, row) => sum + row.getBoundingClientRect().height, 0);
+      wrap.style.setProperty("--scroll-rows-height", `${Math.ceil(height) + 2}px`);
+    });
+  }
+
   let effortState = { sort: "tool_calls", direction: "desc" };
 
   function renderEffort(data) {
@@ -862,17 +877,34 @@
   function renderContent(data) {
     const site = data.site || {};
 
-    $("news-list").innerHTML = (site.news || [])
+    const NEWS_VISIBLE = 3;
+    const news = site.news || [];
+    const olderCount = Math.max(0, news.length - NEWS_VISIBLE);
+    $("news-list").innerHTML = news
       .map(
-        (n) =>
-          `<li><img class="news-icon" src="assets/logo.png?v=202609082358" alt="" aria-hidden="true" /><time>[${escape(
+        (n, i) =>
+          `<li${i >= NEWS_VISIBLE ? ' class="news-older" hidden' : ""}><img class="news-icon" src="assets/logo.png?v=202609082358" alt="" aria-hidden="true" /><time>[${escape(
             fmtDate(n.date)
-          )}]:</time> <span>${escape(n.text).replace(
-            /\*([^*]+)\*/g,
-            "<em>$1</em>"
-          )}</span></li>`
+          )}]:</time> <span>${escape(n.text)
+            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+            .replace(/\*([^*]+)\*/g, "<em>$1</em>")}</span></li>`
       )
       .join("");
+
+    const newsToggle = $("news-toggle");
+    newsToggle.hidden = olderCount === 0;
+    const setNewsExpanded = (expanded) => {
+      newsToggle.setAttribute("aria-expanded", String(expanded));
+      newsToggle.textContent = expanded
+        ? "Hide older news"
+        : `Show older news (${olderCount})`;
+      document
+        .querySelectorAll("#news-list .news-older")
+        .forEach((li) => (li.hidden = !expanded));
+    };
+    setNewsExpanded(false);
+    newsToggle.onclick = () =>
+      setNewsExpanded(newsToggle.getAttribute("aria-expanded") !== "true");
 
     $("faq").innerHTML = (site.faq || [])
       .map((f) => {
@@ -1212,6 +1244,8 @@
       renderEffort(data);
       renderContent(data);
       bindControls(data);
+      capScrollRows();
+      window.addEventListener("resize", capScrollRows);
     })
     .catch((error) => {
       $("hero-tagline").textContent =

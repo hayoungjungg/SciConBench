@@ -32,7 +32,7 @@
     } catch (_) {}
   })();
 </script>
-<link rel="stylesheet" href="assets/styles.css?v=202609090003" />
+<link rel="stylesheet" href="assets/styles.css?v=202610041545" />
 </head>
 <body>
 <div class="grain" aria-hidden="true"></div>
@@ -204,6 +204,7 @@
     <div class="wrap">
       <h2 class="section-title news-title">Latest News</h2>
       <ul class="news" id="news-list"></ul>
+      <button type="button" class="news-toggle" id="news-toggle" aria-controls="news-list" aria-expanded="false" hidden></button>
     </div>
   </section>
 
@@ -236,7 +237,7 @@
         <figcaption>
           <a href="https://arxiv.org/abs/2606.11337" target="_blank" rel="noopener">Figure 1 from the preprint.</a>
           (1) SciConBench launched with 9.11K questions paired with expert-written conclusions
-          and continues to grow as a live benchmark (9.19K samples as of August 2026!).
+          and continues to grow as a live benchmark (9.20K samples as of October 2026!).
           (2) Agents synthesize scientific conclusions using web tools.
           (3) SciConHarness enforces clean-room evaluation by blocking ground-truth artifacts.
           (4) An expert-validated pipeline decomposes generated and reference conclusions into
@@ -423,7 +424,7 @@
             These were one-time evaluations, not a monthly panel, so it only shows under
             “All reviews”.
           </div>
-          <div class="table-wrap">
+          <div class="table-wrap table-wrap--scroll" data-scroll-rows="10">
             <table class="board" id="board">
               <thead>
                 <tr>
@@ -452,7 +453,7 @@
             </p>
           </div>
         </div>
-        <div class="table-wrap table-wrap--contradictions">
+        <div class="table-wrap table-wrap--contradictions table-wrap--scroll" data-scroll-rows="10">
           <table class="board board--compact response-diagnostics-table">
             <thead>
               <tr>
@@ -480,7 +481,7 @@
             </p>
           </div>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap table-wrap--scroll" data-scroll-rows="10">
           <table class="board board--compact" id="effort-table">
             <thead>
               <tr>
@@ -527,7 +528,7 @@
 
 </main>
 
-<script src="assets/charts.js?v=202609071910"></script>
-<script src="assets/app.js?v=202609301600"></script>
+<script src="assets/charts.js?v=202610041842"></script>
+<script src="assets/app.js?v=202610041545"></script>
 </body>
 </html>

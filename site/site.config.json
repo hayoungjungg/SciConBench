@@ -23,24 +23,28 @@
   "citation": "@misc{jung2026aiagentssynthesizescientific,\n      title={Can AI Agents Synthesize Scientific Conclusions?},\n      author={Hayoung Jung and Pedro Viana Diniz and Jos\u00e9 Reinaldo Corr\u00eaa Roveda and Abner Fernandes da Silva and Haeun Jung and Enoch Tsai and Aleksandra Korolova and Manoel Horta Ribeiro},\n      year={2026},\n      eprint={2606.11337},\n      archivePrefix={arXiv},\n      primaryClass={cs.AI},\n      url={https://arxiv.org/abs/2606.11337},\n}",
   "news": [
     {
+      "date": "2026-10-04",
+      "text": "October 2026 release. New on the leaderboard: GPT-6.1 Sol, Claude Opus 5.5, Gemini 3.8 Flash, and DeepSeek-V4.1-Flash. The evaluation set grows to 185 reviews and the benchmark to 9.20K samples."
+    },
+    {
       "date": "2026-09-30",
-      "text": "Given limited improvement in model performance, evaluations will move to a bimonthly schedule starting in October 2026 (October, December, February, …), while the benchmark will continue to grow and publish monthly. Newly released models will be evaluated on the core set and the three most recent completed rolling panels."
+      "text": "Due to high cost and limited performance gains, evaluations will move to a bimonthly schedule starting October 2026, while the benchmark grows monthly. New models will be evaluated on the core set and the three most recent rolling panels."
     },
     {
       "date": "2026-09-24",
-      "text": "SciConBench was accepted at NeurIPS 2026 in the Evaluations and Datasets Track!"
+      "text": "SciConBench was accepted at **NeurIPS 2026** in the Evaluations and Datasets Track!"
     },
     {
       "date": "2026-08-29",
-      "text": "This evaluation dashboard is finally live! It hosts monthly evaluations of the latest AI agents from 7 frontier labs on a fixed core set and newly posted SciConBench samples, measuring their scientific conclusion synthesis capabilities over time."
+      "text": "This evaluation dashboard is finally live! Over time, it evaluates the latest AI agents from 7 frontier labs on a fixed core set and newly posted samples, measuring their scientific conclusion synthesis capabilities."
     },
     {
       "date": "2026-07-15",
-      "text": "July 2026 dataset release. The benchmark grows from 9.11K to 9.17K samples; superseded reviews are replaced with their latest editions. The benchmark is constantly growing and will be published on HuggingFace each month."
+      "text": "July 2026 dataset release. Our live benchmark grows from 9.11K to 9.17K samples; superseded reviews are replaced with their latest editions on HuggingFace."
     },
     {
       "date": "2026-06-09",
-      "text": "Our paper \"Can AI Agents Synthesize Scientific Conclusions?\" is on arXiv, introducing SciConBench and SciConHarness, our clean-room evaluation harness."
+      "text": "Our paper \"Can AI Agents Synthesize Scientific Conclusions?\" is now on arXiv!"
     }
   ],
   "faq": [
@@ -79,7 +83,7 @@
     },
     {
       "question": "How does the live benchmark infrastructure work, and where can I find it?",
-      "answer": "At the start of each month, an automated pipeline updates and publishes the benchmark; at the start of every other month (October, December, February, …), it also evaluates and scores the models.\n- **Update:** Find newly published Cochrane reviews and replace superseded reviews with their latest editions.\n- **Construct and publish:** Convert each review’s *Objectives* into a scientific question, decompose its *Authors’ Conclusions* into atomic, checkable facts, and publish the live benchmark on Hugging Face.\n- **Evaluate (every two months):** Run the latest AI agents on the core set and eligible rolling panels through the clean-room SciConHarness.\n- **Score and report:** Decompose generated conclusions into atomic facts, compute factual precision, recall, and F1 with an expert-validated LLM judge, and refresh this dashboard.\nThe complete infrastructure—including monthly tracking, SciConHarness, scoring, and dashboard code—lives in the [sciconbench-track branch on GitHub](https://github.com/hayoungjungg/SciConBench/tree/sciconbench-track)."
+      "answer": "At the start of each month, an automated pipeline updates and publishes the benchmark; at the start of every other month (October, December, February, …), it also evaluates and scores the models.\n- **Update:** Find newly published Cochrane reviews and replace superseded reviews with their latest editions.\n- **Construct and publish:** Convert each review’s *Objectives* into a scientific question, decompose its *Authors’ Conclusions* into atomic, checkable facts, and publish the live benchmark on Hugging Face.\n- **Evaluate (every two months):** Run the latest AI agents on the core set and eligible rolling panels through the clean-room SciConHarness.\n- **Score and report (every two months):** Decompose generated conclusions into atomic facts, compute factual precision, recall, and F1 with an expert-validated LLM judge, and refresh this dashboard.\nThe complete infrastructure—including monthly tracking, SciConHarness, scoring, and dashboard code—lives in the [sciconbench-track branch on GitHub](https://github.com/hayoungjungg/SciConBench/tree/sciconbench-track)."
     },
     {
       "question": "How does this dashboard relate to the benchmark on Hugging Face?",
@@ -95,8 +99,8 @@
     }
   ],
   "introduction": [
-    "AI agents increasingly perform the *long-horizon* task of *scientific conclusion synthesis*: retrieving evidence, reasoning across sources, and producing conclusions used in consequential decisions. The stakes are especially high in health, where billions of ChatGPT messages concern healthcare each week and OpenEvidence reports over 200 million AI-assisted clinical consultations [[1]](https://www.openevidence.com/about), [[2]](https://cdn.openai.com/pdf/2cb29276-68cd-4ec6-a5f4-c01c5e7a36e9/OpenAI-AI-as-a-Healthcare-Ally-Jan-2026.pdf). *So, can AI agents synthesize scientific conclusions?* **SciConBench** pairs 9K+ questions with expert conclusions from Cochrane systematic reviews. Using **SciConHarness**, agents retrieve sources from the open web through clean-room tools that block benchmark answers and synthesize scientific conclusions, which are then evaluated for factual correctness (precision) and completeness (recall). ++The best agent in our preprint reached only 0.337 factual F1.++ Because static benchmarks leak into pretraining data, SciConBench is **live**, adding fresh samples from newly published reviews monthly.",
-    "**This dashboard evaluates frontier models every two months on both fresh samples and a fixed core set, separating genuine capability gains from gains driven by benchmark leakage.** [See the research questions we aim to answer through this longitudinal dashboard.](#faq-dashboard-questions)"
+    "AI agents increasingly perform the *long-horizon* task of *scientific conclusion synthesis*: retrieving evidence, reasoning across sources, and producing conclusions used in consequential decisions. The stakes are especially high in health, where billions of ChatGPT messages concern healthcare weekly and OpenEvidence reports over 200 million AI-assisted clinical consultations [[1]](https://www.openevidence.com/about), [[2]](https://cdn.openai.com/pdf/2cb29276-68cd-4ec6-a5f4-c01c5e7a36e9/OpenAI-AI-as-a-Healthcare-Ally-Jan-2026.pdf). *So, can AI agents synthesize scientific conclusions?* **SciConBench** pairs 9K+ questions with expert conclusions from Cochrane systematic reviews. Using **SciConHarness**, agents retrieve open-web evidence through clean-room tools that block benchmark answers, then synthesize conclusions evaluated for factual correctness (precision) and completeness (recall). ++The best agent in our preprint reached only 0.337 factual F1.++ Since static benchmarks leak into pretraining data, SciConBench is **live**, adding new samples monthly.",
+    "**This dashboard tracks frontier models on new and fixed samples, distinguishing genuine capability gains from improvements driven by benchmark leakage.** [See the research questions guiding our longitudinal evaluation.](#faq-dashboard-questions)"
   ],
   "question_examples": [
     {

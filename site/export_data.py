@@ -106,6 +106,17 @@ DISPLAY_NAMES = {
     "minimax/minimax-m3": "MiniMax M3 (reasoning)",
 }
 
+# First run month a model appears on the trend chart. Models added mid-track
+# were backfilled over earlier cohorts under earlier run months; those rows
+# are folded into a single cumulative point at the release that added them,
+# rather than drawn as points from before the model was on the roster.
+SERIES_DEBUT = {
+    "gpt-6.1-sol": "2026-09",
+    "claude-opus-5-5": "2026-09",
+    "gemini-3.8-flash": "2026-09",
+    "DeepSeek-V4.1-Flash": "2026-09",
+}
+
 
 # --------------------------------------------------------------------------- #
 # helpers
@@ -668,6 +679,9 @@ def export_evaluations(
     # month still belongs to the shared core panel, so later months see the
     # full core set rather than only that month's newly added core DOI.
     rolling_buckets: dict[tuple[str, str, str], dict[str, Any]] = {}
+    # Rolling keyed by cohort (publication) month instead of run month, so a
+    # backfilled model's debut point can show just that month's cohort.
+    rolling_cohorts: dict[tuple[str, str, str], dict[str, Any]] = {}
     core_events: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     panel_keys_seen: set[str] = set()
     panel_dois: dict[str, set[str]] = defaultdict(set)
@@ -752,6 +766,12 @@ def export_evaluations(
                 )
                 _add_score_to_bucket(
                     rb, doi=row["doi"], precision=precision, recall=recall
+                )
+                cb = rolling_cohorts.setdefault(
+                    (row["model"], row["provider"], row["cohort_month"]), new_score_bucket()
+                )
+                _add_score_to_bucket(
+                    cb, doi=row["doi"], precision=precision, recall=recall
                 )
 
     # Precompute cumulative core panels per (model, provider, as_of_month).
@@ -846,6 +866,9 @@ def export_evaluations(
         "entries": entries,
         "run_months": sorted({e["run_month"] for e in entries}),
         "panel_views": panel_views if panel_keys_seen else [],
+        "rolling_cohorts": {
+            key: _finalize_panel_bucket(b) for key, b in rolling_cohorts.items()
+        },
     }
 
 
@@ -957,7 +980,10 @@ def build_leaderboard(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return board
 
 
-def build_series(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_series(
+    entries: list[dict[str, Any]],
+    rolling_cohorts: dict[tuple[str, str, str], dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Per-model time series of F1 across run months, for the trend chart.
 
     The blended ``All`` view is cumulative: each point combines the full core
@@ -974,10 +1000,15 @@ def build_series(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         rows.sort(key=lambda e: e["run_month"])
         points = []
         rolling_so_far: list[dict[str, Any]] = []
+        debut = SERIES_DEBUT.get(model)
+        folded = False
         for r in rows:
             panels = r.get("panels") or {}
             if rolling := panels.get("rolling"):
                 rolling_so_far.append(rolling)
+            if debut and r["run_month"] < debut:
+                folded = True
+                continue
 
             cumulative_panels: dict[str, Any] = {}
             if core := panels.get("core"):
@@ -993,7 +1024,15 @@ def build_series(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 }
 
             cumulative_slices = list(cumulative_panels.values())
+            # A folded debut month's run-month rolling bucket also holds
+            # backfilled earlier cohorts; show only that month's cohort.
+            if folded:
+                panels = {k: v for k, v in panels.items() if k != "rolling"}
+                cohort = rolling_cohorts.get((model, r["provider"], r["run_month"]))
+                if cohort:
+                    panels["rolling"] = cohort
             points.append({
+                "backfilled": folded,
                 "month": r["run_month"],
                 "label": r["run_month_label"],
                 "f1": _weighted_metric(cumulative_slices, "f1"),
@@ -1024,6 +1063,7 @@ def build_series(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     for k, v in cumulative_panels.items()
                 },
             })
+            folded = False
         if any(p["f1"] is not None for p in points):
             series.append(
                 {
@@ -1109,7 +1149,7 @@ def main() -> None:
         "dataset": dataset,
         "leaderboard": leaderboard,
         "panel_views": evaluations["panel_views"],
-        "series": build_series(entries),
+        "series": build_series(entries, evaluations["rolling_cohorts"]),
         "paper_baselines": build_paper_baselines(),
         "entries": entries,
         "models": registry,

@@ -18,10 +18,9 @@ min_conclusion_length: 50
 # max_output_tokens for GPT/Gemini and max_tokens elsewhere). Also bounds
 # OpenRouter's in-flight credit reservation.
 max_tokens: 8192
-# Per-model replacements for max_tokens. Opus 5.5 at adaptive/max effort can
-# spend all 8192 tokens on thinking and return no text or tool call.
-max_tokens_overrides:
-  claude-opus-5-5: 32000
+# Per-model replacements for max_tokens (e.g. claude-opus-5-5: 32000 if it
+# runs at max effort, where thinking can consume all 8192 tokens).
+max_tokens_overrides: {}
 
 # Evaluate the current core plus only the most recent N closed rolling cohorts.
 # This prevents a newly added model from backfilling the entire rolling history.
@@ -38,6 +37,17 @@ query_run_months: [2, 4, 6, 8, 10, 12]
 # the dashboard, e.g. a model replaced before its responses were scored.
 excluded_models:
   - gpt-6-sol    # replaced by gpt-6.1-sol
+
+# DOIs a model abstains on: it refused every attempt (Anthropic
+# stop_reason=refusal, category bio), so no response is stored and the model
+# is scored on fewer DOIs. Listed DOIs are skipped on future runs.
+model_abstentions:
+  claude-opus-5-5:    # 2026-08 backfill: 154/159 answered, 5 refused
+    - 10.1002/14651858.CD001125.pub2
+    - 10.1002/14651858.CD006404.pub5
+    - 10.1002/14651858.CD014217.pub2
+    - 10.1002/14651858.CD016290
+    - 10.1002/14651858.CD016299.pub2
 
 default_models:
   # Own salame_openai lane on SALAME_AZURE_OPENAI_KEY /

@@ -215,7 +215,7 @@ The `workflow` command executes these Prefect tasks in order:
 | 6 | `task_generate_questions` | Generate clinical questions |
 | 7 | `task_generate_cochrane_facts_batch` | Atomic-fact decomposition of Cochrane conclusions |
 | 8 | `task_upload_to_hf` | Merge + publish **closed-month** core+rolling rows to `hayoungjung/SciConBench` (benchmark/test); refresh `sciconharness` Cochrane-filter caches; then (production only) prepend a newest-first Hub README changelog entry in a second commit. Superseded `.pubN` DOIs are dropped from the merge. |
-| 9 | `task_run_queries` | **Bimonthly** (only in `query_run_months`, default Oct/Dec/Feb/Apr/Jun/Aug; stages 9–12 are skipped otherwise). Query models with SciConHarness against the current core plus the latest **3** closed rolling cohorts. By default every model queries each DOI **once** (skip if any prior response exists). Opt into per-run re-query via `reevaluate_always` in `query_batch_config.yaml`. A newly added model therefore evaluates the core and three-month rolling window, never the entire rolling history; existing models pick up the two cohorts closed since the previous query run. Only `FACTS_GENERATED` DOIs are queried. Each pair is retried per-item, then leftover pairs are re-queried in whole-stage rounds; leftover pending DOI/model pairs fail the task. |
+| 9 | `task_run_queries` | **Bimonthly** (only in `query_run_months`, default Oct/Dec/Feb/Apr/Jun/Aug; stages 9–12 are skipped otherwise). Query models with SciConHarness against the current core plus the latest **3** closed rolling cohorts. By default every model queries each DOI **once** (skip if any prior response exists). Opt into per-run re-query via `reevaluate_always` in `query_batch_config.yaml`. A newly added model therefore evaluates the core and three-month rolling window, never the entire rolling history; existing models pick up the two cohorts closed since the previous query run. Only `FACTS_GENERATED` DOIs are queried. Each pair is retried per-item, then leftover pairs are re-queried in whole-stage rounds; leftover pending DOI/model pairs fail the task. DOIs listed under `model_abstentions` are never pending for that model. **Note:** Claude Opus 5.5 has 5 fewer scored DOIs (154/159 in the 2026-08 backfill) because it refused every attempt on `CD001125.pub2`, `CD006404.pub5`, `CD014217.pub2`, `CD016290` and `CD016299.pub2` (Anthropic `stop_reason=refusal`, category bio). These are recorded as abstentions, not as zero-score responses. |
 | 10 | `task_generate_response_facts_by_model` | Atomic-fact decomposition of model responses. Stages 10–12 cover **every** ungraded response from any run month (except `excluded_models`), so off-cycle backfills are scored at the next query run. |
 | 11 | `task_run_precision` | LLM-judge precision analysis |
 | 12 | `task_run_recall` | LLM-judge recall analysis |
@@ -272,6 +272,8 @@ running alongside the primary panel for comparison:
 rolling_panel_months: 3             # newest closed rolling cohorts to evaluate
 query_run_months: [2, 4, 6, 8, 10, 12]  # run months for stages 9–12
 excluded_models: [gpt-6-sol]        # never graded (stages 10–12) or shown on the site
+model_abstentions:                  # refused every attempt; skipped on future runs
+  claude-opus-5-5: [...]            # 5 DOIs (see note below)
 
 default_models:
   openai: gpt-6.1-sol

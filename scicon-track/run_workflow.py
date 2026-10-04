@@ -797,6 +797,7 @@ def _pending_dois_for_model(
         config_label=config_label,
         run_month=None if once else run_month,
     )
+    done |= set(query_cfg.model_abstentions.get(model, []))
     return [doi for doi in eval_dois if doi not in done]
 
 

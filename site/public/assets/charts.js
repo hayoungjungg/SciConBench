@@ -429,7 +429,7 @@
       bottom: 44,
       left: 46,
     };
-    const IDEAL_COL_STEP = 145;
+    const IDEAL_COL_STEP = 200;
     const W = Math.max(
       860,
       pad.left + 80 + Math.max(0, labels.length - 1) * IDEAL_COL_STEP + pad.right

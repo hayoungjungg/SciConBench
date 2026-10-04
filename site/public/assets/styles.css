@@ -937,6 +937,33 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   margin-right: auto;
   margin-left: auto;
 }
+/* Size containment keeps the leaderboard from growing the results row, so
+   the column stretches to the Metrics column and the table scrolls inside. */
+.leaderboard-column {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  contain: size;
+}
+.leaderboard-column .table-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+}
+.table-wrap--scroll {
+  max-height: var(--scroll-rows-height, 520px);
+  overflow-y: auto;
+}
+.leaderboard-column .table-wrap,
+.table-wrap--scroll {
+  overscroll-behavior: contain;
+}
+.leaderboard-column .board thead th,
+.table-wrap--scroll .board thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
 
 .board {
   width: 100%;
@@ -1389,6 +1416,22 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
 .news time { font-weight: 600; color: var(--text-faint); }
 .news span { color: var(--text-dim); }
 .news em { font-style: italic; }
+.news strong { font-weight: 600; color: var(--text); }
+.news-toggle {
+  margin: 6px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.news-toggle::after { content: " \25BE"; }
+.news-toggle[aria-expanded="true"]::after { content: " \25B4"; }
+.news-toggle:hover { color: var(--text); text-decoration: underline; }
+.news-toggle[hidden] { display: none; }
 
 /* Logos + pills sit together as one plain centered row — that's the part
    that needs to visually read as centered. The pills' own midpoint is
@@ -1669,6 +1712,12 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
     gap: 18px;
     margin-right: 0;
     margin-left: 0;
+  }
+  /* Stacked layout has no Metrics column beside the board to match. */
+  .leaderboard-column { contain: none; }
+  .leaderboard-column .table-wrap {
+    flex: none;
+    max-height: var(--scroll-rows-height, 520px);
   }
   .quantitative-subsection { width: auto; margin-left: 0; }
 }

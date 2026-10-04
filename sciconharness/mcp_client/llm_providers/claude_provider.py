@@ -425,9 +425,13 @@ class ClaudeProvider(LLMProvider):
                                         preserved_block[key] = value
                                 content_blocks.append(preserved_block)
                 
-                # Add tool use blocks if present (before text content)
-                # According to Anthropic docs: "If thinking is enabled, the final assistant turn must start with a thinking block."
-                # The order should be: thinking blocks -> tool_use blocks -> text content
+                # Replay blocks in the order Claude emits them: thinking -> text -> tool_use.
+                if content:
+                    content_blocks.append({
+                        "type": "text",
+                        "text": content
+                    })
+
                 for tool_call in tool_calls:
                     # Handle both OpenAI format and Claude format
                     if "function" in tool_call:
@@ -457,15 +461,6 @@ class ClaudeProvider(LLMProvider):
                             "name": tool_call.get("name", ""),
                             "input": tool_call.get("input", {}),
                         })
-                
-                # Add text content if present (after tool use blocks)
-                # Note: When tool calls are present, text content typically comes in a later assistant message
-                # after tool results are provided, but we handle it here for completeness.
-                if content:
-                    content_blocks.append({
-                        "type": "text",
-                        "text": content
-                    })
                 
                 if content_blocks:
                     claude_messages.append({
